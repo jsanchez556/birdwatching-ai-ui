@@ -33,6 +33,7 @@ export async function sendChatMessage({ message, conversationId }) {
   return {
     conversationId: responseConversationId || conversationId,
     response: aiResponse,
+    metadata: data.meta || {},
   }
 }
 

@@ -44,17 +44,35 @@ function getCachedMessages(conversationId) {
     }
 
     const parsedMessages = JSON.parse(cachedMessages)
-    return Array.isArray(parsedMessages) ? parsedMessages : null
+
+    if (Array.isArray(parsedMessages)) {
+      return parsedMessages
+    }
+
+    if (Array.isArray(parsedMessages?.messages)) {
+      return parsedMessages.messages
+    }
+
+    return null
   } catch {
     return null
   }
+}
+
+function hasMetadata(metadata) {
+  return metadata && typeof metadata === 'object' && Object.keys(metadata).length > 0
 }
 
 function persistConversationMessages(conversationId, messages) {
   try {
     window.localStorage.setItem(
       getConversationMessagesStorageKey(conversationId),
-      JSON.stringify(messages)
+      JSON.stringify({
+        messages,
+        metadata: {
+          savedAt: new Date().toISOString(),
+        },
+      })
     )
   } catch {
     // Conversation hydration falls back to the API if message cache is unavailable.
@@ -132,14 +150,28 @@ export default function useChat() {
     setError(null)
 
     try {
-      const { conversationId: returnedConversationId, response } = await sendChatMessage({
+      const {
+        conversationId: returnedConversationId,
+        response,
+        metadata,
+      } = await sendChatMessage({
         message,
         conversationId,
       })
       persistConversationId(returnedConversationId)
       setConversationId(returnedConversationId)
       setMessages((prev) => {
-        const nextMessages = [...prev, { role: 'assistant', content: response }]
+        const assistantMessage = {
+          role: 'assistant',
+          content: response,
+          ...(hasMetadata(metadata)
+            ? { metadata }
+            : {}),
+          ...(metadata?.reservation
+            ? { reservation: metadata.reservation }
+            : {}),
+        }
+        const nextMessages = [...prev, assistantMessage]
         persistConversationMessages(returnedConversationId, nextMessages)
         return nextMessages
       })

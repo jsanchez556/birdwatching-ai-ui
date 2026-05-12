@@ -1,4 +1,30 @@
 import { useLayoutEffect, useRef } from 'react'
+import ReservationConfirmationCard from './ReservationConfirmationCard'
+import {
+  extractReservationConfirmation,
+  normalizeReservationConfirmation,
+} from '../utils/reservationConfirmation'
+
+function MessageContent({ message }) {
+  const reservation = message.role === 'assistant' && !message.isError
+    ? normalizeReservationConfirmation(message.reservation)
+      || normalizeReservationConfirmation(message.metadata?.reservation)
+      || extractReservationConfirmation(message.content)
+    : null
+
+  if (!reservation) {
+    return message.content
+  }
+
+  return (
+    <>
+      {message.content && (
+        <div className="message-text">{message.content}</div>
+      )}
+      <ReservationConfirmationCard reservation={reservation} />
+    </>
+  )
+}
 
 function ChatMessages({ messages, isLoading }) {
   const messagesRef = useRef(null)
@@ -64,8 +90,8 @@ function ChatMessages({ messages, isLoading }) {
                 <div className="message-label">
                   {meta.label}
                 </div>
-                <div className={`message-bubble${message.isError ? ' error' : ''}`}>
-                  {message.content}
+                <div className={`message-bubble${message.isError ? ' error' : ''}${message.role === 'assistant' ? ' assistant-content' : ''}`}>
+                  <MessageContent message={message} />
                 </div>
               </div>
             </article>

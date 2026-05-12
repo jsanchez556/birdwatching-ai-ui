@@ -31,4 +31,118 @@ describe('ChatMessages', () => {
 
     expect(screen.getByLabelText(/Birdwatching AI is thinking/i)).toBeInTheDocument()
   })
+
+  test('renders reservation confirmation details in a card', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: [
+          'Your reservation is confirmed!',
+          'Confirmation code: BW-ABC123',
+          'Reservation ID: 42',
+          'Customer name: Ana Rivera',
+          'Tour name: Monteverde Quetzal Tour',
+          'Tour ID: 1',
+          'Participants: 2',
+          'Created at: 2026-05-11T10:30:00Z',
+          'Total price: $240.00',
+        ].join('\n'),
+      },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    expect(screen.getByLabelText(/Reservation confirmation/i)).toBeInTheDocument()
+    expect(screen.getByText(/Reservation confirmed/i)).toBeInTheDocument()
+    expect(screen.getByText('BW-ABC123')).toBeInTheDocument()
+    expect(screen.getByText('Ana Rivera')).toBeInTheDocument()
+    expect(screen.getByText('Monteverde Quetzal Tour')).toBeInTheDocument()
+    expect(screen.getByText('$240.00')).toBeInTheDocument()
+  })
+
+  test('prefers structured reservation metadata for confirmation cards', () => {
+    const assistantText = 'Your reservation is confirmed.'
+    const messages = [
+      {
+        role: 'assistant',
+        content: assistantText,
+        reservation: {
+          confirmationCode: 'BW-META123',
+          reservationId: 99,
+          customerName: 'Luis Mora',
+          tourName: 'Tortuguero Canal Bird Safari',
+          tourId: 6,
+          participants: 4,
+          totalPrice: 558,
+          discountReason: 'Group discount',
+        },
+      },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    expect(screen.getByText(assistantText)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Reservation confirmation/i)).toBeInTheDocument()
+    expect(screen.getByText('BW-META123')).toBeInTheDocument()
+    expect(screen.getByText('Luis Mora')).toBeInTheDocument()
+    expect(screen.getByText('Tortuguero Canal Bird Safari')).toBeInTheDocument()
+    expect(screen.getByText('$558.00')).toBeInTheDocument()
+    expect(screen.getByText('Group discount')).toBeInTheDocument()
+  })
+
+  test('renders reservation metadata returned with backend snake_case fields', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Your reservation is confirmed.',
+        reservation: {
+          confirmation_code: 'BW-SNAKE123',
+          id: 101,
+          customer_name: 'Mariana Solis',
+          tour_id: 3,
+          tourName: 'Carara Scarlet Macaw Walk',
+          participants: 2,
+          created_at: '2026-05-12T14:00:00Z',
+          total_price: 210,
+        },
+      },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    expect(screen.getByLabelText(/Reservation confirmation/i)).toBeInTheDocument()
+    expect(screen.getByText('BW-SNAKE123')).toBeInTheDocument()
+    expect(screen.getByText('101')).toBeInTheDocument()
+    expect(screen.getByText('Mariana Solis')).toBeInTheDocument()
+    expect(screen.getByText('3')).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
+    expect(screen.getByText('$210.00')).toBeInTheDocument()
+    expect(screen.getByText('2026-05-12T14:00:00Z')).toBeInTheDocument()
+  })
+
+  test('reads reservation data from persisted message metadata', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Your reservation is confirmed.',
+        metadata: {
+          reservation: {
+            confirmationCode: 'BW-CACHED123',
+            reservationId: 77,
+            customerName: 'Diego Vega',
+            tourName: 'Monteverde Quetzal Tour',
+            participants: 2,
+            totalPrice: 240,
+          },
+        },
+      },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    expect(screen.getByLabelText(/Reservation confirmation/i)).toBeInTheDocument()
+    expect(screen.getByText('BW-CACHED123')).toBeInTheDocument()
+    expect(screen.getByText('Diego Vega')).toBeInTheDocument()
+    expect(screen.getByText('$240.00')).toBeInTheDocument()
+  })
 })

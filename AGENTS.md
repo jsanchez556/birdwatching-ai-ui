@@ -29,8 +29,9 @@ This frontend delivers the chat experience, responsive UI, local conversation co
 - Preserve loading and error states in the chat flow.
 - Keep typing/loading indicators accessible with ARIA labels.
 - Preserve scroll-to-latest behavior for ongoing conversation.
-- Treat backend `sources`, tool details, tour data, discount details, or reservation metadata as optional future display data; do not invent fields that the UI does not receive.
+- Treat backend `sources`, tool details, tour data, discount details, or reservation metadata as optional display data; do not invent fields that the UI does not receive.
 - The backend may summarize tour listing, selection, pricing, discount, and reservation tool results in assistant text without exposing raw tool data in the public `/chat` response.
+- Reservation confirmation cards should prefer `meta.reservation`, fall back conservatively to assistant text for older messages, and keep the original assistant message visible.
 
 ## State And Persistence
 - Use hooks for stateful orchestration.
@@ -57,7 +58,7 @@ This frontend delivers the chat experience, responsive UI, local conversation co
 - Use the normalized backend response envelope: `{ success, data, meta }`.
 - Surface backend error messages when safe and available, with a friendly fallback.
 - Validate response shapes at the API adapter boundary.
-- Keep `POST /chat` and `GET /chat/:conversationId` as the only active browser calls until the UI intentionally adds recommendation or reservation-specific surfaces.
+- Keep `POST /chat` and `GET /chat/:conversationId` as the only active browser calls until the UI intentionally adds recommendation or reservation-specific endpoints.
 - Keep `VITE_API_URL` public and non-sensitive.
 - In local development, prefer relative `/chat` requests through the Vite proxy.
 

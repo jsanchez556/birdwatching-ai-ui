@@ -5,6 +5,7 @@ AI-agent entry point for the Birdwatching AI UI. Read this file first, then foll
 ## What This Is
 This repository is a single React/Vite frontend for Costa Rica birdwatching assistance. It supports:
 - responsive chat UI with user and assistant message roles
+- styled reservation confirmation cards for confirmed booking responses
 - typing/loading state while the backend generates a response
 - local conversation ID persistence with `localStorage`
 - cached conversation messages for fast reloads
@@ -46,6 +47,8 @@ ChatInput submit
   -> validate normalized backend envelope
   -> persist returned conversationId
   -> append assistant response
+  -> attach meta.reservation when meta.isReservationMessage is true
+  -> render reservation confirmation card from metadata, with text parsing fallback for older messages
   -> ignore optional sources/tool metadata until a UI surface exists
   -> cache messages in localStorage
 ```
@@ -84,6 +87,8 @@ Browser fetch(`${VITE_API_URL}/chat`)
 - The backend may return a different `conversationId`; the UI persists the returned ID.
 - The backend may return RAG `sources`; the current UI accepts the field but does not render it.
 - Tour listing, recommendation, selection, availability, pricing, discounts, and reservations happen inside the backend chat flow and are summarized in `data.response`.
+- Successful backend reservations also return `meta.isReservationMessage: true` and `meta.reservation`; the UI stores that metadata on the assistant message for display.
+- `ChatMessages` uses `src/utils/reservationConfirmation.js` to normalize reservation metadata or detect older confirmed reservation summaries and render `ReservationConfirmationCard` without adding backend tool logic to the browser.
 - The UI does not currently call `POST /recommend`, even though the backend exposes it for structured recommendation use cases.
 - Message cache failures are swallowed so chat still works when storage is unavailable.
 - Request failures append a user-friendly assistant error message and also expose the backend/client error in the alert.

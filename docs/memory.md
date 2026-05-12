@@ -9,7 +9,7 @@ The backend owns durable conversation memory in PostgreSQL. The frontend stores:
 - the active conversation ID
 - a cached copy of rendered messages for that conversation
 
-The same backend `conversationId` can also be associated with tour reservations created during chat. The frontend treats it as the chat continuity key and does not manage reservation persistence.
+The same backend `conversationId` can also be associated with tour reservations created during chat. The frontend treats it as the chat continuity key and does not manage reservation persistence. A rendered reservation confirmation card is derived from backend response metadata or fallback assistant message parsing, and may be cached with the transcript as display state, not as authoritative booking state.
 
 ## Storage
 Conversation ID key:
@@ -71,6 +71,6 @@ If adding richer UI memory:
 - version local cache entries before changing stored shapes
 - include a way to clear or switch conversations
 - avoid storing sensitive personal data beyond what the user already sees in the chat transcript
-- do not treat reservation data as browser-local memory; fetch or display it only through confirmed backend contracts
+- do not treat reservation card data as browser-local source of truth; fetch or display additional reservation state only through confirmed backend contracts
 - update [API Integration](./api.md) if new backend memory endpoints are used
 - add tests for reload, hydration, and storage-unavailable behavior

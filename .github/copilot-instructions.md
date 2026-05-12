@@ -28,6 +28,7 @@ Use this file as repository-specific guidance for GitHub Copilot. For fuller con
 - Guard `localStorage` reads and writes with `try/catch`.
 - Preserve relative `/chat` requests in local development when `VITE_API_URL` is empty.
 - Treat backend tour, discount, reservation, and RAG behavior as backend-owned unless a confirmed API contract exposes structured UI fields.
+- Prefer documented `meta.reservation` for reservation confirmation cards; keep text extraction display-only and conservative as a fallback.
 - Test user-visible behavior with React Testing Library.
 
 ## Forbidden Patterns

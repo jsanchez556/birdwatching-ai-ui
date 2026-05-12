@@ -48,7 +48,7 @@ Backend endpoints documented for future UI expansion:
 The deployed static server also exposes:
 - `GET /health`
 
-The backend remains the source of truth for OpenAI, RAG, tour tools, discounts, reservations, and PostgreSQL persistence. This frontend stores only UI conversation state and a local cache in `localStorage`.
+The backend remains the source of truth for OpenAI, RAG, tour tools, discounts, reservations, and PostgreSQL persistence. This frontend stores only UI conversation state and a local cache in `localStorage`. When the backend returns reservation metadata for a confirmed booking, the UI renders a styled reservation confirmation card and keeps the assistant message visible.
 
 ## Scripts
 ```bash

@@ -53,8 +53,10 @@ Chat submission uses:
 Backend chat side effects are intentionally outside the UI layer. The backend may
 retrieve bird knowledge sources, execute tour tools, calculate discounts, create
 reservations, persist chat memory, and return a natural-language assistant
-summary. The current UI treats that summary as text and does not render raw tool,
-tour, discount, reservation, or source panels.
+summary. The current UI treats that summary as text, and can additionally render
+a reservation confirmation card from `meta.reservation` when
+`meta.isReservationMessage` is true. It does not render raw tool, tour,
+discount, reservation, or source payloads.
 
 Conversation hydration uses:
 1. `birdwatchingAI.conversationId` from `localStorage`
@@ -86,5 +88,5 @@ The UI state is intentionally small:
 - Error handling is split between user-friendly inline assistant fallback text and a page-level alert.
 - Dark mode and responsive behavior use CSS custom properties and media queries.
 - Network contract drift should be caught in `src/api/chatApi.js`, not in presentational components.
-- Backend tool and reservation capabilities should be represented through documented API adapters before they are displayed as structured UI.
+- Backend tool and reservation capabilities should be represented through documented API adapters before they are displayed as structured UI. The reservation confirmation card uses documented `/chat` metadata, with assistant-text parsing only as a fallback for older messages.
 - Routing is not active. If routes are added, preserve SPA fallback support in production serving.

@@ -25,7 +25,7 @@ Submit behavior:
 The frontend should not rewrite, summarize, classify, or pre-prompt user messages before sending them to the backend unless a future product requirement explicitly adds that behavior.
 
 ## Assistant Output Flow
-Assistant text comes from the backend `data.response` field. The UI renders it as plain text with `white-space: pre-wrap`.
+Assistant text comes from the backend `data.response` field. The UI renders normal responses as plain text with `white-space: pre-wrap`.
 
 Current behavior:
 - no markdown rendering
@@ -33,8 +33,11 @@ Current behavior:
 - no source panel
 - no raw tool result display
 - no client-side prompt injection
+- reservation confirmation summaries can render an additional styled card
 
-The backend may use RAG and tour tools before producing `data.response`. Tour discovery, tour selection, availability checks, pricing, discounts, and reservation creation are backend responsibilities. The current UI displays only the final assistant text, including any reservation confirmation details the backend summarizes.
+The backend may use RAG and tour tools before producing `data.response`. Tour discovery, tour selection, availability checks, pricing, discounts, and reservation creation are backend responsibilities. The current UI displays the final assistant text and, when `meta.isReservationMessage` is true, renders `ReservationConfirmationCard` from `meta.reservation`.
+
+Reservation normalization and fallback extraction live in `src/utils/reservationConfirmation.js`. Prefer backend metadata over text parsing. The parser should stay conservative for older cached or hydrated messages and should not imply that the browser executed or verified a reservation. The backend remains the source of truth.
 
 If rich rendering is added, treat backend output as untrusted content and sanitize appropriately.
 
@@ -48,6 +51,7 @@ If rich rendering is added, treat backend output as untrusted content and saniti
 - Do not place backend prompt text in this frontend repository.
 - Do not add OpenAI API calls to the browser.
 - Do not add backend tour, reservation, RAG, or database logic to the browser.
+- Keep reservation card display logic presentational; do not use it as durable booking state.
 - Update backend prompt docs in the backend repository when backend prompt behavior changes.
 - Update this file when frontend input handling, output rendering, or chat copy changes.
 - Add tests for keyboard behavior and accessible labels when changing `ChatInput`.

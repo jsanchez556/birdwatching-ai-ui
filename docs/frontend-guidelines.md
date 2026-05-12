@@ -30,6 +30,8 @@ Back to [Project Context](../CONTEXT.md). Pair this with [API Integration](./api
 - Throw ordinary `Error` instances with user-meaningful messages.
 - Keep optional backend fields optional in the UI.
 - Treat backend `sources`, tour recommendations, discount details, and reservation details as explicit UI features that require confirmed contracts before rendering.
+- Prefer `meta.reservation` for reservation confirmation cards.
+- Keep fallback reservation confirmation parsing conservative: require clear confirmation language plus a confirmation code, and preserve the original assistant message beside the card.
 - Add tests around API adapters if response handling becomes more complex.
 
 ## Styling
