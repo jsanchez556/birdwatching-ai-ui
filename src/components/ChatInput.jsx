@@ -1,6 +1,11 @@
 import { useRef, useState } from 'react'
 
-function ChatInput({ onSendMessage, isLoading }) {
+function ChatInput({
+  onSendMessage,
+  onStopGenerating,
+  isLoading,
+  isStreaming = false,
+}) {
   const [input, setInput] = useState('')
   const textareaRef = useRef(null)
 
@@ -48,6 +53,16 @@ function ChatInput({ onSendMessage, isLoading }) {
         >
           <span aria-hidden="true">↑</span>
         </button>
+        {isStreaming && (
+          <button
+            type="button"
+            className="stop-button"
+            onClick={onStopGenerating}
+            aria-label="Stop"
+          >
+            <span aria-hidden="true"></span>
+          </button>
+        )}
       </form>
     </div>
   )

@@ -40,10 +40,12 @@ The UI may also receive `createdAt` from the backend during hydration, but it do
 ## Write Behavior
 When a user sends a message:
 1. `useChat` appends the user message immediately.
-2. `sendChatMessage(...)` posts to the backend with the active conversation ID.
-3. `useChat` persists the returned conversation ID.
-4. `useChat` appends the assistant response.
-5. `useChat` stores the rendered transcript for that conversation ID.
+2. `useChat` appends an in-progress assistant message for streamed content.
+3. `streamChatMessage(...)` posts to the backend with the active conversation ID.
+4. `useChat` persists the conversation ID returned by the stream.
+5. `useChat` buffers chunks and reveals them into the assistant message at a readable pace.
+6. `useChat` finalizes the assistant response from the `done` event.
+7. `useChat` stores the finalized rendered transcript for that conversation ID.
 
 If localStorage writes fail, the app continues without persistent local cache.
 
@@ -62,8 +64,15 @@ Conversation hydration failures set the page-level `error` alert.
 
 Chat send failures:
 - set the page-level `error` alert
-- append an assistant message with a generic friendly fallback
+- replace the in-progress assistant message with a generic friendly fallback
 - preserve the user's submitted message in the transcript
+
+User-stopped streams:
+- abort the active `POST /chat` request with `AbortController`
+- keep the visible partial assistant response in the transcript
+- mark the assistant message as stopped and remove the streaming state
+- do not show the generic error fallback
+- do not save the stopped partial response as a completed local cache entry until a later completed exchange persists the visible transcript
 
 ## Future Memory Extensions
 If adding richer UI memory:

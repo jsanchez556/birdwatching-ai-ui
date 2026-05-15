@@ -34,10 +34,12 @@ Browser loads index.html
   -> useChat initializes conversation state
   -> App renders header, alert, ChatMessages, ChatInput
   -> ChatInput emits trimmed message
-  -> useChat appends user message and sets loading
+  -> useChat appends user message and an in-progress assistant message
   -> chatApi sends POST /chat
   -> backend may run RAG and tour/reservation tools
-  -> useChat appends assistant message or fallback error
+  -> chatApi parses SSE events
+  -> useChat buffers chunks and reveals them into the active assistant message
+  -> useChat finalizes assistant message or shows fallback error
   -> ChatMessages scrolls to latest content
 ```
 
@@ -45,17 +47,18 @@ Browser loads index.html
 Chat submission uses:
 1. `ChatInput` for textarea state, autosizing, keyboard behavior, and submit button state
 2. `useChat.sendMessage(...)` for optimistic user messages and loading state
-3. `sendChatMessage(...)` from `src/api/chatApi.js` for backend communication
-4. backend response data containing `conversationId`, `response`, and optional `sources`
-5. local persistence of the returned conversation ID and rendered messages
-6. `ChatMessages` for role-specific rendering and loading indicator display
+3. `streamChatMessage(...)` from `src/api/chatApi.js` for backend communication
+4. SSE `start`, `chunk`, optional `replace`, `done`, or `error` events
+5. a buffered reveal timer in `useChat` so chunks appear at a readable pace
+6. `useChat.stopGenerating(...)` with `AbortController` to cancel active streams
+7. local persistence of the returned conversation ID and finalized rendered messages
+8. `ChatMessages` for role-specific rendering, streaming cursor, stopped messages, and loading indicator display
 
 Backend chat side effects are intentionally outside the UI layer. The backend may
 retrieve bird knowledge sources, execute tour tools, calculate discounts, create
 reservations, persist chat memory, and return a natural-language assistant
 summary. The current UI treats that summary as text, and can additionally render
-a reservation confirmation card from `meta.reservation` when
-`meta.isReservationMessage` is true. It does not render raw tool, tour,
+a reservation confirmation card from `done.meta.reservation` when present. It does not render raw tool, tour,
 discount, reservation, or source payloads.
 
 Conversation hydration uses:
@@ -80,7 +83,8 @@ Production API calls use:
 The UI state is intentionally small:
 - `conversationId`: active backend/client conversation identifier
 - `messages`: rendered user and assistant transcript entries
-- `isLoading`: whether a chat request is in flight
+- `isLoading`: whether a chat request or stream is in flight
+- `isStreaming`: whether an assistant response can currently be stopped
 - `error`: request or hydration error text for the alert
 
 ## Cross-Cutting Concerns

@@ -3,7 +3,14 @@ import ChatMessages from './components/ChatMessages'
 import useChat from './hooks/useChat'
 
 function App() {
-  const { messages, isLoading, error, sendMessage } = useChat()
+  const {
+    messages,
+    isLoading,
+    isStreaming,
+    error,
+    sendMessage,
+    stopGenerating,
+  } = useChat()
 
   return (
     <main className="app-shell">
@@ -21,7 +28,12 @@ function App() {
           </div>
         )}
         <ChatMessages messages={messages} isLoading={isLoading} />
-        <ChatInput onSendMessage={sendMessage} isLoading={isLoading} />
+        <ChatInput
+          onSendMessage={sendMessage}
+          onStopGenerating={stopGenerating}
+          isLoading={isLoading}
+          isStreaming={isStreaming}
+        />
       </div>
     </main>
   )

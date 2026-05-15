@@ -42,6 +42,22 @@ describe('ChatInput', () => {
     expect(onSendMessage).not.toHaveBeenCalled()
   })
 
+  test('shows stop button while streaming and calls stop handler', () => {
+    const onStopGenerating = jest.fn()
+    render(
+      <ChatInput
+        onSendMessage={jest.fn()}
+        onStopGenerating={onStopGenerating}
+        isLoading={true}
+        isStreaming={true}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /stop/i }))
+
+    expect(onStopGenerating).toHaveBeenCalledTimes(1)
+  })
+
   test('submits on Enter key press without shift', () => {
     const onSendMessage = jest.fn()
     render(<ChatInput onSendMessage={onSendMessage} isLoading={false} />)

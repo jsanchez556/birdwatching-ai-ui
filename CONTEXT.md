@@ -6,11 +6,11 @@ AI-agent entry point for the Birdwatching AI UI. Read this file first, then foll
 This repository is a single React/Vite frontend for Costa Rica birdwatching assistance. It supports:
 - responsive chat UI with user and assistant message roles
 - styled reservation confirmation cards for confirmed booking responses
-- typing/loading state while the backend generates a response
+- progressive assistant streaming with typing/loading state and stop-generation support
 - local conversation ID persistence with `localStorage`
 - cached conversation messages for fast reloads
 - backend hydration through `GET /chat/:conversationId`
-- backend chat requests through `POST /chat`
+- backend streaming chat requests through `POST /chat`
 - backend-generated tour discovery, pricing, discounts, and reservation confirmations through assistant responses
 - Railway-oriented static deployment with environment-driven API configuration
 
@@ -41,13 +41,14 @@ Send chat message:
 ```text
 ChatInput submit
   -> App.sendMessage from useChat
-  -> optimistic user message append
-  -> chatApi.sendChatMessage
+  -> optimistic user message append plus in-progress assistant message
+  -> chatApi.streamChatMessage
   -> POST /chat on the backend
-  -> validate normalized backend envelope
+  -> parse SSE start/chunk/replace/done/error events
+  -> buffer chunks and reveal assistant text progressively
   -> persist returned conversationId
-  -> append assistant response
-  -> attach meta.reservation when meta.isReservationMessage is true
+  -> finalize assistant response
+  -> attach meta.reservation when present
   -> render reservation confirmation card from metadata, with text parsing fallback for older messages
   -> ignore optional sources/tool metadata until a UI surface exists
   -> cache messages in localStorage
@@ -86,8 +87,10 @@ Browser fetch(`${VITE_API_URL}/chat`)
 - `useChat` creates a client conversation ID before the first backend response.
 - The backend may return a different `conversationId`; the UI persists the returned ID.
 - The backend may return RAG `sources`; the current UI accepts the field but does not render it.
-- Tour listing, recommendation, selection, availability, pricing, discounts, and reservations happen inside the backend chat flow and are summarized in `data.response`.
-- Successful backend reservations also return `meta.isReservationMessage: true` and `meta.reservation`; the UI stores that metadata on the assistant message for display.
+- Tour listing, recommendation, selection, availability, pricing, discounts, and reservations happen inside the backend chat flow and are summarized in the final streamed assistant response.
+- Successful backend reservations can return `meta.reservation`; the UI stores that metadata on the assistant message for display.
+- `useChat` uses `AbortController` to stop active streams and keeps visible partial assistant text without showing an error fallback.
+- Incoming stream chunks are buffered and revealed on a short timer so text appears at a readable pace.
 - `ChatMessages` uses `src/utils/reservationConfirmation.js` to normalize reservation metadata or detect older confirmed reservation summaries and render `ReservationConfirmationCard` without adding backend tool logic to the browser.
 - The UI does not currently call `POST /recommend`, even though the backend exposes it for structured recommendation use cases.
 - Message cache failures are swallowed so chat still works when storage is unavailable.

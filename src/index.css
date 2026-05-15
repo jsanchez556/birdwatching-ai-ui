@@ -283,6 +283,59 @@ button {
   gap: 13px;
 }
 
+.message-bubble.assistant-content.streaming {
+  display: block;
+}
+
+.message-bubble.streaming::after {
+  content: "";
+  width: 2px;
+  height: 1.1em;
+  display: inline-block;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: var(--brand);
+  vertical-align: -0.18em;
+  animation: cursorBlink 1s steps(1) infinite;
+}
+
+.message-bubble.streaming:has(.streaming-placeholder)::after {
+  display: none;
+}
+
+.streaming-placeholder {
+  min-width: 42px;
+  min-height: 1.2em;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.streaming-placeholder span,
+.loading-bubble span {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--brand);
+  opacity: 0.45;
+  animation: typingPulse 1.1s infinite ease-in-out;
+}
+
+.streaming-placeholder span:nth-child(2),
+.loading-bubble span:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.streaming-placeholder span:nth-child(3),
+.loading-bubble span:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+.stopped-message {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .message-text {
   white-space: pre-wrap;
 }
@@ -461,6 +514,18 @@ button {
   }
 }
 
+@keyframes cursorBlink {
+  0%,
+  55% {
+    opacity: 1;
+  }
+
+  56%,
+  100% {
+    opacity: 0;
+  }
+}
+
 .input-container {
   position: sticky;
   bottom: 0;
@@ -517,7 +582,8 @@ button {
   opacity: 0.72;
 }
 
-.send-button {
+.send-button,
+.stop-button {
   width: 42px;
   height: 42px;
   flex: 0 0 42px;
@@ -534,18 +600,36 @@ button {
   transition: background-color 0.18s ease, transform 0.18s ease, opacity 0.18s ease;
 }
 
-.send-button:hover:not(:disabled) {
+.send-button:hover:not(:disabled),
+.stop-button:hover:not(:disabled) {
   background: var(--brand-strong);
   transform: translateY(-1px);
 }
 
-.send-button:active:not(:disabled) {
+.send-button:active:not(:disabled),
+.stop-button:active:not(:disabled) {
   transform: translateY(0);
 }
 
-.send-button:disabled {
+.send-button:disabled,
+.stop-button:disabled {
   cursor: not-allowed;
   opacity: 0.38;
+}
+
+.stop-button {
+  background: #b24646;
+}
+
+.stop-button:hover:not(:disabled) {
+  background: #8b2d2d;
+}
+
+.stop-button span {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  background: #ffffff;
 }
 
 .empty-state {
@@ -590,9 +674,12 @@ button {
   }
 
   .message-row,
+  .message-bubble.streaming::after,
+  .streaming-placeholder span,
   .loading-bubble span,
   .input-form,
-  .send-button {
+  .send-button,
+  .stop-button {
     animation: none;
     transition: none;
   }

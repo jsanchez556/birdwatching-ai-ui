@@ -32,6 +32,38 @@ describe('ChatMessages', () => {
     expect(screen.getByLabelText(/Birdwatching AI is thinking/i)).toBeInTheDocument()
   })
 
+  test('renders an in-progress assistant message instead of a separate loading bubble', () => {
+    const messages = [
+      { role: 'user', content: 'Where can I see quetzals?' },
+      { role: 'assistant', content: '', isStreaming: true },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={true} />)
+
+    expect(screen.getByLabelText(/Birdwatching AI is typing/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/Birdwatching AI is thinking/i)).not.toBeInTheDocument()
+  })
+
+  test('renders streamed assistant text progressively', () => {
+    const messages = [
+      { role: 'assistant', content: 'Look near Monteverde at dawn.', isStreaming: true },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={true} />)
+
+    expect(screen.getByText(/Look near Monteverde at dawn\./i)).toBeInTheDocument()
+  })
+
+  test('renders a stopped empty assistant response', () => {
+    const messages = [
+      { role: 'assistant', content: '', isStopped: true },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    expect(screen.getByText(/Response stopped\./i)).toBeInTheDocument()
+  })
+
   test('renders reservation confirmation details in a card', () => {
     const messages = [
       {

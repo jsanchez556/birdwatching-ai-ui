@@ -6,6 +6,24 @@ import {
 } from '../utils/reservationConfirmation'
 
 function MessageContent({ message }) {
+  if (message.isStopped && !message.content) {
+    return (
+      <span className="stopped-message">
+        Response stopped.
+      </span>
+    )
+  }
+
+  if (message.isStreaming && !message.content) {
+    return (
+      <span className="streaming-placeholder" aria-label="Birdwatching AI is typing">
+        <span></span>
+        <span></span>
+        <span></span>
+      </span>
+    )
+  }
+
   const reservation = message.role === 'assistant' && !message.isError
     ? normalizeReservationConfirmation(message.reservation)
       || normalizeReservationConfirmation(message.metadata?.reservation)
@@ -90,7 +108,7 @@ function ChatMessages({ messages, isLoading }) {
                 <div className="message-label">
                   {meta.label}
                 </div>
-                <div className={`message-bubble${message.isError ? ' error' : ''}${message.role === 'assistant' ? ' assistant-content' : ''}`}>
+                <div className={`message-bubble${message.isError ? ' error' : ''}${message.role === 'assistant' ? ' assistant-content' : ''}${message.isStreaming ? ' streaming' : ''}`}>
                   <MessageContent message={message} />
                 </div>
               </div>
@@ -98,7 +116,7 @@ function ChatMessages({ messages, isLoading }) {
           )
         })}
 
-        {isLoading && (
+        {isLoading && !messages.some((message) => message.isStreaming) && (
           <article className="message-row assistant">
             <div className="avatar" aria-hidden="true">BW</div>
             <div className="message-stack">
