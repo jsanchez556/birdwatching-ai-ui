@@ -35,7 +35,7 @@ Current behavior:
 - no client-side prompt injection
 - reservation confirmation summaries can render an additional styled card
 
-The backend may use RAG and tour tools before streaming the final assistant response. Tour discovery, tour selection, availability checks, pricing, discounts, and reservation creation are backend responsibilities. The current UI displays the final assistant text and renders `ReservationConfirmationCard` from reservation metadata when present.
+The backend may use RAG and tour tools before streaming the final assistant response. Tour discovery, tour selection, availability checks, pricing, discounts, participant-count interpretation, and reservation creation are backend responsibilities. The current UI displays the final assistant text, renders structured `uiAction` controls such as participant-count dropdowns, and renders `ReservationConfirmationCard` from reservation metadata when present.
 
 Reservation normalization and fallback extraction live in `src/utils/reservationConfirmation.js`. Prefer backend metadata over text parsing. The parser should stay conservative for older cached or hydrated messages and should not imply that the browser executed or verified a reservation. The backend remains the source of truth.
 

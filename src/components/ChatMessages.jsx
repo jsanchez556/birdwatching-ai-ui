@@ -1,11 +1,12 @@
 import { useLayoutEffect, useRef } from 'react'
 import ReservationConfirmationCard from './ReservationConfirmationCard'
+import MessageActions from './MessageActions'
 import {
   extractReservationConfirmation,
   normalizeReservationConfirmation,
 } from '../utils/reservationConfirmation'
 
-function MessageContent({ message }) {
+function MessageContent({ message, onAction }) {
   if (message.isStopped && !message.content) {
     return (
       <span className="stopped-message">
@@ -25,13 +26,24 @@ function MessageContent({ message }) {
   }
 
   const reservation = message.role === 'assistant' && !message.isError
-    ? normalizeReservationConfirmation(message.reservation)
-      || normalizeReservationConfirmation(message.metadata?.reservation)
+    ? normalizeReservationConfirmation(
+      message.metadata?.reservation,
+      message.metadata?.selectedTransportation
+    )
       || extractReservationConfirmation(message.content)
     : null
+  const messageActions = [
+    ...(message.metadata?.uiAction ? [message.metadata.uiAction] : []),
+    ...(Array.isArray(message.metadata?.uiActions) ? message.metadata.uiActions : []),
+  ]
 
   if (!reservation) {
-    return message.content
+    return (
+      <>
+        {message.content}
+        <MessageActions actions={messageActions} onAction={onAction} />
+      </>
+    )
   }
 
   return (
@@ -40,11 +52,27 @@ function MessageContent({ message }) {
         <div className="message-text">{message.content}</div>
       )}
       <ReservationConfirmationCard reservation={reservation} />
+      <MessageActions actions={messageActions} onAction={onAction} />
     </>
   )
 }
 
-function ChatMessages({ messages, isLoading }) {
+function getCustomerInitials(customerName) {
+  if (typeof customerName !== 'string' || !customerName.trim()) {
+    return 'Y'
+  }
+
+  const parts = customerName.trim().split(/\s+/).filter(Boolean)
+  const selectedParts = parts.length > 1 ? [parts[0], parts[1]] : [parts[0]]
+
+  return selectedParts
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+}
+
+function ChatMessages({ messages, isLoading, customerContext, onAction }) {
   const messagesRef = useRef(null)
 
   useLayoutEffect(() => {
@@ -67,7 +95,7 @@ function ChatMessages({ messages, isLoading }) {
       return {
         rowClass: 'user',
         label: 'You',
-        avatar: 'Y',
+        avatar: getCustomerInitials(customerContext?.customerName),
       }
     }
 
@@ -109,7 +137,7 @@ function ChatMessages({ messages, isLoading }) {
                   {meta.label}
                 </div>
                 <div className={`message-bubble${message.isError ? ' error' : ''}${message.role === 'assistant' ? ' assistant-content' : ''}${message.isStreaming ? ' streaming' : ''}`}>
-                  <MessageContent message={message} />
+                  <MessageContent message={message} onAction={onAction} />
                 </div>
               </div>
             </article>

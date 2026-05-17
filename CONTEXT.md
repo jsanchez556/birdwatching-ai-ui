@@ -88,6 +88,7 @@ Browser fetch(`${VITE_API_URL}/chat`)
 - The backend may return a different `conversationId`; the UI persists the returned ID.
 - The backend may return RAG `sources`; the current UI accepts the field but does not render it.
 - Tour listing, recommendation, selection, availability, pricing, discounts, and reservations happen inside the backend chat flow and are summarized in the final streamed assistant response.
+- Structured backend `uiAction` metadata can render chat controls; participant-count actions are shown as a numeric select from `1` to the backend-provided `max`.
 - Successful backend reservations can return `meta.reservation`; the UI stores that metadata on the assistant message for display.
 - `useChat` uses `AbortController` to stop active streams and keeps visible partial assistant text without showing an error fallback.
 - Incoming stream chunks are buffered and revealed on a short timer so text appears at a readable pace.

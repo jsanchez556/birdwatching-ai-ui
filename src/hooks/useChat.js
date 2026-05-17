@@ -2,8 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadConversationMessages, streamChatMessage } from '../api/chatApi'
 
 const REQUEST_FAILURE_MESSAGE = 'Sorry, something went wrong. Please try again.'
-const CONVERSATION_ID_STORAGE_KEY = 'birdwatchingAI.conversationId'
-const CONVERSATION_MESSAGES_STORAGE_PREFIX = 'birdwatchingAI.messages.'
+const CHAT_STORAGE_KEY = 'birdwatchingAI.chatState'
 const STREAM_REVEAL_INTERVAL_MS = 28
 const STREAM_REVEAL_CHARS = 3
 
@@ -15,50 +14,30 @@ function createConversationId() {
   return `conversation-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-function getStoredConversationId() {
+function readJsonStorage(key) {
   try {
-    return window.localStorage.getItem(CONVERSATION_ID_STORAGE_KEY)
+    const stored = window.localStorage.getItem(key)
+    return stored ? JSON.parse(stored) : null
   } catch {
     return null
   }
 }
 
-function persistConversationId(conversationId) {
-  try {
-    window.localStorage.setItem(CONVERSATION_ID_STORAGE_KEY, conversationId)
-  } catch {
-    // Chat still works if storage is blocked or unavailable.
+function getStoredChatState() {
+  const storedState = readJsonStorage(CHAT_STORAGE_KEY)
+
+  if (storedState && typeof storedState === 'object') {
+    return {
+      conversationId: typeof storedState.conversationId === 'string'
+        ? storedState.conversationId
+        : null,
+      customerContext: storedState.customerContext || null,
+      messages: Array.isArray(storedState.messages) ? storedState.messages : undefined,
+      hasStoredMessages: Array.isArray(storedState.messages),
+    }
   }
-}
 
-function getConversationMessagesStorageKey(conversationId) {
-  return `${CONVERSATION_MESSAGES_STORAGE_PREFIX}${conversationId}`
-}
-
-function getCachedMessages(conversationId) {
-  try {
-    const cachedMessages = window.localStorage.getItem(
-      getConversationMessagesStorageKey(conversationId)
-    )
-
-    if (!cachedMessages) {
-      return null
-    }
-
-    const parsedMessages = JSON.parse(cachedMessages)
-
-    if (Array.isArray(parsedMessages)) {
-      return parsedMessages
-    }
-
-    if (Array.isArray(parsedMessages?.messages)) {
-      return parsedMessages.messages
-    }
-
-    return null
-  } catch {
-    return null
-  }
+  return null
 }
 
 function hasMetadata(metadata) {
@@ -72,23 +51,30 @@ function createAssistantMessage(response, metadata = {}) {
     ...(hasMetadata(metadata)
       ? { metadata }
       : {}),
-    ...(metadata?.reservation
-      ? { reservation: metadata.reservation }
-      : {}),
   }
 }
 
-function persistConversationMessages(conversationId, messages) {
+function getRecentAssistantMetadata(messages = []) {
+  return [...messages]
+    .reverse()
+    .find((message) => message.role === 'assistant' && message.metadata)
+    ?.metadata
+}
+
+function persistChatState({
+  conversationId,
+  customerContext,
+  messages,
+} = {}) {
   try {
-    window.localStorage.setItem(
-      getConversationMessagesStorageKey(conversationId),
-      JSON.stringify({
-        messages,
-        metadata: {
-          savedAt: new Date().toISOString(),
-        },
-      })
-    )
+    window.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify({
+      conversationId,
+      customerContext: customerContext || null,
+      messages: Array.isArray(messages) ? messages : [],
+      metadata: {
+        savedAt: new Date().toISOString(),
+      },
+    }))
   } catch {
     // Conversation hydration falls back to the API if message cache is unavailable.
   }
@@ -99,23 +85,26 @@ function isAbortError(error) {
 }
 
 function getInitialConversationState() {
-  const storedConversationId = getStoredConversationId()
+  const storedState = getStoredChatState()
 
-  if (storedConversationId) {
-    const cachedMessages = getCachedMessages(storedConversationId)
+  if (storedState?.conversationId) {
+    persistChatState(storedState)
 
     return {
-      conversationId: storedConversationId,
-      messages: cachedMessages || [],
-      shouldLoadFromApi: !cachedMessages,
+      conversationId: storedState.conversationId,
+      customerContext: storedState.customerContext,
+      messages: storedState.messages || [],
+      shouldLoadFromApi: !storedState.hasStoredMessages,
     }
   }
 
   const conversationId = createConversationId()
-  persistConversationId(conversationId)
+  const customerContext = storedState?.customerContext || null
+  persistChatState({ conversationId, customerContext, messages: [] })
 
   return {
     conversationId,
+    customerContext,
     messages: [],
     shouldLoadFromApi: false,
   }
@@ -125,6 +114,7 @@ export default function useChat() {
   const [initialConversationState] = useState(getInitialConversationState)
   const [conversationId, setConversationId] = useState(initialConversationState.conversationId)
   const [messages, setMessages] = useState(initialConversationState.messages)
+  const [customerContext, setCustomerContextState] = useState(initialConversationState.customerContext)
   const [isLoading, setIsLoading] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   const [error, setError] = useState(null)
@@ -217,8 +207,11 @@ export default function useChat() {
 
         if (!isMounted) return
 
-        persistConversationId(loadedConversationId)
-        persistConversationMessages(loadedConversationId, loadedMessages)
+        persistChatState({
+          conversationId: loadedConversationId,
+          customerContext: initialConversationState.customerContext,
+          messages: loadedMessages,
+        })
         setConversationId(loadedConversationId)
         setMessages(loadedMessages)
       } catch (loadError) {
@@ -260,7 +253,17 @@ export default function useChat() {
     activeAssistantMessageIdRef.current = null
   }, [discardBufferedText])
 
+  const setCustomerContext = useCallback((nextCustomerContext) => {
+    setCustomerContextState(nextCustomerContext)
+    persistChatState({
+      conversationId,
+      customerContext: nextCustomerContext,
+      messages,
+    })
+  }, [conversationId, messages])
+
   const sendMessage = async (message) => {
+    const recentAssistantMetadata = getRecentAssistantMetadata(messages)
     const userMessage = { role: 'user', content: message }
     const assistantMessageId = createConversationId()
     const abortController = new AbortController()
@@ -274,7 +277,15 @@ export default function useChat() {
     activeAbortControllerRef.current = abortController
     activeAssistantMessageIdRef.current = assistantMessageId
     discardBufferedText()
-    setMessages((prev) => [...prev, userMessage, streamingAssistantMessage])
+    setMessages((prev) => {
+      const nextMessages = [...prev, userMessage, streamingAssistantMessage]
+      persistChatState({
+        conversationId,
+        customerContext,
+        messages: nextMessages,
+      })
+      return nextMessages
+    })
     setIsLoading(true)
     setIsStreaming(true)
     setError(null)
@@ -287,11 +298,19 @@ export default function useChat() {
       } = await streamChatMessage({
         message,
         conversationId,
+        customerContext,
+        conversationContext: {
+          recentAssistantMetadata,
+        },
         signal: abortController.signal,
         onStart: ({ conversationId: startedConversationId }) => {
           if (!startedConversationId) return
 
-          persistConversationId(startedConversationId)
+          persistChatState({
+            conversationId: startedConversationId,
+            customerContext,
+            messages,
+          })
           setConversationId(startedConversationId)
         },
         onChunk: (content) => {
@@ -307,7 +326,6 @@ export default function useChat() {
         },
       })
       flushBufferedText()
-      persistConversationId(returnedConversationId)
       setConversationId(returnedConversationId)
       setMessages((prev) => {
         const assistantMessage = createAssistantMessage(response, metadata)
@@ -316,7 +334,11 @@ export default function useChat() {
             ? assistantMessage
             : item
         ))
-        persistConversationMessages(returnedConversationId, nextMessages)
+        persistChatState({
+          conversationId: returnedConversationId,
+          customerContext,
+          messages: nextMessages,
+        })
         return nextMessages
       })
     } catch (requestError) {
@@ -358,6 +380,8 @@ export default function useChat() {
     isLoading,
     isStreaming,
     error,
+    customerContext,
+    setCustomerContext,
     sendMessage,
     stopGenerating,
   }

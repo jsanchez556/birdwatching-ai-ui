@@ -13,10 +13,11 @@ function DetailItem({ label, value }) {
 
 function ReservationConfirmationCard({ reservation }) {
   const details = [
-    ['Reservation ID', reservation.reservationId],
     ['Customer', reservation.customerName],
-    ['Tour ID', reservation.tourId],
     ['Participants', reservation.participants],
+    ['Tour price', reservation.tourTotalPrice],
+    ['Transportation', reservation.transportation],
+    ['Transportation price', reservation.transportationPrice],
     ['Total', reservation.totalPrice],
     ['Created', reservation.createdAt],
     ['Discount', reservation.discount],

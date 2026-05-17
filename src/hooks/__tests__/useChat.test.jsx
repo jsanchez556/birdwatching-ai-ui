@@ -84,6 +84,119 @@ describe('useChat streaming behavior', () => {
     })
   })
 
+  test('persists conversation, messages, and customer context under one localStorage key', async () => {
+    streamChatMessage.mockImplementation(async ({ onStart }) => {
+      onStart({ conversationId: 'conversation-123' })
+      return {
+        conversationId: 'conversation-123',
+        response: 'Done',
+        metadata: {},
+      }
+    })
+
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      result.current.setCustomerContext({
+        customerName: 'Ana Gomez',
+        customerEmail: 'ana@example.com',
+        itineraryStartDate: '2026-06-12',
+        itineraryEndDate: '2026-06-15',
+      })
+    })
+
+    await act(async () => {
+      await result.current.sendMessage('Find tours')
+    })
+
+    const storageKeys = Object.keys(window.localStorage)
+    expect(storageKeys).toEqual(['birdwatchingAI.chatState'])
+
+    const persisted = JSON.parse(window.localStorage.getItem('birdwatchingAI.chatState'))
+    expect(persisted).toMatchObject({
+      conversationId: 'conversation-123',
+      customerContext: {
+        customerName: 'Ana Gomez',
+        customerEmail: 'ana@example.com',
+      },
+    })
+    expect(persisted.messages).toEqual([
+      { role: 'user', content: 'Find tours' },
+      { role: 'assistant', content: 'Done' },
+    ])
+  })
+
+  test('stores reservation data only under assistant metadata', async () => {
+    streamChatMessage.mockResolvedValue({
+      conversationId: 'conversation-123',
+      response: 'Your reservation is confirmed.',
+      metadata: {
+        reservation: {
+          confirmationCode: 'BW-METAONLY',
+          reservationId: 11,
+        },
+      },
+    })
+
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      await result.current.sendMessage('Confirm reservation')
+    })
+
+    expect(result.current.messages[1]).toEqual({
+      role: 'assistant',
+      content: 'Your reservation is confirmed.',
+      metadata: {
+        reservation: {
+          confirmationCode: 'BW-METAONLY',
+          reservationId: 11,
+        },
+      },
+    })
+    expect(result.current.messages[1].reservation).toBeUndefined()
+  })
+
+  test('sends recent assistant metadata as conversation context', async () => {
+    window.localStorage.setItem('birdwatchingAI.chatState', JSON.stringify({
+      conversationId: 'conversation-123',
+      customerContext: {
+        customerName: 'Ana Gomez',
+        customerEmail: 'ana@example.com',
+      },
+      messages: [
+        {
+          role: 'assistant',
+          content: 'I found 1 tour.',
+          metadata: {
+            tours: [{ tourId: 1, name: 'Monteverde Quetzal Tour' }],
+            uiAction: { type: 'choice' },
+          },
+        },
+      ],
+    }))
+    streamChatMessage.mockResolvedValue({
+      conversationId: 'conversation-123',
+      response: 'Details',
+      metadata: {},
+    })
+
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      await result.current.sendMessage('Show me details')
+    })
+
+    expect(streamChatMessage).toHaveBeenCalledWith(expect.objectContaining({
+      conversationContext: {
+        recentAssistantMetadata: {
+          tours: [{ tourId: 1, name: 'Monteverde Quetzal Tour' }],
+          uiAction: { type: 'choice' },
+        },
+      },
+    }))
+  })
+
   test('stops an in-progress stream and keeps visible partial text', async () => {
     streamChatMessage.mockImplementation(({ signal, onStart, onChunk }) => {
       onStart({ conversationId: 'conversation-123' })

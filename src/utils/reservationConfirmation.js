@@ -33,16 +33,54 @@ function formatCurrency(value) {
   return `$${amount.toFixed(2)}`
 }
 
-export function normalizeReservationConfirmation(reservation) {
+function toNumber(value) {
+  if (value === undefined || value === null || value === '') {
+    return null
+  }
+
+  const amount = Number(String(value).replace(/,/g, ''))
+
+  return Number.isFinite(amount) ? amount : null
+}
+
+function formatTransportationLabel(transportation) {
+  if (!transportation) {
+    return null
+  }
+
+  return [
+    transportation.label || transportation.transportationOption?.replace(/_/g, ' '),
+    transportation.origin && transportation.destination
+      ? `from ${transportation.origin} to ${transportation.destination}`
+      : null,
+  ].filter(Boolean).join(' ')
+}
+
+export function normalizeReservationConfirmation(reservation, selectedTransportation = null) {
   if (!reservation || typeof reservation !== 'object') {
     return null
   }
 
   const confirmationCode = reservation.confirmationCode || reservation.confirmation_code
+  const transportation = reservation.transportation || selectedTransportation || null
 
   if (!confirmationCode) {
     return null
   }
+
+  const rawReservationTotal = reservation.totalPrice ?? reservation.total_price
+  const rawTourTotal = reservation.tourTotalPrice ?? reservation.tour_total_price ?? (
+    transportation ? rawReservationTotal : null
+  )
+  const rawTransportationTotal = reservation.transportationPrice
+    ?? reservation.transportation_price
+    ?? transportation?.totalPrice
+  const rawGrandTotal = reservation.grandTotalPrice ?? reservation.grand_total_price
+  const computedGrandTotal = rawGrandTotal ?? (
+    transportation && toNumber(rawReservationTotal) !== null && toNumber(rawTransportationTotal) !== null
+      ? toNumber(rawReservationTotal) + toNumber(rawTransportationTotal)
+      : rawReservationTotal
+  )
 
   return {
     confirmationCode,
@@ -54,7 +92,10 @@ export function normalizeReservationConfirmation(reservation) {
     tourName: reservation.tourName || null,
     participants: reservation.participants ?? null,
     createdAt: reservation.createdAt || reservation.created_at || null,
-    totalPrice: formatCurrency(reservation.totalPrice ?? reservation.total_price),
+    tourTotalPrice: formatCurrency(rawTourTotal),
+    transportation: formatTransportationLabel(transportation),
+    transportationPrice: formatCurrency(rawTransportationTotal),
+    totalPrice: formatCurrency(computedGrandTotal),
     remainingSlots: reservation.remainingSlots ?? null,
     discount: reservation.discountReason || reservation.discount || (
       reservation.discountRate ? `${Number(reservation.discountRate) * 100}% discount` : null

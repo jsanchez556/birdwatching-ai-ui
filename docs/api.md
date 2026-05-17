@@ -101,6 +101,10 @@ Tour and reservation notes:
 - Available backend tools are `getAvailableTours`, `recommendTours`, `selectTour`, `checkTourAvailability`, `calculateTourPrice`, and `createReservation`.
 - Tour listing and recommendation details are returned in `meta.tours` when available.
 - Tour selection can use a `tourId` or clear/partial `tourName`; the backend resolves matching names before validating availability.
+- The backend may return `meta.uiAction.type === "participant_count"` with `min`, `max`, and numeric `options`; the UI renders this as a select control and sends the selected number back as the next chat message.
+- After participant count is selected, the backend may include `meta.participants`; the UI should preserve it on assistant message metadata so later backend turns can reuse it.
+- The backend may return a choice action asking whether transportation is needed. The existing choice renderer sends `Show transportation` for `show_transportation` and `No, I have my own transportation` for `decline_transportation`; the backend owns the resulting booking logic.
+- The final confirmation choice sends `Confirm reservation`, but users may also type `Yes`; the backend interprets that only when the prior metadata included the final confirmation action.
 - Reservation creation requires `tourId`, `participants`, and `customerName`; it may include `customerEmail` and `discountCode`.
 - Pricing can apply recognized discount codes such as `EARLYBIRD`, `STUDENT`, and `LOCAL`, or group discounts.
 - Successful reservation details are summarized in the final streamed response and exposed in `done.meta.reservation` when a reservation is created.

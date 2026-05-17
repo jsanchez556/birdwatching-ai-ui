@@ -70,6 +70,8 @@ async function readSseStream(stream, onEvent) {
 export async function streamChatMessage({
   message,
   conversationId,
+  customerContext,
+  conversationContext,
   signal,
   onStart,
   onChunk,
@@ -81,7 +83,12 @@ export async function streamChatMessage({
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
     },
-    body: JSON.stringify({ message, conversationId }),
+    body: JSON.stringify({
+      message,
+      conversationId,
+      customerContext,
+      conversationContext,
+    }),
     signal,
   })
 
