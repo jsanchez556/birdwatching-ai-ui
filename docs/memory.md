@@ -7,32 +7,35 @@ The frontend uses browser-local conversation continuity. It is not durable AI me
 
 The backend owns durable conversation memory in PostgreSQL. The frontend stores:
 - the active conversation ID
+- customer context entered by the user for the booking flow
 - a cached copy of rendered messages for that conversation
 
 The same backend `conversationId` can also be associated with tour reservations created during chat. The frontend treats it as the chat continuity key and does not manage reservation persistence. A rendered reservation confirmation card is derived from backend response metadata or fallback assistant message parsing, and may be cached with the transcript as display state, not as authoritative booking state.
 
 ## Storage
-Conversation ID key:
+Single chat state key:
 ```text
-birdwatchingAI.conversationId
+birdwatchingAI.chatState
 ```
 
-Message cache key prefix:
-```text
-birdwatchingAI.messages.
-```
-
-Full message cache key:
-```text
-birdwatchingAI.messages.{conversationId}
-```
-
-Cached message shape:
+Cached state shape:
 ```json
-[
-  { "role": "user", "content": "Where can I see toucans?" },
-  { "role": "assistant", "content": "Try the Caribbean lowlands..." }
-]
+{
+  "conversationId": "conversation-123",
+  "customerContext": {
+    "customerName": "Ana Rivera",
+    "customerEmail": "ana@example.com",
+    "itineraryStartDate": "2026-06-01",
+    "itineraryEndDate": "2026-06-03"
+  },
+  "messages": [
+    { "role": "user", "content": "Where can I see toucans?" },
+    { "role": "assistant", "content": "Try the Caribbean lowlands..." }
+  ],
+  "metadata": {
+    "savedAt": "2026-05-17T00:00:00.000Z"
+  }
+}
 ```
 
 The UI may also receive `createdAt` from the backend during hydration, but it does not currently display timestamps.
@@ -41,7 +44,7 @@ The UI may also receive `createdAt` from the backend during hydration, but it do
 When a user sends a message:
 1. `useChat` appends the user message immediately.
 2. `useChat` appends an in-progress assistant message for streamed content.
-3. `streamChatMessage(...)` posts to the backend with the active conversation ID.
+3. `streamChatMessage(...)` posts to the backend with the active conversation ID, stored customer context, and recent assistant metadata.
 4. `useChat` persists the conversation ID returned by the stream.
 5. `useChat` buffers chunks and reveals them into the assistant message at a readable pace.
 6. `useChat` finalizes the assistant response from the `done` event.
@@ -51,11 +54,11 @@ If localStorage writes fail, the app continues without persistent local cache.
 
 ## Read Behavior
 On initialization:
-1. `useChat` reads the stored conversation ID.
-2. If found, it tries to read cached messages for that ID.
-3. If cached messages exist, it renders them immediately.
-4. If no cache exists, it calls `GET /chat/:conversationId`.
-5. Loaded backend messages replace local state and are cached.
+1. `useChat` reads `birdwatchingAI.chatState`.
+2. If a conversation ID is found, it restores customer context and any cached messages.
+3. If cached messages exist, it renders them immediately after customer context is available.
+4. If no cached messages exist, it calls `GET /chat/:conversationId`.
+5. Loaded backend messages replace local state and are cached under the same chat state key.
 
 If no stored conversation ID exists, the UI creates one with `crypto.randomUUID()` when available, falling back to a timestamp/random string.
 

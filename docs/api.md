@@ -46,20 +46,33 @@ Behavior:
 - production should set `VITE_API_URL` to the public backend URL
 
 ## `POST /chat`
-Used by `streamChatMessage({ message, conversationId, signal, onStart, onChunk, onReplace })`.
+Used by `streamChatMessage({ message, conversationId, customerContext, conversationContext, signal, onStart, onChunk, onReplace })`.
 
 The request body matches `POST /chat`:
 ```json
 {
   "message": "Where can I see quetzals?",
-  "conversationId": "optional-existing-id"
+  "conversationId": "optional-existing-id",
+  "customerContext": {
+    "customerName": "Ana Rivera",
+    "customerEmail": "ana@example.com",
+    "itineraryStartDate": "2026-06-01",
+    "itineraryEndDate": "2026-06-03"
+  },
+  "conversationContext": {
+    "recentAssistantMetadata": {
+      "selectedTourId": 1,
+      "participants": 2,
+      "uiAction": { "type": "reservation_confirmation" }
+    }
+  }
 }
 ```
 
 Expected Server-Sent Events:
 ```text
 event: start
-data: {"conversationId":"conversation-123","sources":[],"meta":{"promptVersions":{"chat":"2.1.0"}}}
+data: {"conversationId":"conversation-123","sources":[],"meta":{"promptVersions":{"chat":"2.3.0"}}}
 
 event: chunk
 data: {"content":"Hello"}
@@ -68,7 +81,7 @@ event: replace
 data: {"content":"I can help with Costa Rica birdwatching, tours, pricing, or reservations. Could you rephrase what you would like to do next?"}
 
 event: done
-data: {"conversationId":"conversation-123","response":"Hello from AI","sources":[],"meta":{"promptVersions":{"chat":"2.1.0"}}}
+data: {"conversationId":"conversation-123","response":"Hello from AI","sources":[],"meta":{"promptVersions":{"chat":"2.3.0"}}}
 
 event: error
 data: {"code":"STREAM_ERROR","message":"Unable to stream chat response right now."}
@@ -76,6 +89,8 @@ data: {"code":"STREAM_ERROR","message":"Unable to stream chat response right now
 
 Frontend behavior:
 - sends the active `conversationId` from `useChat`
+- sends the collected `customerContext` so the backend can reuse name, email, and itinerary dates during booking
+- sends sanitized `conversationContext.recentAssistantMetadata` from the most recent assistant message so guided actions can continue across turns
 - passes an `AbortSignal` so stop-generation can cancel the active request
 - appends an in-progress assistant message before the stream completes
 - persists the `conversationId` from `start` or `done` when present
@@ -90,24 +105,26 @@ Frontend behavior:
 Backend behavior relevant to UI:
 - creates a UUID conversation ID when none is provided
 - loads recent conversation history from PostgreSQL
-- may retrieve RAG sources from `src/db/data/birds.json`
-- may use OpenAI tool calls for tour listing, recommendation, selection, availability checks, pricing, discounts, and reservations
+- may retrieve RAG sources from PostgreSQL pgvector knowledge chunks ingested from backend `src/db/data`
+- may use OpenAI tool calls for tour search/recommendation, availability checks, transportation estimates, pricing, discounts, and reservations
 - when tour listing or recommendation tools return tours, the assistant response should stay short, for example `I found 2 tours that match your preferences.`, while tour details are provided in `meta.tours`
 - saves the exchange to PostgreSQL on a best-effort basis
 
 Tour and reservation notes:
 - Tool execution is backend-only; the public `/chat` stream does not expose raw tool messages.
 - Safe structured tool data may be returned in the `done.meta` object for frontend rendering.
-- Available backend tools are `getAvailableTours`, `recommendTours`, `selectTour`, `checkTourAvailability`, `calculateTourPrice`, and `createReservation`.
+- Available backend tools are `searchTours`, `calculateTransportation`, `checkAvailability`, `calculatePricing`, and `createReservation`.
 - Tour listing and recommendation details are returned in `meta.tours` when available.
 - Tour selection can use a `tourId` or clear/partial `tourName`; the backend resolves matching names before validating availability.
+- The backend may return `meta.uiAction` or `meta.uiActions` for guided controls. Supported UI action types include `choice`, `tour_selection`, `date_picker`, `participant_count`, `transportation_selection`, and `reservation_confirmation`.
 - The backend may return `meta.uiAction.type === "participant_count"` with `min`, `max`, and numeric `options`; the UI renders this as a select control and sends the selected number back as the next chat message.
 - After participant count is selected, the backend may include `meta.participants`; the UI should preserve it on assistant message metadata so later backend turns can reuse it.
 - The backend may return a choice action asking whether transportation is needed. The existing choice renderer sends `Show transportation` for `show_transportation` and `No, I have my own transportation` for `decline_transportation`; the backend owns the resulting booking logic.
+- Transportation option buttons send a natural-language selection such as `I choose shared shuttle from San Jose to Monteverde`; the backend owns option persistence and pricing context.
 - The final confirmation choice sends `Confirm reservation`, but users may also type `Yes`; the backend interprets that only when the prior metadata included the final confirmation action.
-- Reservation creation requires `tourId`, `participants`, and `customerName`; it may include `customerEmail` and `discountCode`.
+- Reservation creation requires participants and customer name in backend tool arguments; customer name, email, and itinerary dates should usually come from `customerContext` collected before chat.
 - Pricing can apply recognized discount codes such as `EARLYBIRD`, `STUDENT`, and `LOCAL`, or group discounts.
-- Successful reservation details are summarized in the final streamed response and exposed in `done.meta.reservation` when a reservation is created.
+- Successful reservation text should stay short and the confirmation details are exposed in `done.meta.reservation` when a reservation is created.
 - The current UI renders reservation cards from message reservation metadata first and normalizes both camelCase and snake_case reservation fields. It only parses clear reservation-confirmation summaries from assistant text as a fallback for older cached or hydrated messages.
 - If the UI later adds structured tour, source, discount, or reservation displays beyond the confirmation card, use the documented `meta` fields instead of inferring data from assistant text.
 

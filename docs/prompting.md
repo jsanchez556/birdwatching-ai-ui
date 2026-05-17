@@ -7,12 +7,13 @@ This frontend does not contain OpenAI system prompts, tool schemas, RAG instruct
 
 Frontend prompt-adjacent assets are UI text and user input affordances:
 - app title and subtitle in `src/App.jsx`
+- customer context form labels and helper text in `src/components/CustomerContextForm.jsx`
 - textarea placeholder in `src/components/ChatInput.jsx`
 - empty chat state copy in `src/components/ChatMessages.jsx`
 - user-facing request fallback in `src/hooks/useChat.js`
 
 ## User Input Flow
-`ChatInput` collects natural-language birdwatching questions.
+`CustomerContextForm` first collects booking context: customer name, customer email, itinerary start date, and itinerary end date. `ChatInput` then collects natural-language birdwatching questions.
 
 Submit behavior:
 1. trim the input
@@ -22,7 +23,7 @@ Submit behavior:
 5. allow multiline text with `Shift+Enter`
 6. clear and reset the textarea after successful handoff to `useChat`
 
-The frontend should not rewrite, summarize, classify, or pre-prompt user messages before sending them to the backend unless a future product requirement explicitly adds that behavior.
+The frontend should not rewrite, summarize, classify, or pre-prompt typed user messages before sending them to the backend unless a future product requirement explicitly adds that behavior. Guided action controls intentionally translate backend-provided option values into short natural-language follow-up messages, such as `Confirm reservation` or `I choose tour 1: Monteverde Quetzal Tour`.
 
 ## Assistant Output Flow
 Assistant text streams from backend SSE `chunk` events, is revealed through a small frontend buffer so it reads like typing, and is finalized from the `done.response` field. The UI renders normal responses as plain text with `white-space: pre-wrap`.
@@ -35,7 +36,7 @@ Current behavior:
 - no client-side prompt injection
 - reservation confirmation summaries can render an additional styled card
 
-The backend may use RAG and tour tools before streaming the final assistant response. Tour discovery, tour selection, availability checks, pricing, discounts, participant-count interpretation, and reservation creation are backend responsibilities. The current UI displays the final assistant text, renders structured `uiAction` controls such as participant-count dropdowns, and renders `ReservationConfirmationCard` from reservation metadata when present.
+The backend may use RAG and tour tools before streaming the final assistant response. Tour discovery, tour selection, availability checks, transportation estimates, pricing, discounts, participant-count interpretation, and reservation creation are backend responsibilities. The current UI displays the final assistant text, renders structured `uiAction` and `uiActions` controls, and renders `ReservationConfirmationCard` from reservation metadata when present.
 
 Reservation normalization and fallback extraction live in `src/utils/reservationConfirmation.js`. Prefer backend metadata over text parsing. The parser should stay conservative for older cached or hydrated messages and should not imply that the browser executed or verified a reservation. The backend remains the source of truth.
 

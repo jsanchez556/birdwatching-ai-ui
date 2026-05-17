@@ -32,7 +32,8 @@ railway.json            Nixpacks build and Railway start command
 Browser loads index.html
   -> src/main.jsx mounts <App />
   -> useChat initializes conversation state
-  -> App renders header, alert, ChatMessages, ChatInput
+  -> App renders header and either CustomerContextForm or the chat surface
+  -> CustomerContextForm captures name, email, and itinerary dates before chat starts
   -> ChatInput emits trimmed message
   -> useChat appends user message and an in-progress assistant message
   -> chatApi sends POST /chat
@@ -57,13 +58,14 @@ Chat submission uses:
 Backend chat side effects are intentionally outside the UI layer. The backend may
 retrieve bird knowledge sources, execute tour tools, calculate discounts, create
 reservations, persist chat memory, and return a natural-language assistant
-summary. The current UI treats that summary as text, and can additionally render
-a reservation confirmation card from `done.meta.reservation` when present. It does not render raw tool, tour,
-discount, reservation, or source payloads.
+summary. The current UI treats that summary as text, renders guided controls from
+documented `uiAction` metadata, and can additionally render a reservation
+confirmation card from `done.meta.reservation` when present. It does not render
+raw tool, tour, discount, reservation, or source payloads.
 
 Conversation hydration uses:
-1. `birdwatchingAI.conversationId` from `localStorage`
-2. optional `birdwatchingAI.messages.{conversationId}` cached transcript
+1. `birdwatchingAI.chatState` from `localStorage`
+2. the stored `conversationId`, `customerContext`, and optional cached transcript
 3. `loadConversationMessages(...)` when a conversation ID exists but no local transcript is cached
 4. backend response data containing `conversationId` and `messages`
 5. replacement of local state with backend-loaded messages
@@ -82,6 +84,7 @@ Production API calls use:
 ## State Model
 The UI state is intentionally small:
 - `conversationId`: active backend/client conversation identifier
+- `customerContext`: customer name, email, and itinerary dates collected before chat
 - `messages`: rendered user and assistant transcript entries
 - `isLoading`: whether a chat request or stream is in flight
 - `isStreaming`: whether an assistant response can currently be stopped

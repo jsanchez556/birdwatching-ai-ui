@@ -29,6 +29,7 @@ This frontend delivers the chat experience, responsive UI, local conversation co
 - Preserve loading and error states in the chat flow.
 - Keep typing/loading indicators accessible with ARIA labels.
 - Preserve scroll-to-latest behavior for ongoing conversation.
+- Keep the customer context form as frontend-only intake for name, email, and itinerary dates; send it through the API layer rather than re-collecting it in chat UI components.
 - Treat backend `sources`, tool details, tour data, discount details, or reservation metadata as optional display data; do not invent fields that the UI does not receive.
 - The backend may summarize tour listing, selection, pricing, discount, and reservation tool results in assistant text without exposing raw tool data in the public `/chat` response.
 - Reservation confirmation cards should prefer `meta.reservation`, fall back conservatively to assistant text for older messages, and keep the original assistant message visible.
@@ -36,7 +37,7 @@ This frontend delivers the chat experience, responsive UI, local conversation co
 ## State And Persistence
 - Use hooks for stateful orchestration.
 - Keep `localStorage` access guarded with `try/catch`.
-- Persist only non-sensitive UI state such as conversation IDs and rendered messages.
+- Persist only non-sensitive UI state such as conversation IDs, customer context entered by the user, and rendered messages.
 - Let the backend remain the source of truth for durable conversation memory, RAG, tours, reservations, and AI responses.
 - Do not store API keys, database URLs, private tokens, or backend secrets in frontend code or `VITE_` variables.
 

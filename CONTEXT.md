@@ -5,10 +5,11 @@ AI-agent entry point for the Birdwatching AI UI. Read this file first, then foll
 ## What This Is
 This repository is a single React/Vite frontend for Costa Rica birdwatching assistance. It supports:
 - responsive chat UI with user and assistant message roles
+- upfront customer context collection for booking-ready name, email, and itinerary dates
 - styled reservation confirmation cards for confirmed booking responses
 - progressive assistant streaming with typing/loading state and stop-generation support
-- local conversation ID persistence with `localStorage`
-- cached conversation messages for fast reloads
+- local chat state persistence with `localStorage`
+- cached conversation messages and customer context for fast reloads
 - backend hydration through `GET /chat/:conversationId`
 - backend streaming chat requests through `POST /chat`
 - backend-generated tour discovery, pricing, discounts, and reservation confirmations through assistant responses
@@ -57,8 +58,8 @@ ChatInput submit
 Conversation hydration:
 ```text
 useChat initial state
-  -> read birdwatchingAI.conversationId from localStorage
-  -> read cached birdwatchingAI.messages.{conversationId}
+  -> read birdwatchingAI.chatState from localStorage
+  -> restore conversationId, customerContext, and cached messages when present
   -> if no cache, call chatApi.loadConversationMessages
   -> GET /chat/:conversationId on the backend
   -> cache loaded messages and render transcript
@@ -84,11 +85,13 @@ Browser fetch(`${VITE_API_URL}/chat`)
 - `VITE_API_URL` is trimmed of trailing slash before request URLs are built.
 - Empty `VITE_API_URL` intentionally produces relative `/chat` URLs for local proxying.
 - `VITE_API_PROXY_TARGET` should point to the local or remote backend during `npm run dev`.
+- `CustomerContextForm` collects `customerName`, `customerEmail`, `itineraryStartDate`, and `itineraryEndDate` before the chat transcript is shown.
 - `useChat` creates a client conversation ID before the first backend response.
 - The backend may return a different `conversationId`; the UI persists the returned ID.
+- `streamChatMessage` sends `customerContext` and sanitized recent assistant metadata as `conversationContext.recentAssistantMetadata` so the backend can continue guided booking flows.
 - The backend may return RAG `sources`; the current UI accepts the field but does not render it.
 - Tour listing, recommendation, selection, availability, pricing, discounts, and reservations happen inside the backend chat flow and are summarized in the final streamed assistant response.
-- Structured backend `uiAction` metadata can render chat controls; participant-count actions are shown as a numeric select from `1` to the backend-provided `max`.
+- Structured backend `uiAction` and `uiActions` metadata can render chat controls for choices, tour selection, date picking, participant count, transportation selection, and reservation confirmation.
 - Successful backend reservations can return `meta.reservation`; the UI stores that metadata on the assistant message for display.
 - `useChat` uses `AbortController` to stop active streams and keeps visible partial assistant text without showing an error fallback.
 - Incoming stream chunks are buffered and revealed on a short timer so text appears at a readable pace.
@@ -111,6 +114,7 @@ npm test
 Current coverage focuses on:
 - `ChatInput` submit, disabled, and keyboard behavior
 - `ChatMessages` empty, populated, and loading states
+- `useChat` persistence, streaming, metadata forwarding, and cancellation behavior
 
 ## When Extending
 1. Add or update API adapter behavior in `src/api/`.

@@ -1,6 +1,6 @@
 # Birdwatching AI UI
 
-React 18 + Vite frontend for the Birdwatching AI chat experience. The app provides a responsive Costa Rica birdwatching assistant UI and integrates with the Birdwatching AI API for chat responses and conversation retrieval.
+React 18 + Vite frontend for the Birdwatching AI chat experience. The app collects booking-ready customer context, provides a responsive Costa Rica birdwatching assistant UI, and integrates with the Birdwatching AI API for streamed chat responses and conversation retrieval.
 
 ## Quick Links
 - Project context for AI agents: [CONTEXT.md](./CONTEXT.md)
@@ -48,7 +48,7 @@ Backend endpoints documented for future UI expansion:
 The deployed static server also exposes:
 - `GET /health`
 
-The backend remains the source of truth for OpenAI, RAG, tour tools, discounts, reservations, and PostgreSQL persistence. This frontend stores only UI conversation state and a local cache in `localStorage`. When the backend returns reservation metadata for a confirmed booking, the UI renders a styled reservation confirmation card and keeps the assistant message visible.
+The backend remains the source of truth for OpenAI, RAG, tour tools, discounts, reservations, and PostgreSQL persistence. This frontend stores only UI conversation state, customer context entered by the user, and a local transcript cache in `localStorage`. When the backend returns guided action metadata, the UI renders choice/select buttons that send natural-language follow-up messages. When the backend returns reservation metadata for a confirmed booking, the UI renders a styled reservation confirmation card and keeps the assistant message visible.
 
 ## Scripts
 ```bash
@@ -83,4 +83,4 @@ ALLOWED_HOSTS=example.com,www.example.com
 ```
 
 ## Current UI Shape
-The app currently renders a single chat screen. It does not use React Router. If routing is added later, preserve the existing chat route as the primary product surface and keep SPA fallback behavior in deployment.
+The app currently renders one product surface: a customer context form followed by the chat screen. It does not use React Router. If routing is added later, preserve the existing chat route as the primary product surface and keep SPA fallback behavior in deployment.
