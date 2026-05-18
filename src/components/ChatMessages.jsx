@@ -6,7 +6,7 @@ import {
   normalizeReservationConfirmation,
 } from '../utils/reservationConfirmation'
 
-function MessageContent({ message, onAction }) {
+function MessageContent({ message, conversationMeta, onAction }) {
   if (message.isStopped && !message.content) {
     return (
       <span className="stopped-message">
@@ -25,10 +25,17 @@ function MessageContent({ message, onAction }) {
     )
   }
 
+  const shouldUseChatReservation = /\bconfirmed\b|\bconfirmation\s+code\b/i.test(message.content || '')
+  const chatReservation = shouldUseChatReservation && conversationMeta?.reservation
+    ? {
+        ...conversationMeta.reservation,
+        participants: conversationMeta.reservation.participants ?? conversationMeta.participants,
+      }
+    : null
   const reservation = message.role === 'assistant' && !message.isError
     ? normalizeReservationConfirmation(
-      message.metadata?.reservation,
-      message.metadata?.selectedTransportation
+      chatReservation || message.metadata?.reservation,
+      (shouldUseChatReservation ? conversationMeta?.selectedTransportation : null) || message.metadata?.selectedTransportation
     )
       || extractReservationConfirmation(message.content)
     : null
@@ -72,7 +79,7 @@ function getCustomerInitials(customerName) {
     .toUpperCase()
 }
 
-function ChatMessages({ messages, isLoading, customerContext, onAction }) {
+function ChatMessages({ messages, isLoading, customerContext, conversationMeta, onAction }) {
   const messagesRef = useRef(null)
 
   useLayoutEffect(() => {
@@ -137,7 +144,7 @@ function ChatMessages({ messages, isLoading, customerContext, onAction }) {
                   {meta.label}
                 </div>
                 <div className={`message-bubble${message.isError ? ' error' : ''}${message.role === 'assistant' ? ' assistant-content' : ''}${message.isStreaming ? ' streaming' : ''}`}>
-                  <MessageContent message={message} onAction={onAction} />
+                  <MessageContent message={message} conversationMeta={conversationMeta} onAction={onAction} />
                 </div>
               </div>
             </article>

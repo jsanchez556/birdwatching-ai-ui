@@ -2,10 +2,13 @@
 
 Back to [Project Context](../CONTEXT.md). See [Architecture](./architecture.md) for UI flow details.
 
-The frontend integrates with the Birdwatching AI API through `src/api/chatApi.js`. Backend API implementation lives in the backend repository and is read-only from this project.
+The frontend integrates with the Birdwatching AI API through `src/api/authApi.js` and `src/api/chatApi.js`. Backend API implementation lives in the backend repository.
 
 The active UI currently calls only:
+- `POST /auth/signup`
+- `POST /auth/login`
 - `POST /chat`
+- `GET /chat/latest`
 - `GET /chat/:conversationId`
 
 The backend also exposes `GET /health` and `POST /recommend`, but this frontend does not call those backend endpoints yet.
@@ -34,7 +37,7 @@ Errors are expected to use:
 ```
 
 ## API Base URL
-`src/api/chatApi.js` reads:
+The API adapters read:
 ```text
 import.meta.env.VITE_API_URL
 ```
@@ -45,8 +48,57 @@ Behavior:
 - local relative `/chat` calls are proxied by Vite to `VITE_API_PROXY_TARGET`
 - production should set `VITE_API_URL` to the public backend URL
 
+## Auth
+`src/api/authApi.js` handles email/password authentication.
+
+`POST /auth/signup` sends:
+```json
+{
+  "email": "ana@example.com",
+  "password": "secure-password",
+  "name": "Ana Rivera"
+}
+```
+
+`POST /auth/login` sends:
+```json
+{
+  "email": "ana@example.com",
+  "password": "secure-password"
+}
+```
+
+Both endpoints are expected to return:
+```json
+{
+  "success": true,
+  "data": {
+    "token": "jwt",
+    "user": {
+      "id": "user-1",
+      "email": "ana@example.com",
+      "name": "Ana Rivera"
+    }
+  },
+  "meta": {}
+}
+```
+
+Frontend behavior:
+- validates the response shape at the adapter boundary
+- stores only the JWT and safe user profile in `birdwatchingAI.authState`
+- never stores passwords
+- sends the token as `Authorization: Bearer <token>` on protected chat requests
+- clears auth storage on logout
+- uses the safe auth user profile to prefill customer context
+
 ## `POST /chat`
-Used by `streamChatMessage({ message, conversationId, customerContext, conversationContext, signal, onStart, onChunk, onReplace })`.
+Used by `streamChatMessage({ message, conversationId, customerContext, conversationContext, token, signal, onStart, onChunk, onReplace })`.
+
+Requires:
+```http
+Authorization: Bearer <token>
+```
 
 The request body matches `POST /chat`:
 ```json
@@ -90,20 +142,23 @@ data: {"code":"STREAM_ERROR","message":"Unable to stream chat response right now
 Frontend behavior:
 - sends the active `conversationId` from `useChat`
 - sends the collected `customerContext` so the backend can reuse name, email, and itinerary dates during booking
-- sends sanitized `conversationContext.recentAssistantMetadata` from the most recent assistant message so guided actions can continue across turns
+- when authenticated, sends `auth.user.email` as the customer email and does not let the user edit it in the customer context form
+- sends sanitized `conversationContext.recentAssistantMetadata` from the most recent assistant message plus chat-level booking state so guided actions can continue across turns
 - passes an `AbortSignal` so stop-generation can cancel the active request
 - appends an in-progress assistant message before the stream completes
 - persists the `conversationId` from `start` or `done` when present
 - appends each `chunk.content` to the active assistant message
 - replaces the active assistant message on `replace`
 - finalizes the assistant message from `done.response`
-- preserves `done.meta.reservation` on the assistant message when present
+- stores chat-level `done.meta` fields such as `customerContext`, `reservation`, `selectedTour`, `selectedTourId`, `selectedTransportation`, and `participants` in `conversationMeta` instead of duplicating them on assistant messages
 - treats `AbortError` as user cancellation instead of a request failure
 - throws a client error if the stream ends without a `done` event
 - shows the backend/client error in the alert and a friendly assistant fallback in the transcript on failure
 
 Backend behavior relevant to UI:
 - creates a UUID conversation ID when none is provided
+- associates authenticated conversations and reservations with the logged-in user and rejects cross-user conversation access
+- treats authenticated identity as authoritative over frontend-provided customer email
 - loads recent conversation history from PostgreSQL
 - may retrieve RAG sources from PostgreSQL pgvector knowledge chunks ingested from backend `src/db/data`
 - may use OpenAI tool calls for tour search/recommendation, availability checks, transportation estimates, pricing, discounts, and reservations
@@ -118,18 +173,23 @@ Tour and reservation notes:
 - Tour selection can use a `tourId` or clear/partial `tourName`; the backend resolves matching names before validating availability.
 - The backend may return `meta.uiAction` or `meta.uiActions` for guided controls. Supported UI action types include `choice`, `tour_selection`, `date_picker`, `participant_count`, `transportation_selection`, and `reservation_confirmation`.
 - The backend may return `meta.uiAction.type === "participant_count"` with `min`, `max`, and numeric `options`; the UI renders this as a select control and sends the selected number back as the next chat message.
-- After participant count is selected, the backend may include `meta.participants`; the UI should preserve it on assistant message metadata so later backend turns can reuse it.
+- After participant count is selected, the backend may include `meta.participants`; the UI preserves it in chat-level `conversationMeta` so later backend turns can reuse it.
 - The backend may return a choice action asking whether transportation is needed. The existing choice renderer sends `Show transportation` for `show_transportation` and `No, I have my own transportation` for `decline_transportation`; the backend owns the resulting booking logic.
 - Transportation option buttons send a natural-language selection such as `I choose shared shuttle from San Jose to Monteverde`; the backend owns option persistence and pricing context.
 - The final confirmation choice sends `Confirm reservation`, but users may also type `Yes`; the backend interprets that only when the prior metadata included the final confirmation action.
 - Reservation creation requires participants and customer name in backend tool arguments; customer name, email, and itinerary dates should usually come from `customerContext` collected before chat.
 - Pricing can apply recognized discount codes such as `EARLYBIRD`, `STUDENT`, and `LOCAL`, or group discounts.
 - Successful reservation text should stay short and the confirmation details are exposed in `done.meta.reservation` when a reservation is created.
-- The current UI renders reservation cards from message reservation metadata first and normalizes both camelCase and snake_case reservation fields. It only parses clear reservation-confirmation summaries from assistant text as a fallback for older cached or hydrated messages.
+- The current UI renders reservation cards from chat-level reservation metadata for confirmation-style assistant messages, uses chat-level `selectedTransportation` for transportation display and grand-total calculation, falls back to message reservation metadata for older cached messages, and normalizes both camelCase and snake_case reservation fields. It only parses clear reservation-confirmation summaries from assistant text as a final fallback.
 - If the UI later adds structured tour, source, discount, or reservation displays beyond the confirmation card, use the documented `meta` fields instead of inferring data from assistant text.
 
 ## `GET /chat/:conversationId`
-Used by `loadConversationMessages(conversationId)`.
+Used by `loadConversationMessages(conversationId, { token })`.
+
+Requires:
+```http
+Authorization: Bearer <token>
+```
 
 Expected success data:
 ```json
@@ -148,6 +208,34 @@ Frontend behavior:
 - requires `data.messages` to be an array
 - stores returned messages in the local cache
 - renders message `role` and `content`; `createdAt` is accepted but not displayed
+
+## `GET /chat/latest`
+Used by `loadLatestConversation({ token })` during authenticated hydration when no user-scoped local chat cache exists.
+
+Expected success data when a conversation exists:
+```json
+{
+  "conversationId": "conversation-123",
+  "messages": [
+    { "role": "user", "content": "Hello", "createdAt": "..." },
+    { "role": "assistant", "content": "Hi!", "createdAt": "..." }
+  ]
+}
+```
+
+Expected success data when no owned conversation exists:
+```json
+{
+  "conversationId": null,
+  "messages": []
+}
+```
+
+Frontend behavior:
+- sends `Authorization: Bearer <token>`
+- calls this before generating a new conversation ID when authenticated local chat cache is missing
+- persists returned data under `birdwatchingAI.chatState.<userId>`
+- generates and persists a new client conversation ID only when the backend returns no conversation
 
 ## `GET /health`
 Provided by `server.js` for the frontend static server:

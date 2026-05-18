@@ -8,8 +8,10 @@ This repository is a single React/Vite frontend for Costa Rica birdwatching assi
 - upfront customer context collection for booking-ready name, email, and itinerary dates
 - styled reservation confirmation cards for confirmed booking responses
 - progressive assistant streaming with typing/loading state and stop-generation support
+- email/password authentication with local JWT session persistence
 - local chat state persistence with `localStorage`
 - cached conversation messages and customer context for fast reloads
+- authenticated latest-conversation hydration through `GET /chat/latest`
 - backend hydration through `GET /chat/:conversationId`
 - backend streaming chat requests through `POST /chat`
 - backend-generated tour discovery, pricing, discounts, and reservation confirmations through assistant responses
@@ -31,7 +33,9 @@ The app uses a shell-component-hook-API split:
 - `src/main.jsx` mounts React in strict mode.
 - `src/App.jsx` composes the page shell, error alert, messages, and input.
 - `src/components/*` owns presentational chat UI.
+- `src/hooks/useAuth.js` owns auth state, token persistence, login, signup, and logout.
 - `src/hooks/useChat.js` owns conversation state, local persistence, loading, and errors.
+- `src/api/authApi.js` owns auth HTTP calls and response shape validation.
 - `src/api/chatApi.js` owns backend HTTP calls and response shape validation.
 - `src/index.css` owns global tokens, layout, responsive behavior, and dark mode.
 - `server.js` serves `dist/` in production-style environments and exposes `/health`.
@@ -43,7 +47,7 @@ Send chat message:
 ChatInput submit
   -> App.sendMessage from useChat
   -> optimistic user message append plus in-progress assistant message
-  -> chatApi.streamChatMessage
+  -> chatApi.streamChatMessage with bearer token
   -> POST /chat on the backend
   -> parse SSE start/chunk/replace/done/error events
   -> buffer chunks and reveal assistant text progressively
@@ -57,17 +61,19 @@ ChatInput submit
 
 Conversation hydration:
 ```text
-useChat initial state
-  -> read birdwatchingAI.chatState from localStorage
+useAuth restores birdwatchingAI.authState
+  -> useChat initial state
+  -> read birdwatchingAI.chatState.<userId> from localStorage
   -> restore conversationId, customerContext, and cached messages when present
-  -> if no cache, call chatApi.loadConversationMessages
-  -> GET /chat/:conversationId on the backend
+  -> if no scoped cache, call chatApi.loadLatestConversation
+  -> otherwise, if messages are missing, call chatApi.loadConversationMessages
+  -> GET /chat/latest or GET /chat/:conversationId on the backend with bearer token
   -> cache loaded messages and render transcript
 ```
 
 Local development API routing:
 ```text
-Browser fetch('/chat')
+Browser fetch('/auth/*' or '/chat')
   -> Vite dev proxy
   -> VITE_API_PROXY_TARGET
   -> Birdwatching AI API
@@ -75,20 +81,23 @@ Browser fetch('/chat')
 
 Production API routing:
 ```text
-Browser fetch(`${VITE_API_URL}/chat`)
+Browser fetch(`${VITE_API_URL}/auth/*` or `${VITE_API_URL}/chat`)
   -> public Birdwatching AI API
 ```
 
 ## Important Implementation Facts
 - ESM is enabled through `"type": "module"` in `package.json`.
 - The app has one screen and currently no React Router dependency.
+- Unauthenticated users see login/signup views; authenticated users see the existing customer-context and chat flow.
+- `useAuth` stores only the JWT and safe user profile under `birdwatchingAI.authState`.
+- Authenticated chat state is stored under `birdwatchingAI.chatState.<userId>` so user switching cannot reuse another user's local transcript.
 - `VITE_API_URL` is trimmed of trailing slash before request URLs are built.
-- Empty `VITE_API_URL` intentionally produces relative `/chat` URLs for local proxying.
+- Empty `VITE_API_URL` intentionally produces relative `/auth` and `/chat` URLs for local proxying.
 - `VITE_API_PROXY_TARGET` should point to the local or remote backend during `npm run dev`.
-- `CustomerContextForm` collects `customerName`, `customerEmail`, `itineraryStartDate`, and `itineraryEndDate` before the chat transcript is shown.
+- `CustomerContextForm` collects `customerName`, `customerEmail`, `itineraryStartDate`, and `itineraryEndDate` before the chat transcript is shown. When authenticated, it pre-fills name/email from `auth.user`, locks the email field, and still collects itinerary dates.
 - `useChat` creates a client conversation ID before the first backend response.
 - The backend may return a different `conversationId`; the UI persists the returned ID.
-- `streamChatMessage` sends `customerContext` and sanitized recent assistant metadata as `conversationContext.recentAssistantMetadata` so the backend can continue guided booking flows.
+- `streamChatMessage` sends `customerContext` and sanitized recent assistant metadata as `conversationContext.recentAssistantMetadata` so the backend can continue guided booking flows. Backend ownership and authenticated identity remain authoritative.
 - The backend may return RAG `sources`; the current UI accepts the field but does not render it.
 - Tour listing, recommendation, selection, availability, pricing, discounts, and reservations happen inside the backend chat flow and are summarized in the final streamed assistant response.
 - Structured backend `uiAction` and `uiActions` metadata can render chat controls for choices, tour selection, date picking, participant count, transportation selection, and reservation confirmation.
@@ -97,6 +106,7 @@ Browser fetch(`${VITE_API_URL}/chat`)
 - Incoming stream chunks are buffered and revealed on a short timer so text appears at a readable pace.
 - `ChatMessages` uses `src/utils/reservationConfirmation.js` to normalize reservation metadata or detect older confirmed reservation summaries and render `ReservationConfirmationCard` without adding backend tool logic to the browser.
 - The UI does not currently call `POST /recommend`, even though the backend exposes it for structured recommendation use cases.
+- Chat requests and conversation hydration include `Authorization: Bearer <token>`.
 - Message cache failures are swallowed so chat still works when storage is unavailable.
 - Request failures append a user-friendly assistant error message and also expose the backend/client error in the alert.
 - Chat scroll position is pushed to the newest message with `useLayoutEffect`.
@@ -114,6 +124,8 @@ npm test
 Current coverage focuses on:
 - `ChatInput` submit, disabled, and keyboard behavior
 - `ChatMessages` empty, populated, and loading states
+- auth form submission, auth restoration, logout, and unauthenticated app rendering
+- authenticated customer context prefill and locked email behavior
 - `useChat` persistence, streaming, metadata forwarding, and cancellation behavior
 
 ## When Extending

@@ -1,9 +1,10 @@
 import { act, renderHook } from '@testing-library/react'
 import useChat from '../useChat'
-import { loadConversationMessages, streamChatMessage } from '../../api/chatApi'
+import { loadConversationMessages, loadLatestConversation, streamChatMessage } from '../../api/chatApi'
 
 jest.mock('../../api/chatApi', () => ({
   loadConversationMessages: jest.fn(),
+  loadLatestConversation: jest.fn(),
   streamChatMessage: jest.fn(),
 }))
 
@@ -32,6 +33,10 @@ describe('useChat streaming behavior', () => {
     window.localStorage.clear()
     loadConversationMessages.mockResolvedValue({
       conversationId: 'conversation-123',
+      messages: [],
+    })
+    loadLatestConversation.mockResolvedValue({
+      conversationId: null,
       messages: [],
     })
   })
@@ -115,9 +120,11 @@ describe('useChat streaming behavior', () => {
     const persisted = JSON.parse(window.localStorage.getItem('birdwatchingAI.chatState'))
     expect(persisted).toMatchObject({
       conversationId: 'conversation-123',
-      customerContext: {
-        customerName: 'Ana Gomez',
-        customerEmail: 'ana@example.com',
+      meta: {
+        customerContext: {
+          customerName: 'Ana Gomez',
+          customerEmail: 'ana@example.com',
+        },
       },
     })
     expect(persisted.messages).toEqual([
@@ -126,11 +133,12 @@ describe('useChat streaming behavior', () => {
     ])
   })
 
-  test('stores reservation data only under assistant metadata', async () => {
+  test('stores reservation data under chat-level metadata', async () => {
     streamChatMessage.mockResolvedValue({
       conversationId: 'conversation-123',
       response: 'Your reservation is confirmed.',
       metadata: {
+        participants: 3,
         reservation: {
           confirmationCode: 'BW-METAONLY',
           reservationId: 11,
@@ -147,22 +155,28 @@ describe('useChat streaming behavior', () => {
     expect(result.current.messages[1]).toEqual({
       role: 'assistant',
       content: 'Your reservation is confirmed.',
-      metadata: {
-        reservation: {
-          confirmationCode: 'BW-METAONLY',
-          reservationId: 11,
-        },
+    })
+    expect(result.current.conversationMeta).toMatchObject({
+      participants: 3,
+      reservation: {
+        confirmationCode: 'BW-METAONLY',
+        reservationId: 11,
       },
     })
+    expect(result.current.messages[1].metadata).toBeUndefined()
     expect(result.current.messages[1].reservation).toBeUndefined()
   })
 
   test('sends recent assistant metadata as conversation context', async () => {
     window.localStorage.setItem('birdwatchingAI.chatState', JSON.stringify({
       conversationId: 'conversation-123',
-      customerContext: {
-        customerName: 'Ana Gomez',
-        customerEmail: 'ana@example.com',
+      meta: {
+        customerContext: {
+          customerName: 'Ana Gomez',
+          customerEmail: 'ana@example.com',
+        },
+        selectedTourId: 1,
+        participants: 3,
       },
       messages: [
         {
@@ -192,9 +206,150 @@ describe('useChat streaming behavior', () => {
         recentAssistantMetadata: {
           tours: [{ tourId: 1, name: 'Monteverde Quetzal Tour' }],
           uiAction: { type: 'choice' },
+          selectedTourId: 1,
+          participants: 3,
         },
       },
     }))
+  })
+
+  test('passes auth token to chat requests', async () => {
+    streamChatMessage.mockResolvedValue({
+      conversationId: 'conversation-123',
+      response: 'Done',
+      metadata: {},
+    })
+
+    const { result } = renderHook(() => useChat('auth-token'))
+
+    await act(async () => {
+      await result.current.sendMessage('Find quetzals')
+    })
+
+    expect(streamChatMessage).toHaveBeenCalledWith(expect.objectContaining({
+      token: 'auth-token',
+    }))
+  })
+
+  test('loads latest backend conversation before generating an authenticated conversation ID', async () => {
+    loadLatestConversation.mockResolvedValue({
+      conversationId: 'conversation-from-db',
+      messages: [
+        { role: 'user', content: 'Previous question' },
+        { role: 'assistant', content: 'Previous answer' },
+      ],
+    })
+
+    const { result } = renderHook(() => useChat({
+      token: 'auth-token',
+      user: {
+        id: 'user-1',
+        email: 'ana@example.com',
+      },
+    }))
+
+    expect(result.current.conversationId).toBeNull()
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(loadLatestConversation).toHaveBeenCalledWith({ token: 'auth-token' })
+    expect(result.current.conversationId).toBe('conversation-from-db')
+    expect(result.current.messages).toEqual([
+      { role: 'user', content: 'Previous question' },
+      { role: 'assistant', content: 'Previous answer' },
+    ])
+
+    const persisted = JSON.parse(window.localStorage.getItem('birdwatchingAI.chatState.user-1'))
+    expect(persisted).toMatchObject({
+      conversationId: 'conversation-from-db',
+    })
+    expect(persisted.userId).toBeUndefined()
+  })
+
+  test('generates an authenticated conversation ID only after latest lookup is empty', async () => {
+    loadLatestConversation.mockResolvedValue({
+      conversationId: null,
+      messages: [],
+    })
+
+    const { result } = renderHook(() => useChat({
+      token: 'auth-token',
+      user: {
+        id: 'user-1',
+        email: 'ana@example.com',
+      },
+    }))
+
+    expect(result.current.conversationId).toBeNull()
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(loadLatestConversation).toHaveBeenCalledWith({ token: 'auth-token' })
+    expect(result.current.conversationId).toEqual(expect.any(String))
+    expect(result.current.messages).toEqual([])
+  })
+
+  test('restores authenticated chat state from a user-scoped key', () => {
+    window.localStorage.setItem('birdwatchingAI.chatState.user-1', JSON.stringify({
+      conversationId: 'conversation-user-1',
+      meta: {
+        customerContext: {
+          customerName: 'Ana Gomez',
+          customerEmail: 'ana@example.com',
+        },
+      },
+      messages: [
+        { role: 'user', content: 'Scoped message' },
+      ],
+    }))
+
+    const { result } = renderHook(() => useChat({
+      token: 'auth-token',
+      user: {
+        id: 'user-1',
+        email: 'ana@example.com',
+      },
+    }))
+
+    expect(result.current.conversationId).toBe('conversation-user-1')
+    expect(result.current.messages).toEqual([
+      { role: 'user', content: 'Scoped message' },
+    ])
+    expect(loadLatestConversation).not.toHaveBeenCalled()
+  })
+
+  test('does not reuse another authenticated user local chat state', async () => {
+    window.localStorage.setItem('birdwatchingAI.chatState.user-1', JSON.stringify({
+      userId: 'user-1',
+      conversationId: 'conversation-user-1',
+      messages: [
+        { role: 'user', content: 'Other user message' },
+      ],
+    }))
+    loadLatestConversation.mockResolvedValue({
+      conversationId: null,
+      messages: [],
+    })
+
+    const { result } = renderHook(() => useChat({
+      token: 'auth-token-2',
+      user: {
+        id: 'user-2',
+        email: 'maria@example.com',
+      },
+    }))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(result.current.messages).toEqual([])
+    expect(window.localStorage.getItem('birdwatchingAI.chatState.user-2')).toBeTruthy()
+    expect(loadLatestConversation).toHaveBeenCalledWith({ token: 'auth-token-2' })
   })
 
   test('stops an in-progress stream and keeps visible partial text', async () => {

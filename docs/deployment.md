@@ -36,11 +36,13 @@ Do not commit `.env` files. Frontend variables are public once built, so never p
 ## Local Development Proxy
 When `VITE_API_URL` is empty, `src/api/chatApi.js` sends relative requests:
 ```text
+/auth/signup
+/auth/login
 /chat
 /chat/:conversationId
 ```
 
-`vite.config.js` proxies `/chat` to `VITE_API_PROXY_TARGET`. This avoids local CORS issues and lets the backend keep production CORS rules strict.
+`vite.config.js` proxies `/auth` and `/chat` to `VITE_API_PROXY_TARGET`. This avoids local CORS issues and lets the backend keep production CORS rules strict.
 
 ## Railway
 `railway.json` uses Nixpacks and runs from the repository root:
@@ -52,7 +54,7 @@ npm run start
 Set `VITE_API_URL` in Railway before deploying a production frontend. The backend must allow the Railway frontend origin in its `CORS_ORIGINS` configuration.
 
 Backend deployment expectations:
-- backend `OPENAI_API_KEY` and `DATABASE_URL` must be configured in the backend service, not the frontend service
+- backend `OPENAI_API_KEY`, `DATABASE_URL`, and `JWT_SECRET` must be configured in the backend service, not the frontend service
 - backend database migrations must be applied before chat memory, tour tools, or reservations are reliable
 - backend `CORS_ORIGINS` should include the Railway frontend domain or custom frontend domain
 

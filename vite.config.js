@@ -25,6 +25,10 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       proxy: {
+        '/auth': {
+          target: chatProxyTarget,
+          changeOrigin: true
+        },
         '/chat': {
           target: chatProxyTarget,
           changeOrigin: true

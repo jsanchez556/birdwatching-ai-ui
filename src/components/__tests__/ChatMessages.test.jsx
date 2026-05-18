@@ -209,6 +209,99 @@ describe('ChatMessages', () => {
     expect(screen.getByText('$555.00')).toBeInTheDocument()
   })
 
+  test('renders reservation data from chat-level metadata', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Your reservation is confirmed.',
+      },
+    ]
+    const conversationMeta = {
+      reservation: {
+        confirmationCode: 'BW-CHATMETA123',
+        customerName: 'Jose Sánchez Vasquez',
+        tourName: 'Monteverde Quetzal Tour',
+        totalPrice: 360,
+      },
+      participants: 3,
+      selectedTransportation: {
+        transportationOption: 'shared_shuttle',
+        label: 'Shared shuttle',
+        origin: 'San Jose',
+        destination: 'Monteverde',
+        totalPrice: 195,
+      },
+    }
+
+    render(<ChatMessages messages={messages} isLoading={false} conversationMeta={conversationMeta} />)
+
+    expect(screen.getByLabelText(/Reservation confirmation/i)).toBeInTheDocument()
+    expect(screen.getByText('BW-CHATMETA123')).toBeInTheDocument()
+    expect(screen.getByText('3')).toBeInTheDocument()
+    expect(screen.getByText(/Shared shuttle from San Jose to Monteverde/i)).toBeInTheDocument()
+    expect(screen.getByText('$555.00')).toBeInTheDocument()
+  })
+
+  test('prefers chat-level selected transportation over legacy reservation transportation', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Your reservation is confirmed.',
+      },
+    ]
+    const conversationMeta = {
+      reservation: {
+        confirmationCode: 'BW-PREFERSELECTED',
+        tourName: 'Monteverde Quetzal Tour',
+        totalPrice: 360,
+        transportation: {
+          transportationOption: 'private_transfer',
+          label: 'Private transfer',
+          origin: 'San Jose',
+          destination: 'Monteverde',
+          totalPrice: 220,
+        },
+      },
+      selectedTransportation: {
+        transportationOption: 'shared_shuttle',
+        label: 'Shared shuttle',
+        origin: 'San Jose',
+        destination: 'Monteverde',
+        totalPrice: 195,
+      },
+    }
+
+    render(<ChatMessages messages={messages} isLoading={false} conversationMeta={conversationMeta} />)
+
+    expect(screen.getByText(/Shared shuttle from San Jose to Monteverde/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Private transfer/i)).not.toBeInTheDocument()
+    expect(screen.getByText('$555.00')).toBeInTheDocument()
+  })
+
+  test('does not repeat chat-level reservation cards on non-confirmation messages', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Please confirm this reservation.',
+      },
+      {
+        role: 'assistant',
+        content: 'Your reservation is confirmed.',
+      },
+    ]
+    const conversationMeta = {
+      reservation: {
+        confirmationCode: 'BW-ONCE123',
+        tourName: 'Monteverde Quetzal Tour',
+      },
+    }
+
+    render(<ChatMessages messages={messages} isLoading={false} conversationMeta={conversationMeta} />)
+
+    expect(screen.getAllByLabelText(/Reservation confirmation/i)).toHaveLength(1)
+    expect(screen.getByText('BW-ONCE123')).toBeInTheDocument()
+  })
+
   test('does not render a structured card from duplicated top-level reservation data', () => {
     const messages = [
       {

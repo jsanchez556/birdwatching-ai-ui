@@ -4,10 +4,11 @@ function todayIsoDate() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function CustomerContextForm({ onSubmit }) {
+function CustomerContextForm({ onSubmit, authUser }) {
+  const lockedEmail = authUser?.email || ''
   const [form, setForm] = useState({
-    customerName: '',
-    customerEmail: '',
+    customerName: authUser?.name || '',
+    customerEmail: lockedEmail,
     itineraryStartDate: todayIsoDate(),
     itineraryEndDate: todayIsoDate(),
   })
@@ -26,14 +27,14 @@ function CustomerContextForm({ onSubmit }) {
     event.preventDefault()
     onSubmit({
       customerName: form.customerName.trim(),
-      customerEmail: form.customerEmail.trim(),
+      customerEmail: lockedEmail || form.customerEmail.trim(),
       itineraryStartDate: form.itineraryStartDate,
       itineraryEndDate: form.itineraryEndDate,
     })
   }
 
   const isComplete = form.customerName.trim()
-    && form.customerEmail.trim()
+    && (lockedEmail || form.customerEmail.trim())
     && form.itineraryStartDate
     && form.itineraryEndDate
     && form.itineraryEndDate >= form.itineraryStartDate
@@ -56,13 +57,22 @@ function CustomerContextForm({ onSubmit }) {
         </label>
         <label>
           Email
-          <input
-            type="email"
-            value={form.customerEmail}
-            onChange={(event) => updateField('customerEmail', event.target.value)}
-            autoComplete="email"
-            required
-          />
+          {lockedEmail ? (
+            <input
+              type="email"
+              value={lockedEmail}
+              autoComplete="email"
+              readOnly
+            />
+          ) : (
+            <input
+              type="email"
+              value={form.customerEmail}
+              onChange={(event) => updateField('customerEmail', event.target.value)}
+              autoComplete="email"
+              required
+            />
+          )}
         </label>
         <div className="date-grid">
           <label>
