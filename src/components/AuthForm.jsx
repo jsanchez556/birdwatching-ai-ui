@@ -8,6 +8,7 @@ function AuthForm({
   onLogin,
   onSignup,
   onSwitchMode,
+  onEnterAsVisitor,
 }) {
   const isSignup = mode === 'signup'
   const [form, setForm] = useState({
@@ -103,6 +104,14 @@ function AuthForm({
           disabled={isLoading}
         >
           {isSignup ? 'Already have an account? Log in' : 'Need an account? Sign up'}
+        </button>
+        <button
+          type="button"
+          className="visitor-action"
+          onClick={onEnterAsVisitor}
+          disabled={isLoading}
+        >
+          Continue as visitor
         </button>
       </form>
     </section>

@@ -74,6 +74,7 @@ export async function streamChatMessage({
   conversationId,
   customerContext,
   conversationContext,
+  role,
   token,
   signal,
   onStart,
@@ -92,6 +93,7 @@ export async function streamChatMessage({
       conversationId,
       customerContext,
       conversationContext,
+      role,
     }),
     signal,
   })

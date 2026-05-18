@@ -28,6 +28,7 @@ async function parseAuthResponse(response, fallbackMessage) {
       id: data.data.user.id,
       email: data.data.user.email,
       name: data.data.user.name || null,
+      role: data.data.user.role || 'customer',
     },
   }
 }

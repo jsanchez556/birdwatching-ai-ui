@@ -88,17 +88,20 @@ Frontend behavior:
 - validates the response shape at the adapter boundary
 - stores only the JWT and safe user profile in `birdwatchingAI.authState`
 - never stores passwords
-- sends the token as `Authorization: Bearer <token>` on protected chat requests
+- sends the token as `Authorization: Bearer <token>` on authenticated chat requests
+- stores a safe visitor marker when the user enters visitor mode without credentials
 - clears auth storage on logout
 - uses the safe auth user profile to prefill customer context
 
 ## `POST /chat`
-Used by `streamChatMessage({ message, conversationId, customerContext, conversationContext, token, signal, onStart, onChunk, onReplace })`.
+Used by `streamChatMessage({ message, conversationId, customerContext, conversationContext, role, token, signal, onStart, onChunk, onReplace })`.
 
-Requires:
+Authenticated requests include:
 ```http
 Authorization: Bearer <token>
 ```
+
+Visitor requests omit `Authorization` and send `"role": "visitor"`. The backend limits visitors to bird-only questions and blocks booking/tour actions.
 
 The request body matches `POST /chat`:
 ```json
@@ -117,7 +120,8 @@ The request body matches `POST /chat`:
       "participants": 2,
       "uiAction": { "type": "reservation_confirmation" }
     }
-  }
+  },
+  "role": "customer"
 }
 ```
 

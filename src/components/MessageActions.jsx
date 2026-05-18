@@ -36,34 +36,59 @@ function actionMessage(action, option) {
   return stringifyActionValue(option.value)
 }
 
-function ChoiceAction({ action, onAction }) {
+function isReservationAction(action, option) {
+  if (['reservation_confirmation', 'participant_count', 'date_picker', 'transportation_selection'].includes(action.type)) {
+    return true
+  }
+
+  if (action.type === 'tour_selection') {
+    return true
+  }
+
+  return [
+    'proceed_booking',
+    'confirm_reservation',
+    'show_transportation',
+  ].includes(option?.value)
+}
+
+function ChoiceAction({ action, onAction, viewerRole }) {
   return (
     <div className="message-actions" aria-label={action.prompt}>
       {action.prompt && <div className="action-prompt">{action.prompt}</div>}
       <div className="action-buttons">
-        {action.options.map((option) => (
-          <button
-            key={`${action.type}-${option.label}`}
-            type="button"
-            className={`action-button${option.recommended ? ' recommended' : ''}`}
-            onClick={() => onAction(actionMessage(action, option))}
-          >
-            <span>
-              {option.label}
-              {option.recommended && <strong>Recommended</strong>}
-            </span>
-            {option.description && <small>{option.description}</small>}
-          </button>
-        ))}
+        {action.options.map((option) => {
+          const isBlocked = viewerRole === 'visitor' && isReservationAction(action, option)
+
+          return (
+            <button
+              key={`${action.type}-${option.label}`}
+              type="button"
+              className={`action-button${option.recommended ? ' recommended' : ''}`}
+              onClick={() => onAction(actionMessage(action, option))}
+              disabled={isBlocked}
+              title={isBlocked ? 'Visitors can ask about birds only.' : undefined}
+            >
+              <span>
+                {option.label}
+                {option.recommended && <strong>Recommended</strong>}
+              </span>
+              {isBlocked ? (
+                <small>Log in to use booking actions.</small>
+              ) : option.description && <small>{option.description}</small>}
+            </button>
+          )
+        })}
       </div>
     </div>
   )
 }
 
-function DatePickerAction({ action, onAction }) {
+function DatePickerAction({ action, onAction, viewerRole }) {
   const availableDates = Array.isArray(action.availableDates) ? action.availableDates : []
   const min = availableDates[0]
   const max = availableDates[availableDates.length - 1]
+  const isBlocked = viewerRole === 'visitor'
 
   return (
     <div className="message-actions" aria-label={action.prompt}>
@@ -73,18 +98,21 @@ function DatePickerAction({ action, onAction }) {
         type="date"
         min={min}
         max={max}
+        disabled={isBlocked}
         onChange={(event) => {
           if (event.target.value) {
             onAction(`Use ${event.target.value} for tour ${action.tourId || ''}`.trim())
           }
         }}
       />
+      {isBlocked && <div className="action-note">Log in to use booking actions.</div>}
     </div>
   )
 }
 
-function ParticipantCountAction({ action, onAction }) {
+function ParticipantCountAction({ action, onAction, viewerRole }) {
   const [selectedValue, setSelectedValue] = useState('')
+  const isBlocked = viewerRole === 'visitor'
   const options = Array.isArray(action.options) && action.options.length > 0
     ? action.options
     : Array.from({ length: Math.max(0, Number(action.max || 0)) }, (_, index) => {
@@ -104,6 +132,7 @@ function ParticipantCountAction({ action, onAction }) {
         <select
           id={controlId}
           value={selectedValue}
+          disabled={isBlocked}
           onChange={(event) => setSelectedValue(event.target.value)}
         >
           <option value="">Select</option>
@@ -116,17 +145,18 @@ function ParticipantCountAction({ action, onAction }) {
         <button
           type="button"
           className="action-button compact"
-          disabled={!selectedValue}
+          disabled={!selectedValue || isBlocked}
           onClick={() => onAction(selectedValue)}
         >
           Send
         </button>
       </div>
+      {isBlocked && <div className="action-note">Log in to use booking actions.</div>}
     </div>
   )
 }
 
-function MessageActions({ actions = [], onAction }) {
+function MessageActions({ actions = [], onAction, viewerRole }) {
   if (!actions.length || !onAction) {
     return null
   }
@@ -135,15 +165,15 @@ function MessageActions({ actions = [], onAction }) {
     <div className="message-action-list">
       {actions.map((action, index) => {
         if (action.type === 'date_picker') {
-          return <DatePickerAction key={`${action.type}-${index}`} action={action} onAction={onAction} />
+          return <DatePickerAction key={`${action.type}-${index}`} action={action} onAction={onAction} viewerRole={viewerRole} />
         }
 
         if (action.type === 'participant_count') {
-          return <ParticipantCountAction key={`${action.type}-${index}`} action={action} onAction={onAction} />
+          return <ParticipantCountAction key={`${action.type}-${index}`} action={action} onAction={onAction} viewerRole={viewerRole} />
         }
 
         if (Array.isArray(action.options)) {
-          return <ChoiceAction key={`${action.type}-${index}`} action={action} onAction={onAction} />
+          return <ChoiceAction key={`${action.type}-${index}`} action={action} onAction={onAction} viewerRole={viewerRole} />
         }
 
         return null

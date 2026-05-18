@@ -31,6 +31,7 @@ describe('useAuth', () => {
       id: 'user-1',
       email: 'ana@example.com',
       name: 'Ana Gomez',
+      role: 'customer',
     })
   })
 
@@ -106,5 +107,26 @@ describe('useAuth', () => {
 
     expect(result.current.isAuthenticated).toBe(false)
     expect(window.localStorage.getItem('birdwatchingAI.authState')).toBeNull()
+  })
+
+  test('starts and persists a visitor session without a token', () => {
+    const { result } = renderHook(() => useAuth())
+
+    act(() => {
+      result.current.enterAsVisitor()
+    })
+
+    expect(result.current.isAuthenticated).toBe(false)
+    expect(result.current.isVisitor).toBe(true)
+    expect(result.current.user).toMatchObject({
+      id: 'visitor',
+      role: 'visitor',
+    })
+    expect(JSON.parse(window.localStorage.getItem('birdwatchingAI.authState'))).toMatchObject({
+      token: null,
+      user: {
+        role: 'visitor',
+      },
+    })
   })
 })

@@ -2,8 +2,26 @@ import { useCallback, useState } from 'react'
 import { login as loginRequest, signup as signupRequest } from '../api/authApi'
 import { AUTH_STORAGE_KEY, readJsonStorage, removeStorageItem, writeJsonStorage } from '../utils/storage'
 
+const VISITOR_USER = {
+  id: 'visitor',
+  email: null,
+  name: 'Visitor',
+  role: 'visitor',
+}
+
 function readStoredAuthState() {
   const parsed = readJsonStorage(AUTH_STORAGE_KEY)
+
+  if (
+    parsed
+    && typeof parsed === 'object'
+    && parsed.user?.role === 'visitor'
+  ) {
+    return {
+      token: null,
+      user: VISITOR_USER,
+    }
+  }
 
   if (
     parsed
@@ -18,6 +36,7 @@ function readStoredAuthState() {
         id: parsed.user.id,
         email: parsed.user.email,
         name: parsed.user.name || null,
+        role: parsed.user.role || 'customer',
       },
     }
   }
@@ -78,6 +97,18 @@ export default function useAuth() {
     }
   }, [applyAuthResult])
 
+  const enterAsVisitor = useCallback(() => {
+    const visitorState = {
+      token: null,
+      user: VISITOR_USER,
+    }
+
+    setUser(visitorState.user)
+    setToken(null)
+    setError(null)
+    persistAuthState(visitorState)
+  }, [])
+
   const logout = useCallback(() => {
     setUser(null)
     setToken(null)
@@ -89,10 +120,12 @@ export default function useAuth() {
     user,
     token,
     isAuthenticated: Boolean(token && user),
+    isVisitor: user?.role === 'visitor',
     isLoading,
     error,
     signup,
     login,
+    enterAsVisitor,
     logout,
   }
 }

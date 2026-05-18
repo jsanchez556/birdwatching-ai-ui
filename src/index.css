@@ -312,6 +312,7 @@ button {
 }
 
 .secondary-action,
+.visitor-action,
 .logout-action {
   min-height: 40px;
   border: 1px solid var(--border-strong);
@@ -327,19 +328,41 @@ button {
   padding: 9px 12px;
 }
 
+.visitor-action {
+  width: 100%;
+  padding: 9px 12px;
+  border-color: rgba(40, 115, 77, 0.34);
+  background: rgba(40, 115, 77, 0.08);
+  color: var(--brand-strong);
+}
+
 .logout-action {
   flex: 0 0 auto;
   padding: 8px 12px;
 }
 
 .secondary-action:hover:not(:disabled),
+.visitor-action:hover:not(:disabled),
 .logout-action:hover:not(:disabled) {
   background: var(--surface-soft);
 }
 
-.secondary-action:disabled {
+.secondary-action:disabled,
+.visitor-action:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.chat-notice {
+  width: min(var(--content-width), calc(100% - 32px));
+  margin: 14px auto 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(40, 115, 77, 0.26);
+  border-radius: 8px;
+  background: rgba(40, 115, 77, 0.08);
+  color: var(--brand-strong);
+  font-size: 0.9rem;
+  line-height: 1.4;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -828,6 +851,12 @@ button {
 .action-prompt {
   color: var(--text-muted);
   font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.action-note {
+  color: var(--text-muted);
+  font-size: 0.78rem;
   line-height: 1.35;
 }
 

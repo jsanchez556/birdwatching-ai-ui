@@ -32,13 +32,17 @@ function normalizeAuth(authInput) {
       token: authInput,
       user: null,
       userId: null,
+      role: authInput ? 'customer' : 'visitor',
     }
   }
+
+  const role = authInput?.role || authInput?.user?.role || (authInput?.token ? 'customer' : 'visitor')
 
   return {
     token: authInput?.token || null,
     user: authInput?.user || null,
     userId: authInput?.user?.id ? String(authInput.user.id) : null,
+    role,
   }
 }
 
@@ -199,7 +203,7 @@ function getInitialConversationState(auth) {
 
 export default function useChat(authInput) {
   const auth = normalizeAuth(authInput)
-  const { token, userId } = auth
+  const { token, userId, role } = auth
   const [initialConversationState] = useState(() => getInitialConversationState(auth))
   const [conversationId, setConversationId] = useState(initialConversationState.conversationId)
   const [messages, setMessages] = useState(initialConversationState.messages)
@@ -427,6 +431,7 @@ export default function useChat(authInput) {
         conversationContext: {
           recentAssistantMetadata,
         },
+        role,
         token,
         signal: abortController.signal,
         onStart: ({ conversationId: startedConversationId }) => {
@@ -493,7 +498,7 @@ export default function useChat(authInput) {
         item.id === assistantMessageId
           ? {
               role: 'assistant',
-              content: REQUEST_FAILURE_MESSAGE,
+              content: requestError.message || REQUEST_FAILURE_MESSAGE,
               isError: true,
             }
           : item
@@ -517,6 +522,7 @@ export default function useChat(authInput) {
     isStreaming,
     isHydrating,
     error,
+    role,
     customerContext,
     conversationMeta,
     setCustomerContext,

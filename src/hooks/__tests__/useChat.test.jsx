@@ -231,6 +231,30 @@ describe('useChat streaming behavior', () => {
     }))
   })
 
+  test('marks unauthenticated chat requests as visitor role', async () => {
+    streamChatMessage.mockResolvedValue({
+      conversationId: 'conversation-123',
+      response: 'Toucans have large bills.',
+      metadata: {},
+    })
+
+    const { result } = renderHook(() => useChat({
+      user: {
+        id: 'visitor',
+        role: 'visitor',
+      },
+    }))
+
+    await act(async () => {
+      await result.current.sendMessage('Tell me about toucans')
+    })
+
+    expect(streamChatMessage).toHaveBeenCalledWith(expect.objectContaining({
+      role: 'visitor',
+      token: null,
+    }))
+  })
+
   test('loads latest backend conversation before generating an authenticated conversation ID', async () => {
     loadLatestConversation.mockResolvedValue({
       conversationId: 'conversation-from-db',

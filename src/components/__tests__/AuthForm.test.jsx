@@ -62,4 +62,22 @@ describe('AuthForm', () => {
       })
     })
   })
+
+  test('offers visitor entry without credentials', () => {
+    const onEnterAsVisitor = jest.fn()
+
+    render(
+      <AuthForm
+        mode="login"
+        onLogin={jest.fn()}
+        onSignup={jest.fn()}
+        onSwitchMode={jest.fn()}
+        onEnterAsVisitor={onEnterAsVisitor}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /continue as visitor/i }))
+
+    expect(onEnterAsVisitor).toHaveBeenCalledTimes(1)
+  })
 })

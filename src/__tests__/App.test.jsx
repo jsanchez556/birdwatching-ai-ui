@@ -23,10 +23,12 @@ describe('App authentication flow', () => {
   test('shows auth views instead of chat when unauthenticated', () => {
     useAuth.mockReturnValue({
       isAuthenticated: false,
+      isVisitor: false,
       isLoading: false,
       error: null,
       login: jest.fn(),
       signup: jest.fn(),
+      enterAsVisitor: jest.fn(),
     })
 
     render(<App />)
@@ -39,6 +41,7 @@ describe('App authentication flow', () => {
     const logout = jest.fn()
     useAuth.mockReturnValue({
       isAuthenticated: true,
+      isVisitor: false,
       isLoading: false,
       error: null,
       token: 'stored-token',
@@ -46,6 +49,7 @@ describe('App authentication flow', () => {
         id: 'user-1',
         email: 'ana@example.com',
         name: 'Ana Gomez',
+        role: 'customer',
       },
       logout,
     })
@@ -55,6 +59,7 @@ describe('App authentication flow', () => {
       isStreaming: false,
       error: null,
       customerContext: null,
+      conversationMeta: {},
       setCustomerContext: jest.fn(),
       sendMessage: jest.fn(),
       stopGenerating: jest.fn(),
@@ -67,5 +72,38 @@ describe('App authentication flow', () => {
     fireEvent.click(screen.getByRole('button', { name: /log out/i }))
 
     expect(logout).toHaveBeenCalledTimes(1)
+  })
+
+  test('shows visitor chat without customer context form', () => {
+    useAuth.mockReturnValue({
+      isAuthenticated: false,
+      isVisitor: true,
+      isLoading: false,
+      error: null,
+      token: null,
+      user: {
+        id: 'visitor',
+        name: 'Visitor',
+        role: 'visitor',
+      },
+      logout: jest.fn(),
+    })
+    useChat.mockReturnValue({
+      messages: [],
+      isLoading: false,
+      isStreaming: false,
+      error: null,
+      customerContext: null,
+      conversationMeta: {},
+      setCustomerContext: jest.fn(),
+      sendMessage: jest.fn(),
+      stopGenerating: jest.fn(),
+    })
+
+    render(<App />)
+
+    expect(screen.getByText(/Visitor mode is for bird questions only/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Plan your birding chat/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /exit visitor chat/i })).toBeInTheDocument()
   })
 })

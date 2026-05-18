@@ -7,7 +7,7 @@ import {
 } from '../utils/reservationConfirmation'
 import { normalizeText } from '../utils/normalizers'
 
-function MessageContent({ message, conversationMeta, onAction }) {
+function MessageContent({ message, conversationMeta, onAction, viewerRole }) {
   if (message.isStopped && !message.content) {
     return (
       <span className="stopped-message">
@@ -49,7 +49,7 @@ function MessageContent({ message, conversationMeta, onAction }) {
     return (
       <>
         {message.content}
-        <MessageActions actions={messageActions} onAction={onAction} />
+        <MessageActions actions={messageActions} onAction={onAction} viewerRole={viewerRole} />
       </>
     )
   }
@@ -60,7 +60,7 @@ function MessageContent({ message, conversationMeta, onAction }) {
         <div className="message-text">{message.content}</div>
       )}
       <ReservationConfirmationCard reservation={reservation} />
-      <MessageActions actions={messageActions} onAction={onAction} />
+      <MessageActions actions={messageActions} onAction={onAction} viewerRole={viewerRole} />
     </>
   )
 }
@@ -82,7 +82,7 @@ function getCustomerInitials(customerName) {
     .toUpperCase()
 }
 
-function ChatMessages({ messages, isLoading, customerContext, conversationMeta, onAction }) {
+function ChatMessages({ messages, isLoading, customerContext, conversationMeta, onAction, viewerRole }) {
   const messagesRef = useRef(null)
 
   useLayoutEffect(() => {
@@ -147,7 +147,7 @@ function ChatMessages({ messages, isLoading, customerContext, conversationMeta, 
                   {meta.label}
                 </div>
                 <div className={`message-bubble${message.isError ? ' error' : ''}${message.role === 'assistant' ? ' assistant-content' : ''}${message.isStreaming ? ' streaming' : ''}`}>
-                  <MessageContent message={message} conversationMeta={conversationMeta} onAction={onAction} />
+                  <MessageContent message={message} conversationMeta={conversationMeta} onAction={onAction} viewerRole={viewerRole} />
                 </div>
               </div>
             </article>

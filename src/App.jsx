@@ -7,6 +7,7 @@ import useAuth from './hooks/useAuth'
 import useChat from './hooks/useChat'
 
 function AuthenticatedChat({ auth }) {
+  const viewerRole = auth.user?.role || (auth.isVisitor ? 'visitor' : 'customer')
   const {
     messages,
     isLoading,
@@ -20,7 +21,9 @@ function AuthenticatedChat({ auth }) {
   } = useChat({
     token: auth.token,
     user: auth.user,
+    role: viewerRole,
   })
+  const isVisitor = viewerRole === 'visitor'
 
   return (
     <main className="app-shell">
@@ -33,11 +36,16 @@ function AuthenticatedChat({ auth }) {
           </div>
         </div>
         <button type="button" className="logout-action" onClick={auth.logout}>
-          Log out
+          {isVisitor ? 'Exit visitor chat' : 'Log out'}
         </button>
       </header>
       <div className="chat-container">
-        {!customerContext ? (
+        {isVisitor && (
+          <div className="chat-notice" role="status">
+            Visitor mode is for bird questions only. Log in to plan or reserve tours.
+          </div>
+        )}
+        {!isVisitor && !customerContext ? (
           <CustomerContextForm onSubmit={setCustomerContext} authUser={auth.user} />
         ) : (
           <>
@@ -52,6 +60,7 @@ function AuthenticatedChat({ auth }) {
           customerContext={customerContext}
           conversationMeta={conversationMeta}
           onAction={sendMessage}
+          viewerRole={viewerRole}
         />
         <ChatInput
           onSendMessage={sendMessage}
@@ -70,7 +79,7 @@ function App() {
   const [authMode, setAuthMode] = useState('login')
   const auth = useAuth()
 
-  if (!auth.isAuthenticated) {
+  if (!auth.isAuthenticated && !auth.isVisitor) {
     return (
       <main className="app-shell auth-shell">
         <header className="app-header">
@@ -89,6 +98,7 @@ function App() {
           onLogin={auth.login}
           onSignup={auth.signup}
           onSwitchMode={() => setAuthMode((mode) => (mode === 'login' ? 'signup' : 'login'))}
+          onEnterAsVisitor={auth.enterAsVisitor}
         />
       </main>
     )
