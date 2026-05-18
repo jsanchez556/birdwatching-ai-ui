@@ -1,15 +1,15 @@
-const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-
-function apiUrl(path) {
-  return `${apiBaseUrl}${path}`
-}
+import {
+  apiUrl,
+  getApiErrorMessage,
+  JSON_HEADERS,
+  parseJsonResponse,
+} from './http'
 
 async function parseAuthResponse(response, fallbackMessage) {
-  const data = await response.json().catch(() => ({}))
+  const data = await parseJsonResponse(response)
 
   if (!response.ok) {
-    const errorMessage = data.error?.message || data.error || fallbackMessage
-    throw new Error(errorMessage)
+    throw new Error(getApiErrorMessage(data, fallbackMessage))
   }
 
   if (
@@ -35,9 +35,7 @@ async function parseAuthResponse(response, fallbackMessage) {
 export async function signup({ email, password, name }) {
   const response = await fetch(apiUrl('/auth/signup'), {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: JSON_HEADERS,
     body: JSON.stringify({ email, password, name }),
   })
 
@@ -47,9 +45,7 @@ export async function signup({ email, password, name }) {
 export async function login({ email, password }) {
   const response = await fetch(apiUrl('/auth/login'), {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: JSON_HEADERS,
     body: JSON.stringify({ email, password }),
   })
 

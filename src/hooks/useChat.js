@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadConversationMessages, loadLatestConversation, streamChatMessage } from '../api/chatApi'
+import { CHAT_STORAGE_KEY, readJsonStorage, writeJsonStorage } from '../utils/storage'
 
 const REQUEST_FAILURE_MESSAGE = 'Sorry, something went wrong. Please try again.'
-const CHAT_STORAGE_KEY = 'birdwatchingAI.chatState'
 const STREAM_REVEAL_INTERVAL_MS = 28
 const STREAM_REVEAL_CHARS = 3
 const CONVERSATION_METADATA_KEYS = [
@@ -20,15 +20,6 @@ function createConversationId() {
   }
 
   return `conversation-${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
-
-function readJsonStorage(key) {
-  try {
-    const stored = window.localStorage.getItem(key)
-    return stored ? JSON.parse(stored) : null
-  } catch {
-    return null
-  }
 }
 
 function getChatStorageKey(userId) {
@@ -137,19 +128,15 @@ function persistChatState({
   messages,
   userId,
 } = {}) {
-  try {
-    window.localStorage.setItem(getChatStorageKey(userId), JSON.stringify({
-      conversationId,
-      messages: Array.isArray(messages) ? messages : [],
-      meta: {
-        ...(conversationMeta || {}),
-        customerContext: customerContext || conversationMeta?.customerContext || null,
-        savedAt: new Date().toISOString(),
-      },
-    }))
-  } catch {
-    // Conversation hydration falls back to the API if message cache is unavailable.
-  }
+  writeJsonStorage(getChatStorageKey(userId), {
+    conversationId,
+    messages: Array.isArray(messages) ? messages : [],
+    meta: {
+      ...(conversationMeta || {}),
+      customerContext: customerContext || conversationMeta?.customerContext || null,
+      savedAt: new Date().toISOString(),
+    },
+  })
 }
 
 function isAbortError(error) {

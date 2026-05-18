@@ -5,6 +5,7 @@ import {
   extractReservationConfirmation,
   normalizeReservationConfirmation,
 } from '../utils/reservationConfirmation'
+import { normalizeText } from '../utils/normalizers'
 
 function MessageContent({ message, conversationMeta, onAction }) {
   if (message.isStopped && !message.content) {
@@ -65,11 +66,13 @@ function MessageContent({ message, conversationMeta, onAction }) {
 }
 
 function getCustomerInitials(customerName) {
-  if (typeof customerName !== 'string' || !customerName.trim()) {
+  const normalizedName = normalizeText(customerName)
+
+  if (!normalizedName) {
     return 'Y'
   }
 
-  const parts = customerName.trim().split(/\s+/).filter(Boolean)
+  const parts = normalizedName.split(/\s+/).filter(Boolean)
   const selectedParts = parts.length > 1 ? [parts[0], parts[1]] : [parts[0]]
 
   return selectedParts

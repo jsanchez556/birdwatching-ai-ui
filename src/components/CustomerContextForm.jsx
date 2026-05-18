@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { normalizeText } from '../utils/normalizers'
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10)
@@ -26,15 +27,15 @@ function CustomerContextForm({ onSubmit, authUser }) {
   const handleSubmit = (event) => {
     event.preventDefault()
     onSubmit({
-      customerName: form.customerName.trim(),
-      customerEmail: lockedEmail || form.customerEmail.trim(),
+      customerName: normalizeText(form.customerName),
+      customerEmail: lockedEmail || normalizeText(form.customerEmail),
       itineraryStartDate: form.itineraryStartDate,
       itineraryEndDate: form.itineraryEndDate,
     })
   }
 
-  const isComplete = form.customerName.trim()
-    && (lockedEmail || form.customerEmail.trim())
+  const isComplete = normalizeText(form.customerName)
+    && (lockedEmail || normalizeText(form.customerEmail))
     && form.itineraryStartDate
     && form.itineraryEndDate
     && form.itineraryEndDate >= form.itineraryStartDate

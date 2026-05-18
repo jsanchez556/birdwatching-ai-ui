@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { normalizeText } from '../utils/normalizers'
 
 function AuthForm({
   mode,
@@ -25,9 +26,9 @@ function AuthForm({
   const handleSubmit = async (event) => {
     event.preventDefault()
     const credentials = {
-      email: form.email.trim(),
+      email: normalizeText(form.email),
       password: form.password,
-      ...(isSignup ? { name: form.name.trim() } : {}),
+      ...(isSignup ? { name: normalizeText(form.name) } : {}),
     }
 
     try {
@@ -42,7 +43,7 @@ function AuthForm({
     }
   }
 
-  const isComplete = form.email.trim()
+  const isComplete = normalizeText(form.email)
     && form.password.length >= 8
 
   return (

@@ -18,6 +18,7 @@ This frontend delivers the chat experience, responsive UI, local conversation co
 - Keep `src/App.jsx` as composition glue for the current single-screen app.
 - Keep presentational UI in `src/components/`.
 - Keep reusable behavior and side effects in `src/hooks/`.
+- Extract repeated logic with the same intent into a shared helper instead of keeping multiple narrowly named functions with identical implementations.
 - Keep backend HTTP calls in `src/api/`; do not call `fetch` directly from components.
 - Keep environment-dependent URL behavior behind the API layer or Vite config.
 - Keep styling tokens and responsive behavior in `src/index.css` until a component styling system is introduced.

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { normalizeText } from '../utils/normalizers'
 
 function ChatInput({
   onSendMessage,
@@ -16,9 +17,10 @@ function ChatInput({
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (!input.trim() || isLoading) return
+    const message = normalizeText(input)
+    if (!message || isLoading) return
     
-    onSendMessage(input.trim())
+    onSendMessage(message)
     setInput('')
 
     if (textareaRef.current) {
@@ -48,7 +50,7 @@ function ChatInput({
         <button 
           type="submit" 
           className="send-button"
-          disabled={!input.trim() || isLoading}
+          disabled={!normalizeText(input) || isLoading}
           aria-label="Send message"
         >
           <span aria-hidden="true">↑</span>

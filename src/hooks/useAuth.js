@@ -1,50 +1,36 @@
 import { useCallback, useState } from 'react'
 import { login as loginRequest, signup as signupRequest } from '../api/authApi'
-
-const AUTH_STORAGE_KEY = 'birdwatchingAI.authState'
+import { AUTH_STORAGE_KEY, readJsonStorage, removeStorageItem, writeJsonStorage } from '../utils/storage'
 
 function readStoredAuthState() {
-  try {
-    const stored = window.localStorage.getItem(AUTH_STORAGE_KEY)
-    const parsed = stored ? JSON.parse(stored) : null
+  const parsed = readJsonStorage(AUTH_STORAGE_KEY)
 
-    if (
-      parsed
-      && typeof parsed === 'object'
-      && typeof parsed.token === 'string'
-      && parsed.user
-      && typeof parsed.user.email === 'string'
-    ) {
-      return {
-        token: parsed.token,
-        user: {
-          id: parsed.user.id,
-          email: parsed.user.email,
-          name: parsed.user.name || null,
-        },
-      }
+  if (
+    parsed
+    && typeof parsed === 'object'
+    && typeof parsed.token === 'string'
+    && parsed.user
+    && typeof parsed.user.email === 'string'
+  ) {
+    return {
+      token: parsed.token,
+      user: {
+        id: parsed.user.id,
+        email: parsed.user.email,
+        name: parsed.user.name || null,
+      },
     }
-  } catch {
-    return null
   }
 
   return null
 }
 
 function persistAuthState(authState) {
-  try {
-    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authState))
-  } catch {
-    // Auth still works for this tab when storage is unavailable.
-  }
+  writeJsonStorage(AUTH_STORAGE_KEY, authState)
 }
 
 function clearAuthState() {
-  try {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY)
-  } catch {
-    // Nothing else to do when storage is unavailable.
-  }
+  removeStorageItem(AUTH_STORAGE_KEY)
 }
 
 export default function useAuth() {

@@ -1,14 +1,10 @@
-const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-
-function apiUrl(path) {
-  return `${apiBaseUrl}${path}`
-}
-
-function authHeaders(token) {
-  return token
-    ? { Authorization: `Bearer ${token}` }
-    : {}
-}
+import {
+  apiUrl,
+  authHeaders,
+  getApiErrorMessage,
+  JSON_HEADERS,
+  parseJsonResponse,
+} from './http'
 
 function parseSseBlock(block) {
   const lines = block.split(/\r?\n/)
@@ -87,7 +83,7 @@ export async function streamChatMessage({
   const response = await fetch(apiUrl('/chat'), {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
+      ...JSON_HEADERS,
       Accept: 'text/event-stream',
       ...authHeaders(token),
     },
@@ -101,9 +97,8 @@ export async function streamChatMessage({
   })
 
   if (!response.ok) {
-    const data = await response.json().catch(() => ({}))
-    const errorMessage = data.error?.message || data.error || 'Failed to stream response'
-    throw new Error(errorMessage)
+    const data = await parseJsonResponse(response)
+    throw new Error(getApiErrorMessage(data, 'Failed to stream response'))
   }
 
   if (!response.body) {
@@ -166,11 +161,10 @@ export async function loadConversationMessages(conversationId, { token } = {}) {
   const response = await fetch(apiUrl(`/chat/${encodeURIComponent(conversationId)}`), {
     headers: authHeaders(token),
   })
-  const data = await response.json().catch(() => ({}))
+  const data = await parseJsonResponse(response)
 
   if (!response.ok) {
-    const errorMessage = data.error?.message || data.error || 'Failed to load conversation'
-    throw new Error(errorMessage)
+    throw new Error(getApiErrorMessage(data, 'Failed to load conversation'))
   }
 
   if (!data.success || !data.data) {
@@ -194,11 +188,10 @@ export async function loadLatestConversation({ token } = {}) {
   const response = await fetch(apiUrl('/chat/latest'), {
     headers: authHeaders(token),
   })
-  const data = await response.json().catch(() => ({}))
+  const data = await parseJsonResponse(response)
 
   if (!response.ok) {
-    const errorMessage = data.error?.message || data.error || 'Failed to load latest conversation'
-    throw new Error(errorMessage)
+    throw new Error(getApiErrorMessage(data, 'Failed to load latest conversation'))
   }
 
   if (!data.success || !data.data) {
