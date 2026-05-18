@@ -89,7 +89,8 @@ Browser fetch(`${VITE_API_URL}/auth/*` or `${VITE_API_URL}/chat`)
 - ESM is enabled through `"type": "module"` in `package.json`.
 - The app has one screen and currently no React Router dependency.
 - Unauthenticated users see login/signup views unless they choose visitor mode; authenticated users see the existing customer-context and chat flow.
-- `useAuth` stores only the JWT and safe user profile, or a safe local visitor marker, under `birdwatchingAI.authState`.
+- `useAuth` stores only the access token, refresh token, expiry timestamps, and safe user profile, or a safe local visitor marker, under `birdwatchingAI.authState`.
+- `useAuth.getValidToken` refreshes expiring access tokens before authenticated chat calls and clears local auth state when refresh fails.
 - Authenticated chat state is stored under `birdwatchingAI.chatState.<userId>` so user switching cannot reuse another user's local transcript.
 - `VITE_API_URL` is trimmed of trailing slash before request URLs are built.
 - Empty `VITE_API_URL` intentionally produces relative `/auth` and `/chat` URLs for local proxying.

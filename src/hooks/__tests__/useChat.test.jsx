@@ -231,6 +231,37 @@ describe('useChat streaming behavior', () => {
     }))
   })
 
+  test('uses refreshed access tokens for authenticated chat requests', async () => {
+    const getAccessToken = jest.fn().mockResolvedValue('fresh-token')
+    streamChatMessage.mockResolvedValue({
+      conversationId: 'conversation-123',
+      response: 'Done',
+      metadata: {},
+    })
+
+    const { result } = renderHook(() => useChat({
+      token: 'stale-token',
+      getAccessToken,
+      user: {
+        id: 'user-1',
+        email: 'ana@example.com',
+      },
+    }))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      await result.current.sendMessage('Find quetzals')
+    })
+
+    expect(getAccessToken).toHaveBeenCalled()
+    expect(streamChatMessage).toHaveBeenCalledWith(expect.objectContaining({
+      token: 'fresh-token',
+    }))
+  })
+
   test('marks unauthenticated chat requests as visitor role', async () => {
     streamChatMessage.mockResolvedValue({
       conversationId: 'conversation-123',

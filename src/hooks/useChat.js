@@ -30,6 +30,7 @@ function normalizeAuth(authInput) {
   if (typeof authInput === 'string') {
     return {
       token: authInput,
+      getAccessToken: null,
       user: null,
       userId: null,
       role: authInput ? 'customer' : 'visitor',
@@ -40,6 +41,7 @@ function normalizeAuth(authInput) {
 
   return {
     token: authInput?.token || null,
+    getAccessToken: authInput?.getAccessToken || null,
     user: authInput?.user || null,
     userId: authInput?.user?.id ? String(authInput.user.id) : null,
     role,
@@ -203,7 +205,7 @@ function getInitialConversationState(auth) {
 
 export default function useChat(authInput) {
   const auth = normalizeAuth(authInput)
-  const { token, userId, role } = auth
+  const { token, getAccessToken, userId, role } = auth
   const [initialConversationState] = useState(() => getInitialConversationState(auth))
   const [conversationId, setConversationId] = useState(initialConversationState.conversationId)
   const [messages, setMessages] = useState(initialConversationState.messages)
@@ -296,8 +298,10 @@ export default function useChat(authInput) {
     async function loadStoredConversation() {
       try {
         const result = initialConversationState.shouldLoadLatestFromApi
-          ? await loadLatestConversation({ token })
-          : await loadConversationMessages(initialConversationState.conversationId, { token })
+          ? await loadLatestConversation({ token: getAccessToken ? await getAccessToken() : token })
+          : await loadConversationMessages(initialConversationState.conversationId, {
+            token: getAccessToken ? await getAccessToken() : token,
+          })
 
         if (!isMounted) return
 
@@ -339,6 +343,7 @@ export default function useChat(authInput) {
     initialConversationState.shouldLoadFromApi,
     initialConversationState.shouldLoadLatestFromApi,
     token,
+    getAccessToken,
     userId,
   ])
 
@@ -432,7 +437,7 @@ export default function useChat(authInput) {
           recentAssistantMetadata,
         },
         role,
-        token,
+        token: getAccessToken ? await getAccessToken() : token,
         signal: abortController.signal,
         onStart: ({ conversationId: startedConversationId }) => {
           if (!startedConversationId) return

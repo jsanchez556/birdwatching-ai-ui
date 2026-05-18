@@ -74,10 +74,14 @@ Both endpoints are expected to return:
   "success": true,
   "data": {
     "token": "jwt",
+    "accessTokenExpiresAt": "2026-06-01T12:00:00.000Z",
+    "refreshToken": "opaque-refresh-token",
+    "refreshTokenExpiresAt": "2026-07-01T12:00:00.000Z",
     "user": {
       "id": "user-1",
       "email": "ana@example.com",
-      "name": "Ana Rivera"
+      "name": "Ana Rivera",
+      "role": "customer"
     }
   },
   "meta": {}
@@ -86,12 +90,25 @@ Both endpoints are expected to return:
 
 Frontend behavior:
 - validates the response shape at the adapter boundary
-- stores only the JWT and safe user profile in `birdwatchingAI.authState`
+- stores only the access token, refresh token, expiry timestamps, and safe user profile in `birdwatchingAI.authState`
 - never stores passwords
 - sends the token as `Authorization: Bearer <token>` on authenticated chat requests
+- refreshes expiring access tokens through `POST /auth/refresh`
+- clears local auth state and returns to login when refresh fails
 - stores a safe visitor marker when the user enters visitor mode without credentials
 - clears auth storage on logout
 - uses the safe auth user profile to prefill customer context
+
+`POST /auth/refresh` sends:
+```json
+{
+  "refreshToken": "opaque-refresh-token"
+}
+```
+
+It returns the same shape as login/signup and rotates the refresh token.
+
+`POST /auth/logout` sends the current refresh token when available so the backend can revoke it.
 
 ## `POST /chat`
 Used by `streamChatMessage({ message, conversationId, customerContext, conversationContext, role, token, signal, onStart, onChunk, onReplace })`.

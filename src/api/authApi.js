@@ -16,6 +16,7 @@ async function parseAuthResponse(response, fallbackMessage) {
     !data.success
     || !data.data
     || typeof data.data.token !== 'string'
+    || typeof data.data.refreshToken !== 'string'
     || !data.data.user
     || typeof data.data.user.email !== 'string'
   ) {
@@ -24,6 +25,9 @@ async function parseAuthResponse(response, fallbackMessage) {
 
   return {
     token: data.data.token,
+    accessTokenExpiresAt: data.data.accessTokenExpiresAt || null,
+    refreshToken: data.data.refreshToken,
+    refreshTokenExpiresAt: data.data.refreshTokenExpiresAt || null,
     user: {
       id: data.data.user.id,
       email: data.data.user.email,
@@ -51,4 +55,32 @@ export async function login({ email, password }) {
   })
 
   return parseAuthResponse(response, 'Unable to log in')
+}
+
+export async function refreshSession(refreshToken) {
+  const response = await fetch(apiUrl('/auth/refresh'), {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ refreshToken }),
+  })
+
+  return parseAuthResponse(response, 'Your session expired. Please log in again.')
+}
+
+export async function logoutSession(refreshToken) {
+  if (!refreshToken) {
+    return
+  }
+
+  const response = await fetch(apiUrl('/auth/logout'), {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ refreshToken }),
+  })
+
+  if (!response.ok) {
+    return
+  }
+
+  await parseJsonResponse(response)
 }

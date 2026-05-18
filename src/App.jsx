@@ -20,6 +20,7 @@ function AuthenticatedChat({ auth }) {
     stopGenerating,
   } = useChat({
     token: auth.token,
+    getAccessToken: auth.getValidToken,
     user: auth.user,
     role: viewerRole,
   })
