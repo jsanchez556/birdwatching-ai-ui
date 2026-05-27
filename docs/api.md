@@ -2,7 +2,11 @@
 
 Back to [Project Context](../CONTEXT.md). See [Architecture](./architecture.md) for UI flow details.
 
+<<<<<<< HEAD
 The frontend integrates with the Birdwatching AI API through `src/api/authApi.js`, `src/api/cartApi.js`, `src/api/chatApi.js`, `src/api/homeApi.js`, and `src/api/mediaApi.js`. Backend API implementation lives in the backend repository.
+=======
+The frontend integrates with the Birdwatching AI API through `src/api/authApi.js`, `src/api/chatApi.js`, `src/api/homeApi.js`, and `src/api/mediaApi.js`. Backend API implementation lives in the backend repository.
+>>>>>>> 53f95ca (Implement the home page.)
 
 The active UI currently calls:
 - `POST /auth/signup`
@@ -56,7 +60,11 @@ import.meta.env.VITE_API_URL
 Behavior:
 - trailing slashes are removed
 - empty value means requests are relative to the current origin
+<<<<<<< HEAD
 - local relative `/auth`, `/cart`, `/chat`, `/homepage`, `/tours`, `/birds`, `/addons`, and `/files` calls are proxied by Vite to `VITE_API_PROXY_TARGET`
+=======
+- local relative `/auth`, `/chat`, `/homepage`, `/tours`, `/birds`, `/addons`, and `/files` calls are proxied by Vite to `VITE_API_PROXY_TARGET`
+>>>>>>> 53f95ca (Implement the home page.)
 - production should set `VITE_API_URL` to the public backend URL
 
 ## Auth
