@@ -21,6 +21,7 @@ function formatObservation(observation) {
     observation.howMany !== null && observation.howMany !== undefined
       ? `${observation.howMany} seen`
       : null,
+    observation.locName,
   ].filter(Boolean)
 
   return parts.join(' - ')
@@ -67,6 +68,10 @@ function parseSongLength(songLength) {
   return seconds > 0 ? seconds : null
 }
 
+function firstStringValue(...values) {
+  return values.find((value) => typeof value === 'string' && value.trim()) || ''
+}
+
 function BirdMediaCard({ bird }) {
   const audioRef = useRef(null)
   const [playheadPercent, setPlayheadPercent] = useState(0)
@@ -76,9 +81,21 @@ function BirdMediaCard({ bird }) {
   const [sonogramLoaded, setSonogramLoaded] = useState(false)
   const isBird = bird && typeof bird === 'object'
   const media = isBird ? bird.media || {} : {}
+  const sonogramMediaReference = firstStringValue(
+    media.sonogramUrl,
+    media.sonogram,
+    media.spectrogramUrl,
+    media.spectrogram,
+    media.sono,
+    bird?.sonogramUrl,
+    bird?.sonogram,
+    bird?.spectrogramUrl,
+    bird?.spectrogram,
+    bird?.sono,
+  )
   const photoMedia = useResolvedMedia(media.photoUrl)
   const songMedia = useResolvedMedia(media.songUrl)
-  const sonogramMedia = useResolvedMedia(media.sonogramUrl)
+  const sonogramMedia = useResolvedMedia(sonogramMediaReference)
   const photoUrl = photoMedia.url
   const songUrl = songMedia.url
   const sonogramUrl = sonogramMedia.url
@@ -91,7 +108,7 @@ function BirdMediaCard({ bird }) {
   useEffect(() => {
     setSonogramFailed(false)
     setSonogramLoaded(false)
-  }, [sonogramUrl, media.sonogramUrl])
+  }, [sonogramUrl, sonogramMediaReference])
 
   useEffect(() => {
     setPlayheadPercent(0)
@@ -108,12 +125,13 @@ function BirdMediaCard({ bird }) {
   const taxonomy = [bird.order, bird.family].filter(Boolean)
   const photoAttribution = media.photoAttribution || ''
   const songAttribution = htmlToPlainText(media.songAttributionHtml)
-  const hasSonogramReference = Boolean(media.sonogramUrl)
+  const hasSonogramReference = Boolean(sonogramMediaReference)
   const isSonogramResolving = hasSonogramReference && sonogramMedia.isResolving
   const isSonogramLoading = Boolean(sonogramUrl) && !sonogramLoaded && !sonogramFailed
   const isSonogramUnavailable = hasSonogramReference && (Boolean(sonogramMedia.error) || sonogramFailed)
   const hasSound = media.songUrl || hasSonogramReference || songAttribution
   const hasPhoto = photoUrl && !photoFailed
+  const isPhotoLoading = Boolean(media.photoUrl && photoMedia.isResolving && !photoFailed)
   const hasSonogram = sonogramUrl && !sonogramFailed
   const hasSyncedSonogram = songUrl && hasSonogram && sonogramLoaded && isAudioDurationReady
 
@@ -156,9 +174,14 @@ function BirdMediaCard({ bird }) {
             className="bird-media-photo"
             src={photoUrl}
             alt={`${displayName} photo`}
-            loading="lazy"
+            loading="eager"
+            decoding="async"
             onError={() => setPhotoFailed(true)}
           />
+        ) : isPhotoLoading ? (
+          <div className="bird-media-photo bird-media-photo-loading" role="status">
+            Loading photo...
+          </div>
         ) : (
           <div className="bird-media-photo bird-media-photo-placeholder" aria-label={`${displayName} photo unavailable`}>
             <span>{displayName.slice(0, 1).toUpperCase()}</span>

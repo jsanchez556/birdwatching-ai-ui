@@ -7,6 +7,10 @@ const STREAM_REVEAL_INTERVAL_MS = 28
 const STREAM_REVEAL_CHARS = 3
 const CONVERSATION_METADATA_KEYS = [
   'customerContext',
+  'conversationSource',
+  'conversationType',
+  'entrySource',
+  'reservationEntry',
   'reservation',
   'selectedTour',
   'selectedTourId',
@@ -133,7 +137,12 @@ function persistChatState({
   conversationMeta,
   messages,
   userId,
+  shouldPersist = true,
 } = {}) {
+  if (!shouldPersist) {
+    return
+  }
+
   writeJsonStorage(getChatStorageKey(userId), {
     conversationId,
     messages: Array.isArray(messages) ? messages : [],
@@ -149,7 +158,22 @@ function isAbortError(error) {
   return error?.name === 'AbortError' || error?.code === 'ABORT_ERR'
 }
 
-function getInitialConversationState(auth) {
+function getInitialConversationState(auth, options = {}) {
+  if (options.isEphemeral) {
+    return {
+      conversationId: null,
+      customerContext: options.initialCustomerContext || null,
+      conversationMeta: {
+        ...(options.initialConversationMeta || {}),
+        ...(options.initialCustomerContext ? { customerContext: options.initialCustomerContext } : {}),
+      },
+      messages: [],
+      shouldLoadFromApi: false,
+      shouldLoadLatestFromApi: false,
+      isHydrating: false,
+    }
+  }
+
   const storedState = getStoredChatState(auth.userId)
 
   if (storedState?.conversationId) {
@@ -203,10 +227,11 @@ function getInitialConversationState(auth) {
   }
 }
 
-export default function useChat(authInput) {
+export default function useChat(authInput, options = {}) {
   const auth = normalizeAuth(authInput)
+  const shouldPersist = options.isEphemeral !== true
   const { token, getAccessToken, userId, role } = auth
-  const [initialConversationState] = useState(() => getInitialConversationState(auth))
+  const [initialConversationState] = useState(() => getInitialConversationState(auth, options))
   const [conversationId, setConversationId] = useState(initialConversationState.conversationId)
   const [messages, setMessages] = useState(initialConversationState.messages)
   const [customerContext, setCustomerContextState] = useState(initialConversationState.customerContext)
@@ -217,6 +242,8 @@ export default function useChat(authInput) {
   const [error, setError] = useState(null)
   const activeAbortControllerRef = useRef(null)
   const activeAssistantMessageIdRef = useRef(null)
+  const initialEntryIdRef = useRef(null)
+  const initialEntryTimerRef = useRef(null)
   const streamBufferRef = useRef('')
   const streamRevealTimerRef = useRef(null)
 
@@ -316,6 +343,7 @@ export default function useChat(authInput) {
           conversationMeta: loadedMeta,
           messages: loadedMessages,
           userId,
+          shouldPersist,
         })
         setConversationId(loadedConversationId)
         setCustomerContextState(loadedCustomerContext)
@@ -345,9 +373,14 @@ export default function useChat(authInput) {
     token,
     getAccessToken,
     userId,
+    shouldPersist,
   ])
 
   useEffect(() => () => {
+    if (initialEntryTimerRef.current) {
+      window.clearTimeout(initialEntryTimerRef.current)
+      initialEntryTimerRef.current = null
+    }
     activeAbortControllerRef.current?.abort()
     clearRevealTimer()
   }, [clearRevealTimer])
@@ -387,11 +420,19 @@ export default function useChat(authInput) {
       },
       messages,
       userId,
+      shouldPersist,
     })
-  }, [conversationId, conversationMeta, messages, userId])
+  }, [conversationId, conversationMeta, messages, userId, shouldPersist])
 
-  const sendMessage = async (message) => {
-    const recentAssistantMetadata = getRecentAssistantMetadata(messages, conversationMeta)
+  const sendMessage = async (message, sendOptions = {}) => {
+    const recentAssistantMetadata = {
+      ...getRecentAssistantMetadata(messages, conversationMeta),
+      ...(sendOptions.recentAssistantMetadata || {}),
+    }
+    const nextConversationContext = {
+      recentAssistantMetadata,
+      ...(sendOptions.conversationContext || {}),
+    }
     const activeConversationId = conversationId || createConversationId()
     const userMessage = { role: 'user', content: message }
     const assistantMessageId = createConversationId()
@@ -414,6 +455,7 @@ export default function useChat(authInput) {
         conversationMeta,
         messages: nextMessages,
         userId,
+        shouldPersist,
       })
       return nextMessages
     })
@@ -434,7 +476,7 @@ export default function useChat(authInput) {
         conversationId: activeConversationId,
         customerContext,
         conversationContext: {
-          recentAssistantMetadata,
+          ...nextConversationContext,
         },
         role,
         token: getAccessToken ? await getAccessToken() : token,
@@ -448,6 +490,7 @@ export default function useChat(authInput) {
             conversationMeta,
             messages,
             userId,
+            shouldPersist,
           })
           setConversationId(startedConversationId)
         },
@@ -484,6 +527,7 @@ export default function useChat(authInput) {
           conversationMeta: mergedConversationMeta,
           messages: nextMessages,
           userId,
+          shouldPersist,
         })
         return nextMessages
       })
@@ -519,6 +563,37 @@ export default function useChat(authInput) {
       }
     }
   }
+
+  useEffect(() => {
+    const initialMessage = options.initialMessage
+    const entryId = options.initialEntryId
+
+    if (!options.isEphemeral || !initialMessage || !entryId || initialEntryIdRef.current === entryId) {
+      return
+    }
+
+    initialEntryTimerRef.current = window.setTimeout(() => {
+      initialEntryTimerRef.current = null
+      initialEntryIdRef.current = entryId
+      sendMessage(initialMessage, {
+        recentAssistantMetadata: options.initialRecentAssistantMetadata,
+        conversationContext: options.initialConversationContext,
+      })
+    }, 0)
+
+    return () => {
+      if (initialEntryTimerRef.current) {
+        window.clearTimeout(initialEntryTimerRef.current)
+        initialEntryTimerRef.current = null
+      }
+    }
+  }, [
+    options.initialConversationContext,
+    options.initialEntryId,
+    options.initialMessage,
+    options.initialRecentAssistantMetadata,
+    options.isEphemeral,
+  ])
 
   return {
     conversationId,

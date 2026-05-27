@@ -13,8 +13,8 @@ function getAllowedHosts(env) {
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const chatProxyTarget = (
-    env.VITE_API_PROXY_TARGET
+  const proxyTarget = (
+    env.VITE_API_PROXY_TARGET || 'http://localhost:3000'
   ).replace(/\/$/, '')
 
   return {
@@ -26,15 +26,35 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       proxy: {
         '/auth': {
-          target: chatProxyTarget,
+          target: proxyTarget,
+          changeOrigin: true
+        },
+        '/cart': {
+          target: proxyTarget,
           changeOrigin: true
         },
         '/chat': {
-          target: chatProxyTarget,
+          target: proxyTarget,
+          changeOrigin: true
+        },
+        '/homepage': {
+          target: proxyTarget,
+          changeOrigin: true
+        },
+        '/tours': {
+          target: proxyTarget,
+          changeOrigin: true
+        },
+        '/birds': {
+          target: proxyTarget,
+          changeOrigin: true
+        },
+        '/addons': {
+          target: proxyTarget,
           changeOrigin: true
         },
         '/files': {
-          target: chatProxyTarget,
+          target: proxyTarget,
           changeOrigin: true
         }
       }

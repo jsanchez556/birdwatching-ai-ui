@@ -2,14 +2,24 @@
 
 Back to [Project Context](../CONTEXT.md). See [Architecture](./architecture.md) for UI flow details.
 
-The frontend integrates with the Birdwatching AI API through `src/api/authApi.js` and `src/api/chatApi.js`. Backend API implementation lives in the backend repository.
+The frontend integrates with the Birdwatching AI API through `src/api/authApi.js`, `src/api/cartApi.js`, `src/api/chatApi.js`, `src/api/homeApi.js`, and `src/api/mediaApi.js`. Backend API implementation lives in the backend repository.
 
-The active UI currently calls only:
+The active UI currently calls:
 - `POST /auth/signup`
 - `POST /auth/login`
+- `GET /cart`
+- `POST /cart/items`
+- `PATCH /cart/items/:itemId`
+- `DELETE /cart/items/:itemId`
+- `GET /cart/reservations`
+- `POST /cart/reservations`
 - `POST /chat`
 - `GET /chat/latest`
 - `GET /chat/:conversationId`
+- `GET /homepage/hero`
+- `GET /tours`
+- `GET /birds/highlights`
+- `GET /addons/transportation`
 - `GET /files/:folderName/:filename`
 
 The backend also exposes `GET /health` and `POST /recommend`, but this frontend does not call those backend endpoints yet.
@@ -46,7 +56,7 @@ import.meta.env.VITE_API_URL
 Behavior:
 - trailing slashes are removed
 - empty value means requests are relative to the current origin
-- local relative `/auth`, `/chat`, and `/files` calls are proxied by Vite to `VITE_API_PROXY_TARGET`
+- local relative `/auth`, `/cart`, `/chat`, `/homepage`, `/tours`, `/birds`, `/addons`, and `/files` calls are proxied by Vite to `VITE_API_PROXY_TARGET`
 - production should set `VITE_API_URL` to the public backend URL
 
 ## Auth
@@ -111,6 +121,29 @@ It returns the same shape as login/signup and rotates the refresh token.
 
 `POST /auth/logout` sends the current refresh token when available so the backend can revoke it.
 
+## Cart And My Tours
+`src/api/cartApi.js` owns all browser calls for authenticated cart and reservation-history features. Every cart request sends `Authorization: Bearer <token>` and expects the normalized `{ success, data, meta }` envelope.
+
+Cart endpoints:
+- `GET /cart` returns `data.cart` with `items` and `count`. If legacy backend responses include `itineraryStartDate` or `itineraryEndDate`, the frontend ignores those values in favor of the cookie-backed itinerary.
+- `POST /cart/items` sends `tourId`, optional `scheduledDate`, optional `participants`, optional `needsTransportation`, and optional frontend-safe `metadata`.
+- `PATCH /cart/items/:itemId` updates `scheduledDate`, `participants`, or `needsTransportation`.
+- `DELETE /cart/items/:itemId` removes one cart item.
+- `POST /cart/reservations` creates reservations from all cart items, or from a single item when `itemIds` contains one id.
+- `GET /cart/reservations` returns `data.reservations`, limited to the latest five user reservations for My Tours.
+
+Cart itinerary dates are frontend-only preferences stored in the `birdwatchingAI.cartItinerary` browser cookie:
+```json
+{
+  "itineraryStartDate": "2026-06-01",
+  "itineraryEndDate": "2026-06-03"
+}
+```
+
+The cookie must not contain customer name, customer email, tour selections, reservations, tokens, or other sensitive data. The backend should not persist cart itinerary preferences or depend on a `tour_cart_settings` table.
+
+The backend allows cart items without scheduled dates so users can add tours before setting an itinerary. Reservation creation still requires each selected cart item to have a scheduled date. The backend enforces ownership and one tour per itinerary day. The frontend may pre-validate duplicate dates for a better user experience, but it must treat backend validation as authoritative.
+
 ## `POST /chat`
 Used by `streamChatMessage({ message, conversationId, customerContext, conversationContext, role, token, signal, onStart, onChunk, onReplace })`.
 
@@ -166,6 +199,7 @@ Frontend behavior:
 - sends the collected `customerContext` so the backend can reuse name, email, and itinerary dates during booking
 - when authenticated, sends `auth.user.email` as the customer email and does not let the user edit it in the customer context form
 - sends sanitized `conversationContext.recentAssistantMetadata` from the most recent assistant message plus chat-level booking state so guided actions can continue across turns
+- homepage `Reserve tour` and cart `Reserve cart` entry points send `conversationType: "reservation_entry"`, `conversationSource`/`entrySource`, and safe `reservationEntry` tour/cart summaries in `conversationContext.recentAssistantMetadata`
 - passes an `AbortSignal` so stop-generation can cancel the active request
 - appends an in-progress assistant message before the stream completes
 - persists the `conversationId` from `start` or `done` when present
@@ -173,6 +207,7 @@ Frontend behavior:
 - replaces the active assistant message on `replace`
 - finalizes the assistant message from `done.response`
 - stores chat-level `done.meta` fields such as `customerContext`, `reservation`, `selectedTour`, `selectedTourId`, `selectedTransportation`, and `participants` in `conversationMeta` instead of duplicating them on assistant messages
+- reservation-entry drawer chats are ephemeral in the browser: they can receive backend conversation IDs, but they do not write or restore `localStorage` chat state and do not call `GET /chat/latest` on open
 - preserves per-turn `done.meta.birdMatches` on the assistant message so bird photos, song recordings, sonograms, and licensing links can render beside the answer
 - treats `AbortError` as user cancellation instead of a request failure
 - throws a client error if the stream ends without a `done` event
@@ -186,8 +221,10 @@ Backend behavior relevant to UI:
 - may retrieve RAG sources from PostgreSQL pgvector knowledge chunks ingested from backend `src/db/ingestion/data`
 - may use OpenAI tool calls for tour search/recommendation, availability checks, transportation estimates, pricing, discounts, and reservations
 - when tour listing or recommendation tools return tours, the assistant response should stay short, for example `I found 2 tours that match your preferences.`, while tour details are provided in `meta.tours`
+- tour records in chat metadata may include `location`, `node`, `subnode`, and `zone`; `location` is a display label derived from the node graph, while `node`, `subnode`, and `zone` are the structured location fields
 - when bird RAG returns media-rich bird profiles, details are provided in `meta.birdMatches`; media URLs are optional references and are not embedded in pgvector
 - saves the exchange to PostgreSQL on a best-effort basis
+- saves reservation-entry chat exchanges with backend `conversation_type = "reservation_entry"` so normal latest-chat hydration can skip them
 
 Bird media notes:
 - `meta.birdMatches` is a per-turn assistant metadata field, not chat-level booking state.
@@ -227,6 +264,7 @@ Tour and reservation notes:
 - Safe structured tool data may be returned in the `done.meta` object for frontend rendering.
 - Available backend tools are `searchTours`, `calculateTransportation`, `checkAvailability`, `calculatePricing`, and `createReservation`.
 - Tour listing and recommendation details are returned in `meta.tours` when available.
+- Tour listing, selection, and reservation metadata can include `location`, `node`, `subnode`, and `zone`. The frontend treats these as display metadata and does not infer booking logic from them.
 - Tour selection can use a `tourId` or clear/partial `tourName`; the backend resolves matching names before validating availability.
 - The backend may return `meta.uiAction` or `meta.uiActions` for guided controls. Supported UI action types include `choice`, `tour_selection`, `date_picker`, `participant_count`, `transportation_selection`, and `reservation_confirmation`.
 - The backend may return `meta.uiAction.type === "participant_count"` with `min`, `max`, and numeric `options`; the UI renders this as a select control and sends the selected number back as the next chat message.
@@ -235,8 +273,10 @@ Tour and reservation notes:
 - Transportation option buttons send a natural-language selection such as `I choose shared shuttle from San Jose to Monteverde`; the backend owns option persistence and pricing context.
 - The final confirmation choice sends `Confirm reservation`, but users may also type `Yes`; the backend interprets that only when the prior metadata included the final confirmation action.
 - Reservation creation requires participants and customer name in backend tool arguments; customer name, email, and itinerary dates should usually come from `customerContext` collected before chat.
+- Homepage and cart reservation entry points provide selected tour details through chat metadata so users do not need to describe the tour again; the backend remains responsible for availability, pricing, missing itinerary details, and reservation creation.
 - Pricing can apply recognized discount codes such as `EARLYBIRD`, `STUDENT`, and `LOCAL`, or group discounts.
 - Successful reservation text should stay short and the confirmation details are exposed in `done.meta.reservation` when a reservation is created.
+- Reservation metadata may include `tourLocation`/`tour_location`, `tourNode`/`tour_node`, `tourSubnode`/`tour_subnode`, and `tourZone`/`tour_zone`; the confirmation card displays those fields when present.
 - The current UI renders reservation cards from chat-level reservation metadata for confirmation-style assistant messages, uses chat-level `selectedTransportation` for transportation display and grand-total calculation, falls back to message reservation metadata for older cached messages, and normalizes both camelCase and snake_case reservation fields. It only parses clear reservation-confirmation summaries from assistant text as a final fallback.
 - If the UI later adds structured tour, source, discount, or reservation displays beyond the confirmation card, use the documented `meta` fields instead of inferring data from assistant text.
 
@@ -292,6 +332,7 @@ Frontend behavior:
 - sends `Authorization: Bearer <token>`
 - calls this before generating a new conversation ID when authenticated local chat cache is missing
 - persists returned data under `birdwatchingAI.chatState.<userId>`
+- expects the backend to return only regular chat conversations; reservation-entry conversations are intentionally excluded from latest hydration
 - generates and persists a new client conversation ID only when the backend returns no conversation
 
 ## `GET /health`
@@ -322,6 +363,51 @@ Backend validation:
 - `days` must be an integer from 1 to 30
 
 If a recommendation UI is added, keep the adapter separate from `chatApi.js` or rename the API module so chat and recommendation contracts stay clear.
+
+## Homepage Content
+The homepage uses public, non-streaming endpoints for static or configured marketing content. Each response uses the standard `{ success, data, meta }` envelope.
+
+`GET /homepage/hero` returns hero media content:
+```json
+{
+  "success": true,
+  "data": {
+    "hero": {
+      "heroVideo": "https://www.youtube-nocookie.com/embed/example"
+    }
+  },
+  "meta": {}
+}
+```
+
+`GET /tours` returns featured tour cards:
+```json
+{
+  "success": true,
+  "data": {
+    "tours": [
+      {
+        "id": 1,
+        "title": "Monteverde Quetzal Tour",
+        "description": "A misty cloud forest walk...",
+        "location": "Monteverde",
+        "node": "Monteverde",
+        "subnode": "Curi-Cancha Reserve",
+        "zone": "Northern Mountains",
+        "duration": "4 hours",
+        "pricePerPerson": 120,
+        "difficulty": "moderate",
+        "imageUrl": "https://example.test/tour.jpg"
+      }
+    ]
+  },
+  "meta": {}
+}
+```
+
+`GET /birds/highlights` returns curated species cards. The backend can source names from `HOMEPAGE_BIRD_HIGHLIGHTS`, falling back to built-in Costa Rica highlights.
+
+`GET /addons/transportation` returns simple transportation add-on cards for the homepage. Booking-specific transportation selection remains owned by the chat flow.
 
 ## Common Client Errors
 - Non-OK responses throw the backend `error.message` when available.

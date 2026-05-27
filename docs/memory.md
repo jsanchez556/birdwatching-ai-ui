@@ -78,6 +78,17 @@ metadata. Assistant messages still keep turn-specific display metadata such as
 
 The UI may also receive `createdAt` from the backend during hydration, but it does not currently display timestamps.
 
+## Cart Itinerary Cookie
+Cart itinerary dates are not stored in backend cart settings. The frontend stores only itinerary date preferences in the `birdwatchingAI.cartItinerary` browser cookie:
+```json
+{
+  "itineraryStartDate": "2026-06-01",
+  "itineraryEndDate": "2026-06-03"
+}
+```
+
+The cookie is read during cart initialization and after backend cart refreshes. It must not include customer name, customer email, authentication tokens, tour selections, reservations, or other sensitive data.
+
 ## Write Behavior
 When a user sends a message:
 1. `useChat` appends the user message immediately.
@@ -89,6 +100,12 @@ When a user sends a message:
 7. `useChat` stores the finalized rendered transcript for that conversation ID.
 
 If localStorage writes fail, the app continues without persistent local cache.
+
+Reservation-entry chats opened from featured tours or the cart are intentionally browser-ephemeral:
+- `useChat` starts them with in-memory tour/cart metadata instead of reading `localStorage`
+- they do not write `birdwatchingAI.chatState` while streaming or after completion
+- they do not call `GET /chat/latest` when opened
+- backend conversation IDs may still be returned so reservation tools can associate server-side work with the active chat
 
 ## Read Behavior
 On initialization:

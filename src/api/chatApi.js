@@ -1,9 +1,12 @@
 import {
   apiUrl,
   authHeaders,
+  API_FALLBACK_ERROR_MESSAGE,
   getApiErrorMessage,
+  isObject,
   JSON_HEADERS,
   parseJsonResponse,
+  validateEnvelope,
 } from './http'
 
 function parseSseBlock(block) {
@@ -34,6 +37,20 @@ function parseSseBlock(block) {
   }
 
   return { event, data }
+}
+
+function assertSuccessfulEnvelope(data) {
+  if (!validateEnvelope(data) || !isObject(data.meta)) {
+    throw new Error(API_FALLBACK_ERROR_MESSAGE)
+  }
+
+  if (data.success !== true) {
+    throw new Error(getApiErrorMessage(data, API_FALLBACK_ERROR_MESSAGE))
+  }
+
+  if (!isObject(data.data)) {
+    throw new Error(API_FALLBACK_ERROR_MESSAGE)
+  }
 }
 
 async function readSseStream(stream, onEvent) {
@@ -169,14 +186,12 @@ export async function loadConversationMessages(conversationId, { token } = {}) {
     throw new Error(getApiErrorMessage(data, 'Failed to load conversation'))
   }
 
-  if (!data.success || !data.data) {
-    throw new Error('Unexpected conversation response format')
-  }
+  assertSuccessfulEnvelope(data)
 
   const { conversationId: responseConversationId, messages } = data.data
 
   if (!Array.isArray(messages)) {
-    throw new Error('Unexpected conversation response')
+    throw new Error(API_FALLBACK_ERROR_MESSAGE)
   }
 
   return {
@@ -196,18 +211,16 @@ export async function loadLatestConversation({ token } = {}) {
     throw new Error(getApiErrorMessage(data, 'Failed to load latest conversation'))
   }
 
-  if (!data.success || !data.data) {
-    throw new Error('Unexpected conversation response format')
-  }
+  assertSuccessfulEnvelope(data)
 
   const { conversationId, messages } = data.data
 
   if (conversationId !== null && conversationId !== undefined && typeof conversationId !== 'string') {
-    throw new Error('Unexpected conversation response')
+    throw new Error(API_FALLBACK_ERROR_MESSAGE)
   }
 
   if (!Array.isArray(messages)) {
-    throw new Error('Unexpected conversation response')
+    throw new Error(API_FALLBACK_ERROR_MESSAGE)
   }
 
   return {

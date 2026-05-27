@@ -8,9 +8,10 @@ This is a single-service React/Vite frontend.
 ```text
 src/
   main.jsx              React entrypoint and StrictMode mount
-  App.jsx               page shell and chat composition
+  App.jsx               view composition for homepage, auth, and chat
+  pages/                page-level composition such as the homepage
   api/                  backend HTTP adapters and response validation
-  components/           presentational chat UI components and tests
+  components/           presentational chat and homepage UI components and tests
   hooks/                reusable stateful behavior and side effects
   index.css             global CSS tokens, layout, responsive behavior
 
@@ -23,7 +24,7 @@ railway.json            Nixpacks build and Railway start command
 - Components render UI and receive behavior through props.
 - Hooks own state transitions, browser storage, async orchestration, and effects.
 - API adapters own request URLs, `fetch`, response envelope parsing, and contract validation.
-- App composition connects hooks to components and renders page-level alerts.
+- App composition connects hooks to components, switches the homepage/auth/chat views, and renders page-level alerts.
 - CSS owns visual tokens, layout primitives, message bubble variants, loading animation, and responsive behavior.
 - Deployment files should not contain product logic.
 
@@ -31,6 +32,10 @@ railway.json            Nixpacks build and Railway start command
 ```text
 Browser loads index.html
   -> src/main.jsx mounts <App />
+  -> App renders HomePage as the first entry point
+  -> Homepage loads public tours, bird highlights, and transportation content
+  -> Chat CTAs open the existing authenticated or visitor chat flow
+  -> Login CTAs open the existing auth flow
   -> useChat initializes conversation state
   -> App renders header and either CustomerContextForm or the chat surface
   -> CustomerContextForm captures name, email, and itinerary dates before chat starts

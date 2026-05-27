@@ -56,6 +56,10 @@ function formatTransportationLabel(transportation) {
   ].filter(Boolean).join(' ')
 }
 
+function firstValue(...values) {
+  return values.find((value) => value !== undefined && value !== null && value !== '') ?? null
+}
+
 export function normalizeReservationConfirmation(reservation, selectedTransportation = null) {
   if (!reservation || typeof reservation !== 'object') {
     return null
@@ -89,7 +93,11 @@ export function normalizeReservationConfirmation(reservation, selectedTransporta
     customerEmail: reservation.customerEmail || null,
     conversationId: reservation.conversationId || null,
     tourId: reservation.tourId ?? reservation.tour_id ?? null,
-    tourName: reservation.tourName || null,
+    tourName: firstValue(reservation.tourName, reservation.tour_name),
+    tourLocation: firstValue(reservation.tourLocation, reservation.tour_location, reservation.location),
+    tourNode: firstValue(reservation.tourNode, reservation.tour_node, reservation.node),
+    tourSubnode: firstValue(reservation.tourSubnode, reservation.tour_subnode, reservation.subnode),
+    tourZone: firstValue(reservation.tourZone, reservation.tour_zone, reservation.zone),
     participants: reservation.participants ?? null,
     createdAt: reservation.createdAt || reservation.created_at || null,
     tourTotalPrice: formatCurrency(rawTourTotal),

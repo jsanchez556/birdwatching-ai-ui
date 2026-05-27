@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import BirdMediaCard from './BirdMediaCard'
-import useResolvedMediaUrl from '../hooks/useResolvedMediaUrl'
+import { useResolvedMedia } from '../hooks/useResolvedMediaUrl'
 
-const VISIBLE_BIRD_COUNT = 3
+const VISIBLE_BIRD_COUNT = 1
 
 function getBirdDisplayName(bird) {
   return bird?.commonName || bird?.name || bird?.scientificName || 'Bird match'
@@ -14,13 +14,27 @@ function getBirdKey(bird, index) {
 }
 
 function BirdMatchThumbnail({ bird, displayName }) {
-  const thumbnailUrl = useResolvedMediaUrl(
-    bird?.media?.squarePhotoUrl || bird?.media?.photoUrl
-  )
+  const [thumbnailFailed, setThumbnailFailed] = useState(false)
+  const thumbnailReference = bird?.media?.squarePhotoUrl || bird?.media?.photoUrl
+  const thumbnailMedia = useResolvedMedia(thumbnailReference)
+  const thumbnailUrl = thumbnailMedia.url
+  const isThumbnailPending = Boolean(thumbnailReference && thumbnailMedia.isResolving && !thumbnailFailed)
+  const isThumbnailUnavailable = Boolean(thumbnailMedia.error || thumbnailFailed)
 
-  if (!thumbnailUrl) {
+  useEffect(() => {
+    setThumbnailFailed(false)
+  }, [thumbnailReference, thumbnailUrl])
+
+  if (!thumbnailUrl || isThumbnailUnavailable) {
     return (
-      <span className="bird-carousel-thumb bird-carousel-thumb-placeholder" aria-hidden="true">
+      <span
+        className={isThumbnailPending
+          ? 'bird-carousel-thumb bird-carousel-thumb-placeholder is-loading'
+          : 'bird-carousel-thumb bird-carousel-thumb-placeholder'}
+        aria-label={isThumbnailPending ? `Loading ${displayName} thumbnail` : undefined}
+        aria-hidden={isThumbnailPending ? undefined : true}
+        role={isThumbnailPending ? 'status' : undefined}
+      >
         {displayName.slice(0, 1).toUpperCase()}
       </span>
     )
@@ -31,7 +45,9 @@ function BirdMatchThumbnail({ bird, displayName }) {
       className="bird-carousel-thumb"
       src={thumbnailUrl}
       alt=""
-      loading="lazy"
+      loading="eager"
+      decoding="async"
+      onError={() => setThumbnailFailed(true)}
     />
   )
 }

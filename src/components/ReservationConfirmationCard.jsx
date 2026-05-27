@@ -15,6 +15,10 @@ function ReservationConfirmationCard({ reservation }) {
   const details = [
     ['Customer', reservation.customerName],
     ['Participants', reservation.participants],
+    ['Location', reservation.tourLocation],
+    ['Zone', reservation.tourZone],
+    ['Node', reservation.tourNode],
+    ['Subnode', reservation.tourSubnode],
     ['Tour price', reservation.tourTotalPrice],
     ['Transportation', reservation.transportation],
     ['Transportation price', reservation.transportationPrice],

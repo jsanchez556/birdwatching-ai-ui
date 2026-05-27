@@ -1,0 +1,171 @@
+Analyze the current `birdwatching-ai-platform` workspace before coding. It contains two projects:
+
+- `birdwatching-ai-ui`
+- `birdwatching-ai-api`
+
+Read the existing context/docs and inspect the current chatbot, login/auth, routing, API adapter, and backend route patterns before making changes.
+
+## Goal
+
+Create a new premium homepage for a Costa Rica birdwatching tours website, inspired by luxury rainforest eco-lodge websites such as:
+
+https://www.riocelestehideaway.com/
+
+The homepage should feel refined, immersive, nature-focused, and production-ready while keeping the implementation simple and maintainable.
+
+## Important Constraints
+
+- Preserve all existing chatbot functionality.
+- Preserve all existing login/auth functionality.
+- Integrate chatbot and login entry points into the new homepage.
+- Keep frontend components modular.
+- Keep backend changes focused and minimal.
+- Do not move backend secrets or private data into the frontend.
+- Use placeholder images for now.
+- Maintain responsive mobile and desktop layouts.
+- Follow the existing architecture and style conventions in both projects.
+
+## Frontend Requirements
+
+Create a new homepage as the main entry point.
+
+Suggested structure:
+
+- `src/pages/HomePage.jsx`
+- `src/components/home/HeroSection.jsx`
+- `src/components/home/FeaturedTours.jsx`
+- `src/components/home/BirdHighlights.jsx`
+- `src/components/home/TransportationSection.jsx`
+- `src/components/home/ChatbotCTA.jsx`
+- `src/components/home/LoginCTA.jsx`
+- `src/components/home/CookieConsent.jsx`
+
+Update routing/navigation if needed so the homepage is the first screen users see.
+
+The homepage must include:
+
+1. **Hero Section**
+   - Rainforest / Costa Rica / birdwatching theme.
+   - Premium eco-lodge visual direction.
+   - Placeholder background or image.
+   - Clear headline and supporting copy.
+   - CTA buttons:
+     - `Start Birdwatching Chat`
+     - `Login`
+     - `Explore Tours`
+
+2. **Featured Birdwatching Tours**
+   - Display tour cards from a backend endpoint.
+   - Include title, short description, location/region if available, duration, and price if available.
+   - Use placeholder images.
+
+3. **Bird Species Highlights**
+   - Display a curated list of Costa Rica bird species.
+   - Source the species list from the backend.
+   - Backend may use an environment-configured list of bird names.
+   - Keep display data simple: name, short description, and placeholder image.
+
+4. **Transportation Add-on Section**
+   - Show transportation options as add-ons for tours.
+   - Analyze whether this should use the existing chat endpoint or a new backend endpoint.
+   - Prefer a simple dedicated endpoint if it keeps the homepage predictable and cacheable.
+   - Include basic fields such as title, description, route/coverage, and starting price if available.
+
+5. **Chatbot Entry Section**
+   - Provide a clear entry point that opens or links to the existing chatbot experience.
+   - Do not duplicate chatbot logic unnecessarily.
+   - Preserve existing conversation behavior.
+
+6. **Login Entry Section**
+   - Provide a clear login CTA using the existing auth flow.
+   - Use the current login route/modal/component if one already exists.
+   - Do not replace auth logic unless required.
+
+7. **Cookie Consent**
+   - Add a cookie consent banner/modal with the text:
+
+     `We use cookies on this site to enhance your user experience. For a complete overview of all cookies used, please see your personal settings.`
+
+   - Include actions:
+     - `Customize`
+     - `Accept`
+     - `Decline`
+
+   - Persist the user’s cookie choice in localStorage.
+   - Keep implementation frontend-only unless the existing app already has a cookie preference API.
+
+## Backend Requirements
+
+In `birdwatching-ai-api`, add simple production-ready endpoints to support the homepage:
+
+1. Featured tours endpoint
+   - Example: `GET /tours` or an existing route-aligned equivalent.
+   - Return normalized JSON data suitable for frontend cards.
+
+2. Bird species highlights endpoint
+   - Example: `GET /birds/highlights`.
+   - Source bird names from `.env` if appropriate.
+   - Return simple highlight objects.
+
+3. Transportation add-ons endpoint
+   - Example: `GET /addons/transportation`.
+   - Return simple static or configured data.
+
+Use existing backend route/controller/service conventions. Keep data static/config-driven for now unless the project already has a database-backed pattern for these entities.
+
+## API Integration
+
+In `birdwatching-ai-ui`:
+
+- Add API adapter functions for new homepage endpoints.
+- Do not call `fetch` directly from React components.
+- Preserve the existing chat API integration.
+- Preserve the existing login/auth integration.
+- Handle loading, empty, and error states gracefully.
+
+## Design Direction
+
+- Premium rainforest eco-tourism aesthetic.
+- Mobile-first responsive layout.
+- Strong visual hierarchy.
+- High contrast and accessible text.
+- Clear CTAs.
+- Avoid overcomplicated animations or heavy dependencies.
+- Use semantic sections and accessible buttons/links.
+
+## Testing
+
+Add or update tests where appropriate:
+
+- Homepage renders key sections.
+- CTA buttons are present.
+- Cookie consent actions work and persist choice.
+- Homepage API loading/error states are handled if existing test patterns support this.
+- Backend endpoints return expected response shapes if backend tests exist.
+
+Run relevant tests before handing off:
+
+Frontend:
+
+```bash
+npm test
+```
+
+Backend:
+
+```bash
+npm test
+```
+
+Use the actual package scripts if they differ.
+
+## Final Response
+
+After implementation, summarize:
+
+- Files changed in `birdwatching-ai-ui`.
+- Files changed in `birdwatching-ai-api`.
+- New endpoints added.
+- How chatbot and login were preserved/integrated.
+- How to test locally.
+- Any tests run and their results.

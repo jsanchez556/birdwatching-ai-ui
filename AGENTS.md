@@ -15,13 +15,19 @@ This frontend delivers the chat experience, responsive UI, local conversation co
 - Railway/Nixpacks deployment
 
 ## Architecture Rules
+- If two instructions conflict, follow the highest-priority rule in the current section.
+
+Must:
 - Keep `src/App.jsx` as composition glue for the current single-screen app.
 - Keep presentational UI in `src/components/`.
 - Keep reusable behavior and side effects in `src/hooks/`.
-- Extract repeated logic with the same intent into a shared helper instead of keeping multiple narrowly named functions with identical implementations.
 - Keep backend HTTP calls in `src/api/`; do not call `fetch` directly from components.
+
+Should:
 - Keep environment-dependent URL behavior behind the API layer or Vite config.
 - Keep styling tokens and responsive behavior in `src/index.css` until a component styling system is introduced.
+
+Do not:
 - Do not put backend OpenAI, RAG, database, or reservation logic in this repository.
 
 ## Chat UI Patterns
@@ -30,7 +36,7 @@ This frontend delivers the chat experience, responsive UI, local conversation co
 - Preserve loading and error states in the chat flow.
 - Keep typing/loading indicators accessible with ARIA labels.
 - Preserve scroll-to-latest behavior for ongoing conversation.
-- Keep the customer context form as frontend-only intake for name, email, and itinerary dates; send it through the API layer rather than re-collecting it in chat UI components.
+- Keep the customer context form as frontend-only intake for name, email, and itinerary dates; validate it before submission, require a non-empty name, a valid email format, and a valid itinerary date range; if validation fails, show field-level errors and do not send the request; send the result through the API layer rather than re-collecting it in chat UI components.
 - Treat backend `sources`, tool details, tour data, discount details, or reservation metadata as optional display data; do not invent fields that the UI does not receive.
 - The backend may summarize tour listing, selection, pricing, discount, and reservation tool results in assistant text without exposing raw tool data in the public `/chat` response.
 - Reservation confirmation cards should prefer `meta.reservation`, fall back conservatively to assistant text for older messages, and keep the original assistant message visible.
@@ -58,9 +64,12 @@ This frontend delivers the chat experience, responsive UI, local conversation co
 
 ## API Integration
 - Use the normalized backend response envelope: `{ success, data, meta }`.
-- Surface backend error messages when safe and available, with a friendly fallback.
+- If the response is missing `success`, `data`, or `meta`, treat it as an error and render `Something went wrong. Please try again.` instead of assuming the shape.
+- If `success` is false or `data`/`meta` is missing, treat the response as invalid, show a friendly error message, and do not render partial UI state.
+- If the request fails because the network is unavailable, the request times out, or the server returns 5xx, show a retryable error message and do not crash the chat UI.
+- If `success` is false, render `meta.message || 'Something went wrong. Please try again.'`; never display raw stack traces, tokens, database errors, or backend secrets.
 - Validate response shapes at the API adapter boundary.
-- Keep `POST /chat` and `GET /chat/:conversationId` as the only active browser calls until the UI intentionally adds recommendation or reservation-specific endpoints.
+- Do not add any browser HTTP request beyond `POST /chat` and `GET /chat/:conversationId` unless the task explicitly names a new endpoint and the API adapter is updated in `src/api/`.
 - Keep `VITE_API_URL` public and non-sensitive.
 - In local development, prefer relative `/chat` requests through the Vite proxy.
 

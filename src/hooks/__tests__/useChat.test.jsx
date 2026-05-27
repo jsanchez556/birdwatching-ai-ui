@@ -133,6 +133,63 @@ describe('useChat streaming behavior', () => {
     ])
   })
 
+  test('does not persist or hydrate ephemeral reservation-entry chats', async () => {
+    streamChatMessage.mockResolvedValue({
+      conversationId: 'reservation-conversation-123',
+      response: 'I can help reserve that tour.',
+      metadata: {},
+    })
+
+    const { result } = renderHook(() => useChat({
+      token: 'auth-token',
+      user: {
+        id: 'user-1',
+        email: 'ana@example.com',
+      },
+    }, {
+      isEphemeral: true,
+      initialCustomerContext: {
+        customerName: 'Ana Gomez',
+        customerEmail: 'ana@example.com',
+      },
+      initialConversationMeta: {
+        conversationType: 'reservation_entry',
+        conversationSource: 'featured_tour',
+      },
+    }))
+
+    expect(loadLatestConversation).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await result.current.sendMessage('I would like to reserve Direct Reserve Tour.', {
+        recentAssistantMetadata: {
+          conversationType: 'reservation_entry',
+          conversationSource: 'featured_tour',
+          selectedTourId: 16,
+          selectedTour: {
+            tourId: 16,
+            name: 'Direct Reserve Tour',
+          },
+        },
+      })
+    })
+
+    expect(window.localStorage.length).toBe(0)
+    expect(streamChatMessage).toHaveBeenCalledWith(expect.objectContaining({
+      conversationContext: {
+        recentAssistantMetadata: expect.objectContaining({
+          conversationType: 'reservation_entry',
+          conversationSource: 'featured_tour',
+          selectedTourId: 16,
+          selectedTour: {
+            tourId: 16,
+            name: 'Direct Reserve Tour',
+          },
+        }),
+      },
+    }))
+  })
+
   test('stores reservation data under chat-level metadata', async () => {
     streamChatMessage.mockResolvedValue({
       conversationId: 'conversation-123',

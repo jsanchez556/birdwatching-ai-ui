@@ -123,9 +123,9 @@ describe('ChatMessages', () => {
     render(<ChatMessages messages={messages} isLoading={false} />)
 
     expect(screen.getByText(/The Great Tinamou is often heard before it is seen\./i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/Bird matches/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Bird matches$/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Open Great Tinamou details/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Open Thicket Tinamou details/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Open Thicket Tinamou details/i })).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/Great Tinamou bird media/i)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Open Great Tinamou details/i }).querySelector('img'))
       .toHaveAttribute('src', 'https://example.com/great-tinamou-square.jpg')
@@ -157,7 +157,7 @@ describe('ChatMessages', () => {
     expect(screen.getByRole('button', { name: /Open Great Tinamou details/i })).toHaveFocus()
   })
 
-  test('paginates bird matches three at a time', () => {
+  test('paginates bird matches one at a time', () => {
     const messages = [
       {
         role: 'assistant',
@@ -178,18 +178,18 @@ describe('ChatMessages', () => {
     expect(screen.getByRole('button', { name: /Show previous bird matches/i })).toBeDisabled()
     expect(screen.getByRole('button', { name: /Show next bird matches/i })).toBeEnabled()
     expect(screen.getByRole('button', { name: /Open Great Tinamou details/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Open Thicket Tinamou details/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Open Slaty-backed Woodpecker details/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Open Thicket Tinamou details/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Open Slaty-backed Woodpecker details/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Open Keel-billed Toucan details/i })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Show next bird matches/i }))
 
     expect(screen.getByRole('button', { name: /Show previous bird matches/i })).toBeEnabled()
-    expect(screen.getByRole('button', { name: /Show next bird matches/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /Show next bird matches/i })).toBeEnabled()
     expect(screen.queryByRole('button', { name: /Open Great Tinamou details/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Open Thicket Tinamou details/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Open Slaty-backed Woodpecker details/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Open Keel-billed Toucan details/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Open Slaty-backed Woodpecker details/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Open Keel-billed Toucan details/i })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Show previous bird matches/i }))
 
@@ -280,6 +280,46 @@ describe('ChatMessages', () => {
     await waitFor(() => {
       expect(within(modal).getByAltText(/Great Tinamou sonogram/i))
         .toHaveAttribute('src', 'https://bucket.example.test/sonograms/great-tinamou.png')
+    })
+  })
+
+  test('renders xeno-canto sono media aliases with a loading state', async () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Here is a bird with xeno-canto media.',
+        metadata: {
+          birdMatches: [
+            {
+              speciesCode: 'gretin1',
+              commonName: 'Great Tinamou',
+              scientificName: 'Tinamus major',
+              media: {
+                sono: 'https://xeno-canto.org/sounds/spectrograms/OQZFKFTAKD/1046027/grey-small.png',
+              },
+            },
+          ],
+        },
+      },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Great Tinamou details/i }))
+
+    const modal = screen.getByRole('dialog', { name: /Great Tinamou details/i })
+    const sonogram = within(modal).getByAltText(/Great Tinamou sonogram/i)
+
+    expect(within(modal).getByText(/Loading sonogram/i)).toBeInTheDocument()
+    expect(sonogram).toHaveAttribute(
+      'src',
+      'https://xeno-canto.org/sounds/spectrograms/OQZFKFTAKD/1046027/grey-small.png',
+    )
+
+    fireEvent.load(sonogram)
+
+    await waitFor(() => {
+      expect(within(modal).queryByText(/Loading sonogram/i)).not.toBeInTheDocument()
     })
   })
 
@@ -694,6 +734,35 @@ describe('ChatMessages', () => {
     expect(screen.getByText('2')).toBeInTheDocument()
     expect(screen.getByText('$210.00')).toBeInTheDocument()
     expect(screen.getByText('2026-05-12T14:00:00Z')).toBeInTheDocument()
+  })
+
+  test('renders reservation tour node, subnode, and zone metadata', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Your reservation is confirmed.',
+        metadata: {
+          reservation: {
+            confirmation_code: 'BW-GRAPH123',
+            customer_name: 'Ana Rivera',
+            tour_name: 'Monteverde Quetzal Tour',
+            tour_location: 'Monteverde / Curi-Cancha Reserve',
+            tour_node: 'Monteverde',
+            tour_subnode: 'Curi-Cancha Reserve',
+            tour_zone: 'Northern Mountains',
+          },
+        },
+      },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    expect(screen.getByLabelText(/Reservation confirmation/i)).toBeInTheDocument()
+    expect(screen.getByText('BW-GRAPH123')).toBeInTheDocument()
+    expect(screen.getByText('Monteverde / Curi-Cancha Reserve')).toBeInTheDocument()
+    expect(screen.getByText('Monteverde')).toBeInTheDocument()
+    expect(screen.getByText('Curi-Cancha Reserve')).toBeInTheDocument()
+    expect(screen.getByText('Northern Mountains')).toBeInTheDocument()
   })
 
   test('renders transportation from selected transportation metadata', () => {

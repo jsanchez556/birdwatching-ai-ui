@@ -9,11 +9,13 @@ This repository is a single React/Vite frontend for Costa Rica birdwatching assi
 - styled reservation confirmation cards for confirmed booking responses
 - progressive assistant streaming with typing/loading state and stop-generation support
 - email/password authentication with local JWT session persistence
+- premium homepage entry point for tours, bird highlights, transportation add-ons, chat, login, and cookie consent
 - local chat state persistence with `localStorage`
 - cached conversation messages and customer context for fast reloads
 - authenticated latest-conversation hydration through `GET /chat/latest`
 - backend hydration through `GET /chat/:conversationId`
 - backend streaming chat requests through `POST /chat`
+- homepage content through `GET /homepage/hero`, `GET /tours`, `GET /birds/highlights`, and `GET /addons/transportation`
 - bird profile media resolution through `GET /files/:folderName/:filename` when RAG metadata contains relative media paths
 - backend-generated tour discovery, pricing, discounts, and reservation confirmations through assistant responses
 - Railway-oriented static deployment with environment-driven API configuration
@@ -32,12 +34,16 @@ This repository is a single React/Vite frontend for Costa Rica birdwatching assi
 ## Current Architecture
 The app uses a shell-component-hook-API split:
 - `src/main.jsx` mounts React in strict mode.
-- `src/App.jsx` composes the page shell, error alert, messages, and input.
+- `src/App.jsx` composes the homepage, auth, and chat views.
+- `src/pages/HomePage.jsx` composes the premium homepage entry point.
 - `src/components/*` owns presentational chat UI.
+- `src/components/home/*` owns presentational homepage sections.
 - `src/hooks/useAuth.js` owns auth state, token persistence, login, signup, and logout.
 - `src/hooks/useChat.js` owns conversation state, local persistence, loading, and errors.
+- `src/hooks/useHomeContent.js` owns homepage content loading state.
 - `src/api/authApi.js` owns auth HTTP calls and response shape validation.
 - `src/api/chatApi.js` owns backend HTTP calls and response shape validation.
+- `src/api/homeApi.js` owns homepage HTTP calls and response shape validation.
 - `src/api/mediaApi.js` owns bird media URL resolution through the backend media endpoint.
 - `src/index.css` owns global tokens, layout, responsive behavior, and dark mode.
 - `server.js` serves `dist/` in production-style environments and exposes `/health`.
@@ -77,7 +83,7 @@ useAuth restores birdwatchingAI.authState
 
 Local development API routing:
 ```text
-Browser fetch('/auth/*' or '/chat')
+Browser fetch('/auth/*', '/chat', '/homepage/*', '/tours', '/birds/*', or '/addons/*')
   -> Vite dev proxy
   -> VITE_API_PROXY_TARGET
   -> Birdwatching AI API
@@ -94,19 +100,20 @@ Browser fetch('/files/:folderName/:filename')
 
 Production API routing:
 ```text
-Browser fetch(`${VITE_API_URL}/auth/*` or `${VITE_API_URL}/chat`)
+Browser fetch(`${VITE_API_URL}/auth/*`, `${VITE_API_URL}/chat`, or homepage content endpoints)
   -> public Birdwatching AI API
 ```
 
 ## Important Implementation Facts
 - ESM is enabled through `"type": "module"` in `package.json`.
 - The app has one screen and currently no React Router dependency.
-- Unauthenticated users see login/signup views unless they choose visitor mode; authenticated users see the existing customer-context and chat flow.
+- Users see the homepage first. Login CTAs open the existing auth form, and chat CTAs open the existing authenticated or visitor chat flow.
+- Unauthenticated users who start chat enter visitor mode; authenticated users continue to the existing customer-context and chat flow.
 - `useAuth` stores only the access token, refresh token, expiry timestamps, and safe user profile, or a safe local visitor marker, under `birdwatchingAI.authState`.
 - `useAuth.getValidToken` refreshes expiring access tokens before authenticated chat calls and clears local auth state when refresh fails.
 - Authenticated chat state is stored under `birdwatchingAI.chatState.<userId>` so user switching cannot reuse another user's local transcript.
 - `VITE_API_URL` is trimmed of trailing slash before request URLs are built.
-- Empty `VITE_API_URL` intentionally produces relative `/auth` and `/chat` URLs for local proxying.
+- Empty `VITE_API_URL` intentionally produces relative `/auth`, `/chat`, and homepage content URLs for local proxying.
 - `VITE_API_PROXY_TARGET` should point to the local or remote backend during `npm run dev`.
 - `CustomerContextForm` collects `customerName`, `customerEmail`, `itineraryStartDate`, and `itineraryEndDate` before the authenticated chat transcript is shown. Visitor mode skips customer context and is limited by the backend to bird questions only.
 - `useChat` creates a client conversation ID before the first backend response.
@@ -115,14 +122,15 @@ Browser fetch(`${VITE_API_URL}/auth/*` or `${VITE_API_URL}/chat`)
 - The backend may return RAG `sources`; the current UI accepts the field but does not render it.
 - The backend may return RAG bird profiles as `done.meta.birdMatches`; the UI stores those as assistant-message metadata and renders a compact carousel plus modal details.
 - Bird media values in `meta.birdMatches[].media` may be absolute URLs or relative object keys such as `/photos/123_medium.jpg`, `songs/123.mp3`, or `sonograms/123_grey-small.png`. Relative values are resolved by `src/api/mediaApi.js` through `GET /files/:folderName/:filename`; components must not assume those paths are directly browser-accessible.
-- Tour listing, recommendation, selection, availability, pricing, discounts, and reservations happen inside the backend chat flow and are summarized in the final streamed assistant response.
+- Tour listing, recommendation, selection, availability, pricing, discounts, and reservations happen inside the backend chat flow and are summarized in the final streamed assistant response. Tour metadata can include graph-backed `location`, `node`, `subnode`, and `zone` fields.
 - Structured backend `uiAction` and `uiActions` metadata can render chat controls for choices, tour selection, date picking, participant count, transportation selection, and reservation confirmation.
-- Successful backend reservations can return `meta.reservation`; the UI stores that metadata on the assistant message for display.
+- Successful backend reservations can return `meta.reservation`; the UI stores that metadata on the assistant message for display and shows tour `location`, `node`, `subnode`, and `zone` when present.
 - `useChat` uses `AbortController` to stop active streams and keeps visible partial assistant text without showing an error fallback.
 - Incoming stream chunks are buffered and revealed on a short timer so text appears at a readable pace.
 - `ChatMessages` uses `src/utils/reservationConfirmation.js` to normalize reservation metadata or detect older confirmed reservation summaries and render `ReservationConfirmationCard` without adding backend tool logic to the browser.
 - `BirdMediaCard` and bird carousel thumbnails use `useResolvedMediaUrl` so relative RAG media is exchanged for backend-provided presigned URLs before rendering.
 - The UI does not currently call `POST /recommend`, even though the backend exposes it for structured recommendation use cases.
+- The homepage calls public, cache-friendly content endpoints for hero media, tours, bird highlights, and transportation instead of using the streaming chat endpoint for static homepage sections.
 - Authenticated chat requests and conversation hydration include `Authorization: Bearer <token>`; visitor chat requests omit the token and send `role: "visitor"`.
 - Message cache failures are swallowed so chat still works when storage is unavailable.
 - Request failures append a user-friendly assistant error message and also expose the backend/client error in the alert.
@@ -143,6 +151,7 @@ Current coverage focuses on:
 - `ChatMessages` empty, populated, and loading states
 - auth form submission, auth restoration, logout, and unauthenticated app rendering
 - authenticated customer context prefill and locked email behavior
+- homepage entry flow and cookie consent persistence
 - `useChat` persistence, streaming, metadata forwarding, and cancellation behavior
 
 ## When Extending
