@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef } from 'react'
+import BirdMatchesCarousel from './BirdMatchesCarousel'
 import ReservationConfirmationCard from './ReservationConfirmationCard'
 import MessageActions from './MessageActions'
 import {
@@ -44,11 +45,15 @@ function MessageContent({ message, conversationMeta, onAction, viewerRole }) {
     ...(message.metadata?.uiAction ? [message.metadata.uiAction] : []),
     ...(Array.isArray(message.metadata?.uiActions) ? message.metadata.uiActions : []),
   ]
+  const birdMatches = message.role === 'assistant' && !message.isError && Array.isArray(message.metadata?.birdMatches)
+    ? message.metadata.birdMatches
+    : []
 
   if (!reservation) {
     return (
       <>
         {message.content}
+        <BirdMatchesCarousel birds={birdMatches} />
         <MessageActions actions={messageActions} onAction={onAction} viewerRole={viewerRole} />
       </>
     )
@@ -60,6 +65,7 @@ function MessageContent({ message, conversationMeta, onAction, viewerRole }) {
         <div className="message-text">{message.content}</div>
       )}
       <ReservationConfirmationCard reservation={reservation} />
+      <BirdMatchesCarousel birds={birdMatches} />
       <MessageActions actions={messageActions} onAction={onAction} viewerRole={viewerRole} />
     </>
   )

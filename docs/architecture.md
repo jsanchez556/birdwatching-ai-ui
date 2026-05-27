@@ -41,6 +41,7 @@ Browser loads index.html
   -> chatApi parses SSE events
   -> useChat buffers chunks and reveals them into the active assistant message
   -> useChat finalizes assistant message or shows fallback error
+  -> birdMatches metadata can render a carousel and resolve relative media through mediaApi
   -> ChatMessages scrolls to latest content
 ```
 
@@ -59,9 +60,10 @@ Backend chat side effects are intentionally outside the UI layer. The backend ma
 retrieve bird knowledge sources, execute tour tools, calculate discounts, create
 reservations, persist chat memory, and return a natural-language assistant
 summary. The current UI treats that summary as text, renders guided controls from
-documented `uiAction` metadata, and can additionally render a reservation
-confirmation card from `done.meta.reservation` when present. It does not render
-raw tool, tour, discount, reservation, or source payloads.
+documented `uiAction` metadata, renders bird profile media from
+`done.meta.birdMatches`, and can additionally render a reservation confirmation
+card from `done.meta.reservation` when present. It does not render raw tool,
+tour, discount, reservation, or source payloads.
 
 Conversation hydration uses:
 1. `birdwatchingAI.chatState` from `localStorage`
@@ -72,8 +74,8 @@ Conversation hydration uses:
 
 Development proxying uses:
 1. empty `VITE_API_URL` in local `.env`
-2. relative calls from `src/api/chatApi.js`
-3. Vite proxy rule for `/chat`
+2. relative calls from `src/api/authApi.js`, `src/api/chatApi.js`, and `src/api/mediaApi.js`
+3. Vite proxy rules for `/auth`, `/chat`, and `/files`
 4. `VITE_API_PROXY_TARGET` as the backend origin
 
 Production API calls use:
@@ -95,5 +97,6 @@ The UI state is intentionally small:
 - Error handling is split between user-friendly inline assistant fallback text and a page-level alert.
 - Dark mode and responsive behavior use CSS custom properties and media queries.
 - Network contract drift should be caught in `src/api/chatApi.js`, not in presentational components.
+- Relative bird media paths from RAG metadata should be resolved in `src/api/mediaApi.js` and consumed through hooks, keeping media endpoint details out of presentational markup.
 - Backend tool and reservation capabilities should be represented through documented API adapters before they are displayed as structured UI. The reservation confirmation card uses documented `/chat` metadata, with assistant-text parsing only as a fallback for older messages.
 - Routing is not active. If routes are added, preserve SPA fallback support in production serving.

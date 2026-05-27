@@ -1,8 +1,14 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import ChatMessages from '../ChatMessages'
+import { clearMediaUrlCache } from '../../api/mediaApi'
 
 describe('ChatMessages', () => {
+  beforeEach(() => {
+    clearMediaUrlCache()
+    global.fetch = jest.fn()
+  })
+
   test('renders empty welcome state when there are no messages and not loading', () => {
     render(<ChatMessages messages={[]} isLoading={false} />)
 
@@ -70,6 +76,524 @@ describe('ChatMessages', () => {
     render(<ChatMessages messages={messages} isLoading={true} />)
 
     expect(screen.getByText(/Look near Monteverde at dawn\./i)).toBeInTheDocument()
+  })
+
+  test('renders bird matches as a carousel and opens the selected bird in a modal', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'The Great Tinamou is often heard before it is seen.',
+        metadata: {
+          birdMatches: [
+            {
+              speciesCode: 'gretin1',
+              commonName: 'Great Tinamou',
+              scientificName: 'Tinamus major',
+              order: 'Tinamiformes',
+              family: 'Tinamous',
+              description: 'A large ground bird.',
+              locations: ['La Cusinga Lodge'],
+              lastObservation: {
+                locations: ['La Cusinga Lodge'],
+                obsDt: '2026-05-21 04:58',
+                howMany: 1,
+              },
+              media: {
+                photoUrl: 'https://example.com/great-tinamou.jpg',
+                squarePhotoUrl: 'https://example.com/great-tinamou-square.jpg',
+                photoAttribution: 'Photo by Example Birder',
+                wikiTitle: 'Great_tinamou',
+                songUrl: 'https://example.com/great-tinamou.mp3',
+                sonogramUrl: 'https://example.com/great-tinamou-sonogram.png',
+                songAttributionHtml: '<p>Sound recording by Example Recordist, sourced from <a href="https://xeno-canto.org/">xeno-canto</a>. Licensed under <a href="https://creativecommons.org/licenses/by-nc-sa/3.0/">CC BY-NC-SA 3.0</a>.</p>',
+              },
+            },
+            {
+              speciesCode: 'thitin1',
+              commonName: 'Thicket Tinamou',
+              scientificName: 'Crypturellus cinnamomeus',
+              family: 'Tinamous',
+              media: {},
+            },
+          ],
+        },
+      },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    expect(screen.getByText(/The Great Tinamou is often heard before it is seen\./i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Bird matches/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open Great Tinamou details/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open Thicket Tinamou details/i })).toBeInTheDocument()
+    expect(screen.queryByLabelText(/Great Tinamou bird media/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open Great Tinamou details/i }).querySelector('img'))
+      .toHaveAttribute('src', 'https://example.com/great-tinamou-square.jpg')
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Great Tinamou details/i }))
+
+    const modal = screen.getByRole('dialog', { name: /Great Tinamou details/i })
+    const messageBubble = screen.getByText(/The Great Tinamou is often heard before it is seen\./i).closest('.message-bubble')
+
+    expect(document.body).toContainElement(modal)
+    expect(document.body).toHaveClass('has-open-modal')
+    expect(messageBubble).not.toContainElement(modal)
+    expect(within(modal).getByLabelText(/Great Tinamou bird media/i)).toBeInTheDocument()
+    expect(within(modal).getByText('Tinamus major')).toBeInTheDocument()
+    expect(within(modal).getByLabelText(/Great Tinamou taxonomy/i)).toHaveTextContent('Tinamiformes')
+    expect(within(modal).getByLabelText(/Great Tinamou taxonomy/i)).toHaveTextContent('Tinamous')
+    expect(within(modal).getByRole('heading', { name: /Identification/i })).toBeInTheDocument()
+    expect(within(modal).getByRole('heading', { name: /Audio/i })).toBeInTheDocument()
+    expect(within(modal).getByText('Photo by Example Birder')).toBeInTheDocument()
+    expect(within(modal).getByText(/Sound recording by Example Recordist, sourced from xeno-canto/i)).toBeInTheDocument()
+    expect(within(modal).getByAltText(/Great Tinamou photo/i)).toHaveAttribute('src', 'https://example.com/great-tinamou.jpg')
+    expect(within(modal).getByLabelText(/Great Tinamou song recording/i)).toHaveAttribute('src', 'https://example.com/great-tinamou.mp3')
+    expect(within(modal).getByAltText(/Great Tinamou sonogram/i)).toHaveAttribute('src', 'https://example.com/great-tinamou-sonogram.png')
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(screen.queryByRole('dialog', { name: /Great Tinamou details/i })).not.toBeInTheDocument()
+    expect(document.body).not.toHaveClass('has-open-modal')
+    expect(screen.getByRole('button', { name: /Open Great Tinamou details/i })).toHaveFocus()
+  })
+
+  test('paginates bird matches three at a time', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Here are likely matches.',
+        metadata: {
+          birdMatches: [
+            { speciesCode: 'gretin1', commonName: 'Great Tinamou', media: {} },
+            { speciesCode: 'thitin1', commonName: 'Thicket Tinamou', media: {} },
+            { speciesCode: 'slbwoo1', commonName: 'Slaty-backed Woodpecker', media: {} },
+            { speciesCode: 'keptou1', commonName: 'Keel-billed Toucan', media: {} },
+          ],
+        },
+      },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    expect(screen.getByRole('button', { name: /Show previous bird matches/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /Show next bird matches/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /Open Great Tinamou details/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open Thicket Tinamou details/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open Slaty-backed Woodpecker details/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Open Keel-billed Toucan details/i })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Show next bird matches/i }))
+
+    expect(screen.getByRole('button', { name: /Show previous bird matches/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /Show next bird matches/i })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /Open Great Tinamou details/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open Thicket Tinamou details/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open Slaty-backed Woodpecker details/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open Keel-billed Toucan details/i })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Show previous bird matches/i }))
+
+    expect(screen.getByRole('button', { name: /Show previous bird matches/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /Show next bird matches/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /Open Great Tinamou details/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Open Keel-billed Toucan details/i })).not.toBeInTheDocument()
+  })
+
+  test('keeps bird media optional inside the selected bird modal', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Here is a likely match.',
+        metadata: {
+          birdMatches: [
+            {
+              speciesCode: 'thitin1',
+              commonName: 'Thicket Tinamou',
+              scientificName: 'Crypturellus cinnamomeus',
+              family: 'Tinamous',
+              media: {},
+            },
+          ],
+        },
+      },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Thicket Tinamou details/i }))
+
+    const modal = screen.getByRole('dialog', { name: /Thicket Tinamou details/i })
+    expect(within(modal).getByText('Crypturellus cinnamomeus')).toBeInTheDocument()
+    expect(within(modal).getByLabelText(/Thicket Tinamou photo unavailable/i)).toBeInTheDocument()
+    expect(within(modal).queryByLabelText(/Thicket Tinamou song recording/i)).not.toBeInTheDocument()
+    expect(within(modal).queryByAltText(/Thicket Tinamou sonogram/i)).not.toBeInTheDocument()
+    expect(within(modal).queryByText(/Loading sonogram/i)).not.toBeInTheDocument()
+    expect(within(modal).queryByText(/Sonogram unavailable/i)).not.toBeInTheDocument()
+    expect(within(modal).queryByText(/Sound recording/i)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Close bird details/i }))
+
+    expect(screen.queryByRole('dialog', { name: /Thicket Tinamou details/i })).not.toBeInTheDocument()
+  })
+
+  test('shows a stable sonogram loading state while a relative media URL resolves', async () => {
+    let resolveMediaRequest
+    global.fetch.mockImplementation(() => new Promise((resolve) => {
+      resolveMediaRequest = resolve
+    }))
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Here is a sonogram-only match.',
+        metadata: {
+          birdMatches: [
+            {
+              speciesCode: 'gretin1',
+              commonName: 'Great Tinamou',
+              scientificName: 'Tinamus major',
+              media: {
+                sonogramUrl: 'sonograms/great-tinamou.png',
+              },
+            },
+          ],
+        },
+      },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Great Tinamou details/i }))
+
+    const modal = screen.getByRole('dialog', { name: /Great Tinamou details/i })
+    expect(within(modal).getByText(/Loading sonogram/i)).toBeInTheDocument()
+    expect(within(modal).queryByText(/Sonogram unavailable/i)).not.toBeInTheDocument()
+    expect(global.fetch).toHaveBeenCalledWith('/files/sonograms/great-tinamou.png')
+
+    resolveMediaRequest({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: { url: 'https://bucket.example.test/sonograms/great-tinamou.png' },
+      }),
+    })
+
+    await waitFor(() => {
+      expect(within(modal).getByAltText(/Great Tinamou sonogram/i))
+        .toHaveAttribute('src', 'https://bucket.example.test/sonograms/great-tinamou.png')
+    })
+  })
+
+  test('shows sonogram fallback only after the image load fails', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Here is a bird with a sonogram.',
+        metadata: {
+          birdMatches: [
+            {
+              speciesCode: 'gretin1',
+              commonName: 'Great Tinamou',
+              scientificName: 'Tinamus major',
+              media: {
+                sonogramUrl: 'https://example.com/great-tinamou-sonogram.png',
+              },
+            },
+          ],
+        },
+      },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Great Tinamou details/i }))
+
+    const modal = screen.getByRole('dialog', { name: /Great Tinamou details/i })
+    const sonogram = within(modal).getByAltText(/Great Tinamou sonogram/i)
+
+    expect(within(modal).getByText(/Loading sonogram/i)).toBeInTheDocument()
+    expect(within(modal).queryByText(/Sonogram unavailable/i)).not.toBeInTheDocument()
+
+    fireEvent.error(sonogram)
+
+    expect(within(modal).getByText(/Sonogram unavailable/i)).toBeInTheDocument()
+    expect(within(modal).queryByAltText(/Great Tinamou sonogram/i)).not.toBeInTheDocument()
+  })
+
+  test('initializes and updates the sonogram playhead during first audio playback', async () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Here is a bird with synced audio.',
+        metadata: {
+          birdMatches: [
+            {
+              speciesCode: 'gretin1',
+              commonName: 'Great Tinamou',
+              scientificName: 'Tinamus major',
+              media: {
+                songUrl: 'https://example.com/great-tinamou.mp3',
+                sonogramUrl: 'https://example.com/great-tinamou-sonogram.png',
+              },
+            },
+          ],
+        },
+      },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Great Tinamou details/i }))
+
+    const modal = screen.getByRole('dialog', { name: /Great Tinamou details/i })
+    const audio = within(modal).getByLabelText(/Great Tinamou song recording/i)
+    const sonogram = within(modal).getByAltText(/Great Tinamou sonogram/i)
+
+    expect(modal.querySelector('.bird-sonogram-playhead')).not.toBeInTheDocument()
+
+    Object.defineProperty(audio, 'duration', {
+      configurable: true,
+      value: 10,
+    })
+    Object.defineProperty(audio, 'currentTime', {
+      configurable: true,
+      writable: true,
+      value: 0,
+    })
+
+    fireEvent.load(sonogram)
+    fireEvent.loadedMetadata(audio)
+    fireEvent.play(audio)
+
+    await waitFor(() => {
+      expect(modal.querySelector('.bird-sonogram-playhead')).toBeInTheDocument()
+      expect(modal.querySelector('.bird-sonogram-playhead'))
+        .toHaveStyle({ '--playhead-position': '0%' })
+    })
+
+    audio.currentTime = 2
+    fireEvent.timeUpdate(audio)
+
+    await waitFor(() => {
+      expect(modal.querySelector('.bird-sonogram-playhead'))
+        .toHaveStyle({ '--playhead-position': '20%' })
+    })
+  })
+
+  test('uses bird media songLength when audio metadata duration is unavailable', async () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Here is a bird with synced audio duration metadata.',
+        metadata: {
+          birdMatches: [
+            {
+              speciesCode: 'gretin1',
+              commonName: 'Great Tinamou',
+              scientificName: 'Tinamus major',
+              media: {
+                songUrl: 'https://example.com/great-tinamou.mp3',
+                sonogramUrl: 'https://example.com/great-tinamou-sonogram.png',
+                songLength: '0:20',
+              },
+            },
+          ],
+        },
+      },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Great Tinamou details/i }))
+
+    const modal = screen.getByRole('dialog', { name: /Great Tinamou details/i })
+    const audio = within(modal).getByLabelText(/Great Tinamou song recording/i)
+    const sonogram = within(modal).getByAltText(/Great Tinamou sonogram/i)
+
+    Object.defineProperty(audio, 'duration', {
+      configurable: true,
+      value: Number.NaN,
+    })
+    Object.defineProperty(audio, 'currentTime', {
+      configurable: true,
+      writable: true,
+      value: 5,
+    })
+
+    fireEvent.load(sonogram)
+    fireEvent.loadedMetadata(audio)
+    fireEvent.timeUpdate(audio)
+
+    await waitFor(() => {
+      expect(modal.querySelector('.bird-sonogram-playhead'))
+        .toHaveStyle({ '--playhead-position': '25%' })
+    })
+  })
+
+  test('resets the sonogram playhead when audio ends', async () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Here is a bird with synced audio.',
+        metadata: {
+          birdMatches: [
+            {
+              speciesCode: 'gretin1',
+              commonName: 'Great Tinamou',
+              scientificName: 'Tinamus major',
+              media: {
+                songUrl: 'https://example.com/great-tinamou.mp3',
+                sonogramUrl: 'https://example.com/great-tinamou-sonogram.png',
+              },
+            },
+          ],
+        },
+      },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Great Tinamou details/i }))
+
+    const modal = screen.getByRole('dialog', { name: /Great Tinamou details/i })
+    const audio = within(modal).getByLabelText(/Great Tinamou song recording/i)
+    const sonogram = within(modal).getByAltText(/Great Tinamou sonogram/i)
+
+    Object.defineProperty(audio, 'duration', {
+      configurable: true,
+      value: 8,
+    })
+    Object.defineProperty(audio, 'currentTime', {
+      configurable: true,
+      writable: true,
+      value: 4,
+    })
+
+    fireEvent.load(sonogram)
+    fireEvent.loadedMetadata(audio)
+    fireEvent.timeUpdate(audio)
+
+    await waitFor(() => {
+      expect(modal.querySelector('.bird-sonogram-playhead'))
+        .toHaveStyle({ '--playhead-position': '50%' })
+    })
+
+    fireEvent.ended(audio)
+
+    expect(modal.querySelector('.bird-sonogram-playhead'))
+      .toHaveStyle({ '--playhead-position': '0%' })
+  })
+
+  test('does not render a sonogram playhead without a synced audio pair', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Here is a bird with a sonogram only.',
+        metadata: {
+          birdMatches: [
+            {
+              speciesCode: 'gretin1',
+              commonName: 'Great Tinamou',
+              scientificName: 'Tinamus major',
+              media: {
+                sonogramUrl: 'https://example.com/great-tinamou-sonogram.png',
+              },
+            },
+          ],
+        },
+      },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Great Tinamou details/i }))
+
+    const modal = screen.getByRole('dialog', { name: /Great Tinamou details/i })
+    fireEvent.load(within(modal).getByAltText(/Great Tinamou sonogram/i))
+
+    expect(modal.querySelector('.bird-sonogram-playhead')).not.toBeInTheDocument()
+  })
+
+  test('resolves relative bird media through the API media endpoint', async () => {
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: { url: 'https://bucket.example.test/photos/great-tinamou-square.jpg' },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: { url: 'https://bucket.example.test/photos/great-tinamou.jpg' },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: { url: 'https://bucket.example.test/songs/great-tinamou.mp3' },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: { url: 'https://bucket.example.test/sonograms/great-tinamou.png' },
+        }),
+      })
+
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Here is a media-rich bird profile.',
+        metadata: {
+          birdMatches: [
+            {
+              speciesCode: 'gretin1',
+              commonName: 'Great Tinamou',
+              scientificName: 'Tinamus major',
+              media: {
+                photoUrl: 'photos/great-tinamou.jpg',
+                squarePhotoUrl: 'photos/great-tinamou-square.jpg',
+                songUrl: 'songs/great-tinamou.mp3',
+                sonogramUrl: 'sonograms/great-tinamou.png',
+                photoAttribution: '(c) Example Photographer',
+                songAttributionHtml: '<p>Sound recording by Example Recordist.</p>',
+              },
+            },
+          ],
+        },
+      },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Open Great Tinamou details/i }).querySelector('img'))
+        .toHaveAttribute('src', 'https://bucket.example.test/photos/great-tinamou-square.jpg')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Great Tinamou details/i }))
+
+    const modal = screen.getByRole('dialog', { name: /Great Tinamou details/i })
+
+    await waitFor(() => {
+      expect(within(modal).getByAltText(/Great Tinamou photo/i))
+        .toHaveAttribute('src', 'https://bucket.example.test/photos/great-tinamou.jpg')
+      expect(within(modal).getByLabelText(/Great Tinamou song recording/i))
+        .toHaveAttribute('src', 'https://bucket.example.test/songs/great-tinamou.mp3')
+      expect(within(modal).getByAltText(/Great Tinamou sonogram/i))
+        .toHaveAttribute('src', 'https://bucket.example.test/sonograms/great-tinamou.png')
+      expect(within(modal).getByText('(c) Example Photographer')).toBeInTheDocument()
+      expect(within(modal).getByText('Sound recording by Example Recordist.')).toBeInTheDocument()
+    })
+
+    expect(global.fetch).toHaveBeenCalledWith('/files/photos/great-tinamou-square.jpg')
+    expect(global.fetch).toHaveBeenCalledWith('/files/photos/great-tinamou.jpg')
+    expect(global.fetch).toHaveBeenCalledWith('/files/songs/great-tinamou.mp3')
+    expect(global.fetch).toHaveBeenCalledWith('/files/sonograms/great-tinamou.png')
   })
 
   test('renders a stopped empty assistant response', () => {
@@ -239,42 +763,6 @@ describe('ChatMessages', () => {
     expect(screen.getByText('BW-CHATMETA123')).toBeInTheDocument()
     expect(screen.getByText('3')).toBeInTheDocument()
     expect(screen.getByText(/Shared shuttle from San Jose to Monteverde/i)).toBeInTheDocument()
-    expect(screen.getByText('$555.00')).toBeInTheDocument()
-  })
-
-  test('prefers chat-level selected transportation over legacy reservation transportation', () => {
-    const messages = [
-      {
-        role: 'assistant',
-        content: 'Your reservation is confirmed.',
-      },
-    ]
-    const conversationMeta = {
-      reservation: {
-        confirmationCode: 'BW-PREFERSELECTED',
-        tourName: 'Monteverde Quetzal Tour',
-        totalPrice: 360,
-        transportation: {
-          transportationOption: 'private_transfer',
-          label: 'Private transfer',
-          origin: 'San Jose',
-          destination: 'Monteverde',
-          totalPrice: 220,
-        },
-      },
-      selectedTransportation: {
-        transportationOption: 'shared_shuttle',
-        label: 'Shared shuttle',
-        origin: 'San Jose',
-        destination: 'Monteverde',
-        totalPrice: 195,
-      },
-    }
-
-    render(<ChatMessages messages={messages} isLoading={false} conversationMeta={conversationMeta} />)
-
-    expect(screen.getByText(/Shared shuttle from San Jose to Monteverde/i)).toBeInTheDocument()
-    expect(screen.queryByText(/Private transfer/i)).not.toBeInTheDocument()
     expect(screen.getByText('$555.00')).toBeInTheDocument()
   })
 

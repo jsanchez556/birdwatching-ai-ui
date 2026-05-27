@@ -10,6 +10,7 @@ The active UI currently calls only:
 - `POST /chat`
 - `GET /chat/latest`
 - `GET /chat/:conversationId`
+- `GET /files/:folderName/:filename`
 
 The backend also exposes `GET /health` and `POST /recommend`, but this frontend does not call those backend endpoints yet.
 
@@ -45,7 +46,7 @@ import.meta.env.VITE_API_URL
 Behavior:
 - trailing slashes are removed
 - empty value means requests are relative to the current origin
-- local relative `/chat` calls are proxied by Vite to `VITE_API_PROXY_TARGET`
+- local relative `/auth`, `/chat`, and `/files` calls are proxied by Vite to `VITE_API_PROXY_TARGET`
 - production should set `VITE_API_URL` to the public backend URL
 
 ## Auth
@@ -172,6 +173,7 @@ Frontend behavior:
 - replaces the active assistant message on `replace`
 - finalizes the assistant message from `done.response`
 - stores chat-level `done.meta` fields such as `customerContext`, `reservation`, `selectedTour`, `selectedTourId`, `selectedTransportation`, and `participants` in `conversationMeta` instead of duplicating them on assistant messages
+- preserves per-turn `done.meta.birdMatches` on the assistant message so bird photos, song recordings, sonograms, and licensing links can render beside the answer
 - treats `AbortError` as user cancellation instead of a request failure
 - throws a client error if the stream ends without a `done` event
 - shows the backend/client error in the alert and a friendly assistant fallback in the transcript on failure
@@ -181,10 +183,44 @@ Backend behavior relevant to UI:
 - associates authenticated conversations and reservations with the logged-in user and rejects cross-user conversation access
 - treats authenticated identity as authoritative over frontend-provided customer email
 - loads recent conversation history from PostgreSQL
-- may retrieve RAG sources from PostgreSQL pgvector knowledge chunks ingested from backend `src/db/data`
+- may retrieve RAG sources from PostgreSQL pgvector knowledge chunks ingested from backend `src/db/ingestion/data`
 - may use OpenAI tool calls for tour search/recommendation, availability checks, transportation estimates, pricing, discounts, and reservations
 - when tour listing or recommendation tools return tours, the assistant response should stay short, for example `I found 2 tours that match your preferences.`, while tour details are provided in `meta.tours`
+- when bird RAG returns media-rich bird profiles, details are provided in `meta.birdMatches`; media URLs are optional references and are not embedded in pgvector
 - saves the exchange to PostgreSQL on a best-effort basis
+
+Bird media notes:
+- `meta.birdMatches` is a per-turn assistant metadata field, not chat-level booking state.
+- Each match may include `speciesCode`, `commonName`, `scientificName`, `family`, `description`, `locations`, `lastObservation`, and optional media fields copied from backend `birds.json`: `media.photoUrl`, `media.squarePhotoUrl`, `media.photoAttribution`, `media.wikiTitle`, `media.songUrl`, `media.sonogramUrl`, `media.songLength`, and `media.songAttributionHtml`.
+- The UI renders only the media fields present for each bird and keeps the original assistant text visible.
+- Bird carousel thumbnails prefer `media.squarePhotoUrl` and fall back to `media.photoUrl`; the bird detail modal uses `media.photoUrl` for the larger image.
+- The bird detail modal uses `media.songLength` as the preferred duration for synchronizing the audio playhead with the sonogram, falling back to browser audio metadata when that field is absent.
+- The bird detail modal displays `photoAttribution` near the photo and converts `songAttributionHtml` to plain text near the audio controls. It does not inject attribution HTML into the DOM.
+- Media URL fields may be absolute URLs or relative object keys returned by ingestion, commonly `/photos/...`, `songs/...`, or `sonograms/...`.
+- Relative media values must be resolved through `src/api/mediaApi.js` before rendering. Components should not place relative RAG media values directly into `src` attributes.
+
+## `GET /files/:folderName/:filename`
+Used by `resolveMediaUrl(value)` in `src/api/mediaApi.js` when bird RAG media contains a relative object key instead of an absolute URL.
+
+Expected success envelope:
+```json
+{
+  "success": true,
+  "data": {
+    "url": "https://bucket.example.test/photos/123_medium.jpg?signature=..."
+  },
+  "meta": {
+    "expiresInSeconds": 900
+  }
+}
+```
+
+Frontend behavior:
+- absolute `http`, `https`, protocol-relative, `data:`, and `blob:` media values are returned unchanged
+- leading slashes and an optional `/files/` prefix are normalized before the backend request
+- path segments are URL-encoded before requesting `/files/...`
+- successful relative-path resolutions are cached in memory for the current page session
+- failed media resolutions degrade to the existing photo/sonogram unavailable UI rather than failing the chat message
 
 Tour and reservation notes:
 - Tool execution is backend-only; the public `/chat` stream does not expose raw tool messages.

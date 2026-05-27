@@ -62,7 +62,7 @@ export function normalizeReservationConfirmation(reservation, selectedTransporta
   }
 
   const confirmationCode = reservation.confirmationCode || reservation.confirmation_code
-  const transportation = selectedTransportation || reservation.transportation || null
+  const transportation = selectedTransportation || null
 
   if (!confirmationCode) {
     return null
@@ -75,7 +75,6 @@ export function normalizeReservationConfirmation(reservation, selectedTransporta
   const rawTransportationTotal = selectedTransportation?.totalPrice
     ?? reservation.transportationPrice
     ?? reservation.transportation_price
-    ?? transportation?.totalPrice
   const rawGrandTotal = reservation.grandTotalPrice ?? reservation.grand_total_price
   const computedGrandTotal = rawGrandTotal ?? (
     transportation && toNumber(rawReservationTotal) !== null && toNumber(rawTransportationTotal) !== null

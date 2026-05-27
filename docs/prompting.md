@@ -34,9 +34,10 @@ Current behavior:
 - no source panel
 - no raw tool result display
 - no client-side prompt injection
+- bird profile metadata can render compact media cards
 - reservation confirmation summaries can render an additional styled card
 
-The backend may use RAG and tour tools before streaming the final assistant response. Tour discovery, tour selection, availability checks, transportation estimates, pricing, discounts, participant-count interpretation, and reservation creation are backend responsibilities. The current UI displays the final assistant text, renders structured `uiAction` and `uiActions` controls, and renders `ReservationConfirmationCard` from reservation metadata when present.
+The backend may use RAG and tour tools before streaming the final assistant response. Tour discovery, tour selection, availability checks, transportation estimates, pricing, discounts, participant-count interpretation, and reservation creation are backend responsibilities. The current UI displays the final assistant text, renders structured `uiAction` and `uiActions` controls, renders `BirdMediaCard` from `meta.birdMatches` when bird profile media is present, and renders `ReservationConfirmationCard` from reservation metadata when present. If bird media fields are relative object keys, the UI resolves them through the backend media endpoint before rendering.
 
 Reservation normalization and fallback extraction live in `src/utils/reservationConfirmation.js`. Prefer backend metadata over text parsing. The parser should stay conservative for older cached or hydrated messages and should not imply that the browser executed or verified a reservation. The backend remains the source of truth.
 
@@ -52,6 +53,8 @@ If rich rendering is added, treat backend output as untrusted content and saniti
 - Do not place backend prompt text in this frontend repository.
 - Do not add OpenAI API calls to the browser.
 - Do not add backend tour, reservation, RAG, or database logic to the browser.
+- Render bird media defensively from metadata only; missing photos, audio, sonograms, or license URLs should simply omit those controls.
+- Keep media URL resolution centralized in the API layer; prompt or display code should not assume relative RAG media paths are public static assets.
 - Keep reservation card display logic presentational; do not use it as durable booking state.
 - Update backend prompt docs in the backend repository when backend prompt behavior changes.
 - Update this file when frontend input handling, output rendering, or chat copy changes.

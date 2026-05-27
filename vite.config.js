@@ -32,6 +32,10 @@ export default defineConfig(({ mode }) => {
         '/chat': {
           target: chatProxyTarget,
           changeOrigin: true
+        },
+        '/files': {
+          target: chatProxyTarget,
+          changeOrigin: true
         }
       }
     }

@@ -36,11 +36,13 @@ Leaving `VITE_API_URL` empty in local development makes the browser call relativ
 All browser-exposed variables must use the `VITE_` prefix. Do not put backend secrets, OpenAI API keys, database URLs, or private tokens in frontend environment variables.
 
 ## Runtime Integration
-The UI calls the backend chat API through `src/api/chatApi.js`.
+The UI calls backend APIs through focused adapters in `src/api/`: chat streaming and hydration live in `chatApi.js`, authentication lives in `authApi.js`, and RAG bird media resolution lives in `mediaApi.js`.
 
 Runtime endpoints used by the browser:
 - `POST /chat`
+- `GET /chat/latest`
 - `GET /chat/:conversationId`
+- `GET /files/:folderName/:filename`
 
 Backend endpoints documented for future UI expansion:
 - `POST /recommend`
@@ -48,7 +50,7 @@ Backend endpoints documented for future UI expansion:
 The deployed static server also exposes:
 - `GET /health`
 
-The backend remains the source of truth for OpenAI, RAG, tour tools, discounts, reservations, and PostgreSQL persistence. This frontend stores only UI conversation state, customer context entered by the user, and a local transcript cache in `localStorage`. When the backend returns guided action metadata, the UI renders choice/select buttons that send natural-language follow-up messages. When the backend returns reservation metadata for a confirmed booking, the UI renders a styled reservation confirmation card and keeps the assistant message visible.
+The backend remains the source of truth for OpenAI, RAG, tour tools, discounts, reservations, PostgreSQL persistence, and private media storage. This frontend stores only UI conversation state, customer context entered by the user, and a local transcript cache in `localStorage`. When the backend returns guided action metadata, the UI renders choice/select buttons that send natural-language follow-up messages. When the backend returns reservation metadata for a confirmed booking, the UI renders a styled reservation confirmation card and keeps the assistant message visible. When the backend returns RAG bird profile matches in `done.meta.birdMatches`, the UI can render bird photos, songs, and sonograms. Absolute media URLs are rendered directly; relative media keys are first resolved through `GET /files/:folderName/:filename`, which returns a normalized envelope containing a presigned `data.url`.
 
 ## Scripts
 ```bash
