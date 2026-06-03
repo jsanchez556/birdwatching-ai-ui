@@ -1078,6 +1078,62 @@ button {
   opacity: 0.55;
 }
 
+.tour-zone-carousel {
+  display: grid;
+  gap: 14px;
+}
+
+.tour-zone-carousel + .tour-zone-carousel {
+  margin-top: 34px;
+}
+
+.tour-zone-header {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.tour-zone-header h3 {
+  min-width: 0;
+  color: var(--text);
+  font-size: 1.24rem;
+  font-weight: 820;
+  line-height: 1.2;
+}
+
+.tour-carousel-controls {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+}
+
+.tour-carousel-controls button {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.4rem;
+  font-weight: 820;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tour-carousel-controls button:hover:not(:disabled) {
+  background: var(--surface-soft);
+}
+
+.tour-carousel-controls button:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .compact-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
