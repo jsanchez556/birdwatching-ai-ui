@@ -11,18 +11,51 @@ function isAbsoluteMediaUrl(value) {
     || /^(?:data|blob):/i.test(value)
 }
 
+function cloudFrontBaseUrl() {
+  return (import.meta.env.VITE_CLOUDFRONT_BASE_URL || '').replace(/\/+$/, '')
+}
+
+function isUnsafeSegment(segment) {
+  try {
+    const decodedSegment = decodeURIComponent(segment)
+    return decodedSegment === '.' || decodedSegment === '..'
+  } catch {
+    return true
+  }
+}
+
 function normalizeMediaKey(value) {
-  const key = String(value || '').trim().replaceAll('\\', '/').replace(/^\/+/, '')
+  const key = String(value || '')
+    .trim()
+    .replaceAll('\\', '/')
+    .replace(/^\/+/, '')
+    .replace(/^files\/+/i, '')
 
   if (!key || isAbsoluteMediaUrl(key)) {
     return null
   }
 
-  return key.replace(/^files\/+/i, '')
+  const segments = key.split('/').filter(Boolean)
+
+  if (!segments.length || segments.some(isUnsafeSegment)) {
+    return null
+  }
+
+  return segments.join('/')
 }
 
 function mediaFileUrl(key) {
   return apiUrl(`/files/${key.split('/').map(encodeURIComponent).join('/')}`)
+}
+
+function cloudFrontMediaUrl(key) {
+  const baseUrl = cloudFrontBaseUrl()
+
+  if (!baseUrl) {
+    return ''
+  }
+
+  return `${baseUrl}/${key.split('/').map(encodeURIComponent).join('/')}`
 }
 
 export function isRelativeMediaPath(value) {
@@ -34,11 +67,21 @@ export async function resolveMediaUrl(value) {
     return ''
   }
 
-  if (!isRelativeMediaPath(value)) {
+  if (isAbsoluteMediaUrl(value)) {
     return value
   }
 
   const key = normalizeMediaKey(value)
+
+  if (!key) {
+    return ''
+  }
+
+  const cdnUrl = cloudFrontMediaUrl(key)
+
+  if (cdnUrl) {
+    return cdnUrl
+  }
 
   if (mediaUrlCache.has(key)) {
     return mediaUrlCache.get(key)

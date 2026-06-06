@@ -243,19 +243,20 @@ Bird media notes:
 - The bird detail modal displays `photoAttribution` near the photo and converts `songAttributionHtml` to plain text near the audio controls. It does not inject attribution HTML into the DOM.
 - Media URL fields may be absolute URLs or relative object keys returned by ingestion, commonly `/photos/...`, `songs/...`, or `sonograms/...`.
 - Relative media values must be resolved through `src/api/mediaApi.js` before rendering. Components should not place relative RAG media values directly into `src` attributes.
+- When `VITE_CLOUDFRONT_BASE_URL` is configured, `src/api/mediaApi.js` builds public CDN URLs directly from normalized relative keys. When it is empty, the adapter falls back to `GET /files/:folderName/:filename`.
 
 ## `GET /files/:folderName/:filename`
-Used by `resolveMediaUrl(value)` in `src/api/mediaApi.js` when bird RAG media contains a relative object key instead of an absolute URL.
+Used by `resolveMediaUrl(value)` in `src/api/mediaApi.js` when bird RAG media contains a relative object key instead of an absolute URL and `VITE_CLOUDFRONT_BASE_URL` is not configured.
 
 Expected success envelope:
 ```json
 {
   "success": true,
   "data": {
-    "url": "https://bucket.example.test/photos/123_medium.jpg?signature=..."
+    "url": "https://cdn.example.test/photos/123_medium.jpg"
   },
   "meta": {
-    "expiresInSeconds": 900
+    "delivery": "cloudfront"
   }
 }
 ```
@@ -263,7 +264,8 @@ Expected success envelope:
 Frontend behavior:
 - absolute `http`, `https`, protocol-relative, `data:`, and `blob:` media values are returned unchanged
 - leading slashes and an optional `/files/` prefix are normalized before the backend request
-- path segments are URL-encoded before requesting `/files/...`
+- duplicate slashes are collapsed and unsafe traversal segments are rejected
+- path segments are URL-encoded before requesting `/files/...` or building a CloudFront URL
 - successful relative-path resolutions are cached in memory for the current page session
 - failed media resolutions degrade to the existing photo/sonogram unavailable UI rather than failing the chat message
 

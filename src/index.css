@@ -1257,6 +1257,7 @@ button.home-card:focus-visible {
   line-height: 1.3;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .bird-highlight-overlay-title {
@@ -1269,6 +1270,7 @@ button.home-card:focus-visible {
   line-height: 1.25;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .tour-card-overlay-meta {
@@ -1358,6 +1360,8 @@ button.home-card:focus-visible {
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
+  /* Standard property for compatibility */
+  line-clamp: 3;
 }
 
 .home-card-eyebrow {
