@@ -3,7 +3,6 @@ import react from '@vitejs/plugin-react'
 
 function getAllowedHosts(env) {
   return [
-    env.RAILWAY_PUBLIC_DOMAIN,
     ...(env.ALLOWED_HOSTS || '').split(',')
   ]
     .map((host) => String(host || '').trim())
@@ -14,7 +13,7 @@ function getAllowedHosts(env) {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const proxyTarget = (
-    env.VITE_API_PROXY_TARGET || 'http://localhost:3000'
+    env.VITE_API_URL || env.VITE_API_PROXY_TARGET || 'http://localhost:3000'
   ).replace(/\/$/, '')
 
   return {

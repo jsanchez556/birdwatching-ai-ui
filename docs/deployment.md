@@ -29,7 +29,6 @@ Useful for local development:
 - `VITE_API_PROXY_TARGET`: backend origin used by the Vite dev proxy, commonly `http://localhost:3000`
 
 Useful for Railway preview host validation:
-- `RAILWAY_PUBLIC_DOMAIN`: provided by Railway when available
 - `ALLOWED_HOSTS`: comma-separated extra hosts for Vite preview
 
 Do not commit `.env` files. Frontend variables are public once built, so never place secrets in `VITE_` variables.
