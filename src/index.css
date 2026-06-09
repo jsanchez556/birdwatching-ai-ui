@@ -3168,6 +3168,9 @@ body.has-open-modal {
 }
 
 .send-button,
+.voice-button,
+.voice-cancel-button,
+.voice-send-button,
 .stop-button {
   width: 42px;
   height: 42px;
@@ -3186,20 +3189,145 @@ body.has-open-modal {
 }
 
 .send-button:hover:not(:disabled),
+.voice-button:hover:not(:disabled),
+.voice-cancel-button:hover:not(:disabled),
+.voice-send-button:hover:not(:disabled),
 .stop-button:hover:not(:disabled) {
   background: var(--brand-strong);
   transform: translateY(-1px);
 }
 
 .send-button:active:not(:disabled),
+.voice-button:active:not(:disabled),
+.voice-cancel-button:active:not(:disabled),
+.voice-send-button:active:not(:disabled),
 .stop-button:active:not(:disabled) {
   transform: translateY(0);
 }
 
 .send-button:disabled,
+.voice-button:disabled,
+.voice-cancel-button:disabled,
+.voice-send-button:disabled,
 .stop-button:disabled {
   cursor: not-allowed;
   opacity: 0.38;
+}
+
+.voice-button {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+}
+
+.voice-button:hover:not(:disabled) {
+  background: var(--surface-muted);
+}
+
+.voice-button svg,
+.voice-cancel-button svg,
+.voice-send-button svg {
+  width: 21px;
+  height: 21px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.recording-composer {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.recording-meter {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-radius: 22px;
+  background: var(--surface-muted);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.recording-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-radius: 50%;
+  background: #b24646;
+  box-shadow: 0 0 0 0 rgba(178, 70, 70, 0.5);
+  animation: recordingPulse 1.2s ease-in-out infinite;
+}
+
+.recording-time {
+  min-width: 38px;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.recording-wave {
+  height: 20px;
+  flex: 1;
+  min-width: 52px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.recording-wave span {
+  width: 4px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--brand);
+  opacity: 0.72;
+  animation: voiceWave 1s ease-in-out infinite;
+}
+
+.recording-wave span:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.recording-wave span:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+.recording-wave span:nth-child(4) {
+  animation-delay: 0.3s;
+}
+
+.voice-cancel-button {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+}
+
+.voice-cancel-button:hover:not(:disabled) {
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.voice-send-button {
+  background: var(--brand);
+  color: #ffffff;
+}
+
+.voice-status {
+  width: min(var(--content-width), 100%);
+  margin: 8px auto 0;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  line-height: 1.3;
 }
 
 .stop-button {
@@ -3215,6 +3343,38 @@ body.has-open-modal {
   height: 13px;
   border-radius: 3px;
   background: #ffffff;
+}
+
+.message-audio {
+  width: 100%;
+  min-width: 220px;
+  margin-top: 10px;
+  display: block;
+}
+
+@keyframes recordingPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(178, 70, 70, 0.42);
+  }
+
+  70% {
+    box-shadow: 0 0 0 8px rgba(178, 70, 70, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(178, 70, 70, 0);
+  }
+}
+
+@keyframes voiceWave {
+  0%,
+  100% {
+    height: 7px;
+  }
+
+  50% {
+    height: 20px;
+  }
 }
 
 .empty-state {

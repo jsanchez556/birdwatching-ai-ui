@@ -2,15 +2,13 @@
 
 Back to [Project Context](../CONTEXT.md). See [Architecture](./architecture.md) for UI flow details.
 
-<<<<<<< HEAD
-The frontend integrates with the Birdwatching AI API through `src/api/authApi.js`, `src/api/cartApi.js`, `src/api/chatApi.js`, `src/api/homeApi.js`, and `src/api/mediaApi.js`. Backend API implementation lives in the backend repository.
-=======
-The frontend integrates with the Birdwatching AI API through `src/api/authApi.js`, `src/api/chatApi.js`, `src/api/homeApi.js`, and `src/api/mediaApi.js`. Backend API implementation lives in the backend repository.
->>>>>>> 53f95ca (Implement the home page.)
+The frontend integrates with the Birdwatching AI API through `src/api/authApi.js`, `src/api/cartApi.js`, `src/api/chatApi.js`, `src/api/voiceChatApi.js`, `src/api/homeApi.js`, and `src/api/mediaApi.js`. Backend API implementation lives in the backend repository.
 
 The active UI currently calls:
 - `POST /auth/signup`
 - `POST /auth/login`
+- `POST /auth/refresh`
+- `POST /auth/logout`
 - `GET /cart`
 - `POST /cart/items`
 - `PATCH /cart/items/:itemId`
@@ -18,15 +16,17 @@ The active UI currently calls:
 - `GET /cart/reservations`
 - `POST /cart/reservations`
 - `POST /chat`
+- `POST /voice-chat`
 - `GET /chat/latest`
 - `GET /chat/:conversationId`
 - `GET /homepage/hero`
 - `GET /tours`
 - `GET /birds/highlights`
+- `GET /birds/profile`
 - `GET /addons/transportation`
 - `GET /files/:folderName/:filename`
 
-The backend also exposes `GET /health` and `POST /recommend`, but this frontend does not call those backend endpoints yet.
+The backend also exposes `GET /health`, but this frontend does not call that backend endpoint in browser code.
 
 Non-streaming successful backend responses, such as conversation hydration, are expected to use:
 
@@ -60,11 +60,7 @@ import.meta.env.VITE_API_URL
 Behavior:
 - trailing slashes are removed
 - empty value means requests are relative to the current origin
-<<<<<<< HEAD
-- local relative `/auth`, `/cart`, `/chat`, `/homepage`, `/tours`, `/birds`, `/addons`, and `/files` calls are proxied by Vite to `VITE_API_PROXY_TARGET`
-=======
-- local relative `/auth`, `/chat`, `/homepage`, `/tours`, `/birds`, `/addons`, and `/files` calls are proxied by Vite to `VITE_API_PROXY_TARGET`
->>>>>>> 53f95ca (Implement the home page.)
+- local relative `/auth`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/addons`, and `/files` calls are proxied by Vite to `VITE_API_PROXY_TARGET`
 - production should set `VITE_API_URL` to the public backend URL
 
 ## Auth
@@ -234,6 +230,59 @@ Backend behavior relevant to UI:
 - saves the exchange to PostgreSQL on a best-effort basis
 - saves reservation-entry chat exchanges with backend `conversation_type = "reservation_entry"` so normal latest-chat hydration can skip them
 
+## `POST /voice-chat`
+Used by `sendVoiceChat({ audioBlob, conversationId, customerContext, conversationContext, role, token, signal })` in `src/api/voiceChatApi.js`.
+
+The frontend records microphone audio with `MediaRecorder`, then `useChat` converts the browser recording to `audio/wav` before upload. Browser-native `audio/webm` is not sent directly because the backend raw audio middleware currently accepts only MP3/WAV content types.
+
+Request:
+```http
+POST /voice-chat
+Content-Type: audio/wav
+X-Filename: voice-message.wav
+X-Conversation-Id: conversation-123
+X-Customer-Context: {"customerName":"Ana Rivera","customerEmail":"ana@example.com"}
+X-Conversation-Context: {"recentAssistantMetadata":{"selectedTourId":1}}
+X-Response-Mode: field_assistant
+X-Role: customer
+Authorization: Bearer <token>
+```
+
+Notes:
+- `Authorization`, `X-Conversation-Id`, `X-Customer-Context`, `X-Conversation-Context`, and `X-Role` are included only when available.
+- `X-Response-Mode: field_assistant` is sent for voice turns so the backend applies the concise field-guide prompt.
+- `X-Customer-Context` and `X-Conversation-Context` are JSON-encoded headers, not request-body fields.
+- The request body is raw audio bytes, not JSON or multipart form data.
+
+Expected success envelope:
+```json
+{
+  "success": true,
+  "data": {
+    "transcript": "Where can I see quetzals?",
+    "answer": "Scan fruiting trees along the Monteverde cloud forest edges and listen for soft calls.",
+    "audioResponseUrl": "/files/voice-chat/audio-id.mp3"
+  },
+  "meta": {
+    "conversationId": "conversation-123"
+  }
+}
+```
+
+Frontend behavior:
+- sets recording, processing, uploading, and loading states through `useChat`
+- handles microphone permission, unsupported recording, empty recording, and backend/network errors with safe user-facing messages
+- appends `data.transcript` as a user message with `transcript`
+- appends `data.answer` as an assistant message
+- resolves `data.audioResponseUrl` through `src/api/mediaApi.js` and stores the resolved `audioUrl` for playback
+- stores the original relative `audioResponseUrl` with the assistant message for continuity/debuggability
+- preserves the same local conversation ID, customer context, and recent assistant metadata behavior used by text chat
+
+Backend behavior relevant to UI:
+- standalone browser calls to transcribe or speak endpoints are not part of the public frontend contract
+- speech-to-text, chat orchestration, retrieval, agent execution, text-to-speech, and S3 MP3 storage are backend-owned
+- returned `/files/voice-chat/...` paths are relative media references; components must not hardcode backend origins
+
 Bird media notes:
 - `meta.birdMatches` is a per-turn assistant metadata field, not chat-level booking state.
 - Each match may include `speciesCode`, `commonName`, `scientificName`, `family`, `description`, `locations`, `lastObservation`, and optional media fields copied from backend `birds.json`: `media.photoUrl`, `media.squarePhotoUrl`, `media.photoAttribution`, `media.wikiTitle`, `media.songUrl`, `media.sonogramUrl`, `media.songLength`, and `media.songAttributionHtml`.
@@ -355,25 +404,6 @@ Provided by `server.js` for the frontend static server:
 
 Backend `GET /health` returns a normalized envelope with service health and process uptime. The current UI does not call either health endpoint in browser code.
 
-## `POST /recommend`
-Backend endpoint for structured birdwatching recommendations. The current UI does not call it.
-
-Request body:
-```json
-{
-  "location": "Monteverde",
-  "budget": "moderate",
-  "days": 3
-}
-```
-
-Backend validation:
-- `location` is required, trimmed, and non-empty
-- `budget` must be `budget`, `moderate`, or `luxury`
-- `days` must be an integer from 1 to 30
-
-If a recommendation UI is added, keep the adapter separate from `chatApi.js` or rename the API module so chat and recommendation contracts stay clear.
-
 ## Homepage Content
 The homepage uses public, non-streaming endpoints for static or configured marketing content. Each response uses the standard `{ success, data, meta }` envelope.
 
@@ -416,6 +446,13 @@ The homepage uses public, non-streaming endpoints for static or configured marke
 ```
 
 `GET /birds/highlights` returns curated species cards. The backend can source names from `HOMEPAGE_BIRD_HIGHLIGHTS`, falling back to built-in Costa Rica highlights.
+
+`GET /birds/profile` returns a single bird profile for modal/details rendering. The UI sends either `speciesCode` or `name` as query parameters:
+```http
+GET /birds/profile?speciesCode=gretin1
+```
+
+The adapter requires `data.bird` to be an object and treats `404` as a normal missing-profile error.
 
 `GET /addons/transportation` returns simple transportation add-on cards for the homepage. Booking-specific transportation selection remains owned by the chat flow.
 

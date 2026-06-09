@@ -1,11 +1,16 @@
 import { act, renderHook } from '@testing-library/react'
 import useChat from '../useChat'
 import { loadConversationMessages, loadLatestConversation, streamChatMessage } from '../../api/chatApi'
+import { sendVoiceChat } from '../../api/voiceChatApi'
 
 jest.mock('../../api/chatApi', () => ({
   loadConversationMessages: jest.fn(),
   loadLatestConversation: jest.fn(),
   streamChatMessage: jest.fn(),
+}))
+
+jest.mock('../../api/voiceChatApi', () => ({
+  sendVoiceChat: jest.fn(),
 }))
 
 function createAbortError() {
@@ -38,6 +43,16 @@ describe('useChat streaming behavior', () => {
     loadLatestConversation.mockResolvedValue({
       conversationId: null,
       messages: [],
+    })
+    sendVoiceChat.mockResolvedValue({
+      conversationId: 'conversation-voice',
+      transcript: 'Where can I hear toucans?',
+      answer: 'Listen near fruiting trees and scan the upper canopy.',
+      audioUrl: 'https://cdn.example.com/files/voice-chat/response.mp3',
+      audioResponseUrl: '/files/voice-chat/response.mp3',
+      metadata: {
+        conversationId: 'conversation-voice',
+      },
     })
   })
 
@@ -268,6 +283,230 @@ describe('useChat streaming behavior', () => {
         },
       },
     }))
+  })
+
+  test('sends voice chat audio and appends transcript, answer, and audio URL', async () => {
+    window.localStorage.setItem('birdwatchingAI.chatState.user-1', JSON.stringify({
+      conversationId: 'conversation-123',
+      userId: 'user-1',
+      meta: {
+        customerContext: {
+          customerName: 'Ana Gomez',
+          customerEmail: 'ana@example.com',
+        },
+        selectedTourId: 4,
+      },
+      messages: [
+        {
+          role: 'assistant',
+          content: 'I found recent sightings.',
+          metadata: {
+            birdMatches: [{ speciesCode: 'keptou1' }],
+          },
+        },
+      ],
+    }))
+
+    const { result } = renderHook(() => useChat({
+      token: 'auth-token',
+      user: {
+        id: 'user-1',
+        email: 'ana@example.com',
+      },
+      role: 'customer',
+    }))
+
+    await act(async () => {
+      await result.current.sendVoiceMessage(new Blob(['voice'], { type: 'audio/wav' }))
+    })
+
+    expect(sendVoiceChat).toHaveBeenCalledWith(expect.objectContaining({
+      conversationId: 'conversation-123',
+      customerContext: {
+        customerName: 'Ana Gomez',
+        customerEmail: 'ana@example.com',
+      },
+      conversationContext: {
+        recentAssistantMetadata: {
+          birdMatches: [{ speciesCode: 'keptou1' }],
+          selectedTourId: 4,
+        },
+      },
+      responseMode: 'field_assistant',
+      role: 'customer',
+      token: 'auth-token',
+    }))
+    expect(result.current.messages.slice(-2)).toEqual([
+      {
+        role: 'user',
+        content: 'Where can I hear toucans?',
+        transcript: 'Where can I hear toucans?',
+      },
+      {
+        role: 'assistant',
+        content: 'Listen near fruiting trees and scan the upper canopy.',
+        audioUrl: 'https://cdn.example.com/files/voice-chat/response.mp3',
+        audioResponseUrl: '/files/voice-chat/response.mp3',
+        metadata: {
+          audioUrl: 'https://cdn.example.com/files/voice-chat/response.mp3',
+          audioResponseUrl: '/files/voice-chat/response.mp3',
+        },
+      },
+    ])
+  })
+
+  test('shows a safe error when voice chat fails', async () => {
+    sendVoiceChat.mockRejectedValue(new Error('Voice chat failed. Please try again.'))
+
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      await result.current.sendVoiceMessage(new Blob(['voice'], { type: 'audio/wav' }))
+    })
+
+    expect(result.current.error).toBe('Voice chat failed. Please try again.')
+    expect(result.current.messages.at(-1)).toEqual({
+      role: 'assistant',
+      content: 'Voice chat failed. Please try again.',
+      isError: true,
+    })
+  })
+
+  test('reports unsupported browser recording before requesting microphone access', async () => {
+    const originalMediaRecorder = window.MediaRecorder
+    const originalMediaDevices = navigator.mediaDevices
+
+    Object.defineProperty(window, 'MediaRecorder', {
+      configurable: true,
+      value: undefined,
+    })
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: jest.fn(),
+      },
+    })
+
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      await result.current.startVoiceRecording()
+    })
+
+    expect(result.current.error).toMatch(/voice recording is not supported/i)
+    expect(navigator.mediaDevices.getUserMedia).not.toHaveBeenCalled()
+
+    Object.defineProperty(window, 'MediaRecorder', {
+      configurable: true,
+      value: originalMediaRecorder,
+    })
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: originalMediaDevices,
+    })
+  })
+
+  test('reports microphone permission errors safely', async () => {
+    const originalMediaRecorder = window.MediaRecorder
+    const originalMediaDevices = navigator.mediaDevices
+    const permissionError = new Error('Denied')
+    permissionError.name = 'NotAllowedError'
+
+    Object.defineProperty(window, 'MediaRecorder', {
+      configurable: true,
+      value: class MockMediaRecorder {},
+    })
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: jest.fn().mockRejectedValue(permissionError),
+      },
+    })
+
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      await result.current.startVoiceRecording()
+    })
+
+    expect(result.current.error).toMatch(/microphone access was blocked/i)
+
+    Object.defineProperty(window, 'MediaRecorder', {
+      configurable: true,
+      value: originalMediaRecorder,
+    })
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: originalMediaDevices,
+    })
+  })
+
+  test('cancels an active voice recording without sending audio', async () => {
+    const originalMediaRecorder = window.MediaRecorder
+    const originalMediaDevices = navigator.mediaDevices
+    const stopTrack = jest.fn()
+    let recorderInstance
+
+    class MockMediaRecorder {
+      constructor(stream) {
+        this.stream = stream
+        this.state = 'inactive'
+        this.mimeType = 'audio/webm'
+        this.ondataavailable = null
+        this.onstop = null
+        recorderInstance = this
+      }
+
+      start() {
+        this.state = 'recording'
+      }
+
+      stop() {
+        this.state = 'inactive'
+        this.onstop?.()
+      }
+    }
+
+    Object.defineProperty(window, 'MediaRecorder', {
+      configurable: true,
+      value: MockMediaRecorder,
+    })
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: jest.fn().mockResolvedValue({
+          getTracks: () => [{ stop: stopTrack }],
+        }),
+      },
+    })
+
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      await result.current.startVoiceRecording()
+    })
+
+    expect(result.current.isRecording).toBe(true)
+    expect(result.current.voiceStatus).toBe('recording')
+
+    act(() => {
+      result.current.cancelVoiceRecording()
+    })
+
+    expect(result.current.isRecording).toBe(false)
+    expect(result.current.voiceStatus).toBe('idle')
+    expect(stopTrack).toHaveBeenCalledTimes(1)
+    expect(recorderInstance.state).toBe('inactive')
+    expect(sendVoiceChat).not.toHaveBeenCalled()
+
+    Object.defineProperty(window, 'MediaRecorder', {
+      configurable: true,
+      value: originalMediaRecorder,
+    })
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: originalMediaDevices,
+    })
   })
 
   test('passes auth token to chat requests', async () => {

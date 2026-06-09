@@ -15,6 +15,7 @@ This repository is a single React/Vite frontend for Costa Rica birdwatching assi
 - authenticated latest-conversation hydration through `GET /chat/latest`
 - backend hydration through `GET /chat/:conversationId`
 - backend streaming chat requests through `POST /chat`
+- browser voice chat through `POST /voice-chat`, with recorded audio converted to WAV before upload
 - homepage content through `GET /homepage/hero`, `GET /tours`, `GET /birds/highlights`, and `GET /addons/transportation`
 - bird profile media resolution through CloudFront or `GET /files/:folderName/:filename` when RAG metadata contains relative media paths
 - backend-generated tour discovery, pricing, discounts, and reservation confirmations through assistant responses
@@ -43,6 +44,7 @@ The app uses a shell-component-hook-API split:
 - `src/hooks/useHomeContent.js` owns homepage content loading state.
 - `src/api/authApi.js` owns auth HTTP calls and response shape validation.
 - `src/api/chatApi.js` owns backend HTTP calls and response shape validation.
+- `src/api/voiceChatApi.js` owns raw audio upload calls to `POST /voice-chat` and resolves returned audio response URLs.
 - `src/api/homeApi.js` owns homepage HTTP calls and response shape validation.
 - `src/api/mediaApi.js` owns bird media URL resolution through CloudFront when configured, with backend media endpoint fallback.
 - `src/index.css` owns global tokens, layout, responsive behavior, and dark mode.
@@ -69,6 +71,20 @@ ChatInput submit
   -> cache messages in localStorage
 ```
 
+Send voice chat message:
+```text
+ChatInput microphone control
+  -> useChat.startVoiceRecording asks for microphone access and starts MediaRecorder
+  -> useChat.stopVoiceRecording stops tracks and converts the browser recording to audio/wav
+  -> voiceChatApi.sendVoiceChat posts raw WAV bytes to POST /voice-chat
+  -> request headers include X-Conversation-Id, X-Customer-Context, X-Conversation-Context, and X-Response-Mode: field_assistant when available
+  -> backend transcribes speech, runs the existing chat orchestration, generates speech, stores MP3 in S3, and returns transcript, answer, and audioResponseUrl
+  -> voiceChatApi resolves relative /files/voice-chat/... URLs through CloudFront or the backend files endpoint
+  -> useChat appends the transcript as a user message and the answer as an assistant message with audioUrl
+  -> ChatMessages renders assistant text plus playable response audio
+  -> cache messages in localStorage
+```
+
 Conversation hydration:
 ```text
 useAuth restores birdwatchingAI.authState
@@ -83,7 +99,15 @@ useAuth restores birdwatchingAI.authState
 
 Local development API routing:
 ```text
-Browser fetch('/auth/*', '/chat', '/homepage/*', '/tours', '/birds/*', or '/addons/*')
+Browser fetch('/auth/*', '/cart/*', '/chat', '/homepage/*', '/tours', '/birds/*', or '/addons/*')
+  -> Vite dev proxy
+  -> VITE_API_PROXY_TARGET
+  -> Birdwatching AI API
+```
+
+Voice chat local development:
+```text
+Browser fetch('/voice-chat')
   -> Vite dev proxy
   -> VITE_API_PROXY_TARGET
   -> Birdwatching AI API
@@ -100,7 +124,7 @@ Browser fetch('/files/:folderName/:filename')
 
 Production API routing:
 ```text
-Browser fetch(`${VITE_API_URL}/auth/*`, `${VITE_API_URL}/chat`, or homepage content endpoints)
+Browser fetch(`${VITE_API_URL}/auth/*`, `${VITE_API_URL}/cart/*`, `${VITE_API_URL}/chat`, `${VITE_API_URL}/voice-chat`, or homepage content endpoints)
   -> public Birdwatching AI API
 ```
 
@@ -114,11 +138,15 @@ Browser fetch(`${VITE_API_URL}/auth/*`, `${VITE_API_URL}/chat`, or homepage cont
 - Authenticated chat state is stored under `birdwatchingAI.chatState.<userId>` so user switching cannot reuse another user's local transcript.
 - `VITE_API_URL` is trimmed of trailing slash before request URLs are built.
 - Empty `VITE_API_URL` intentionally produces relative `/auth`, `/chat`, and homepage content URLs for local proxying.
+- The current dev proxy covers `/auth`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/addons`, and `/files`.
 - `VITE_API_PROXY_TARGET` should point to the local or remote backend during `npm run dev`.
 - `CustomerContextForm` collects `customerName`, `customerEmail`, `itineraryStartDate`, and `itineraryEndDate` before the authenticated chat transcript is shown. Visitor mode skips customer context and is limited by the backend to bird questions only.
 - `useChat` creates a client conversation ID before the first backend response.
 - The backend may return a different `conversationId`; the UI persists the returned ID.
 - `streamChatMessage` sends `customerContext` and sanitized recent assistant metadata as `conversationContext.recentAssistantMetadata` so the backend can continue guided booking flows. Backend ownership and authenticated identity remain authoritative.
+- `sendVoiceChat` sends raw `audio/wav` bytes to `POST /voice-chat`. The UI records with `MediaRecorder` when available, converts the result to WAV with `AudioContext`, and sets `X-Response-Mode: field_assistant` so spoken answers stay short and actionable.
+- Voice chat requests can include `X-Conversation-Id`, `X-Customer-Context`, `X-Conversation-Context`, and `X-Role`. The backend currently accepts only MP3/WAV raw audio content types, so the UI does not upload browser-native `audio/webm` directly.
+- Voice chat responses include a transcript, assistant answer, and relative `audioResponseUrl`. The UI stores the transcript in the user message, stores the resolved playback URL on the assistant message as `audioUrl`, and keeps relative `/files/voice-chat/...` values out of component URL construction.
 - The backend may return RAG `sources`; the current UI accepts the field but does not render it.
 - The backend may return RAG bird profiles as `done.meta.birdMatches`; the UI stores those as assistant-message metadata and renders a compact carousel plus modal details.
 - Bird media values in `meta.birdMatches[].media` may be absolute URLs or relative object keys such as `/photos/123_medium.jpg`, `songs/123.mp3`, or `sonograms/123_grey-small.png`. Relative values are resolved by `src/api/mediaApi.js` through `VITE_CLOUDFRONT_BASE_URL` when configured, or through `GET /files/:folderName/:filename`; components must not assume those paths are directly browser-accessible.
@@ -129,7 +157,7 @@ Browser fetch(`${VITE_API_URL}/auth/*`, `${VITE_API_URL}/chat`, or homepage cont
 - Incoming stream chunks are buffered and revealed on a short timer so text appears at a readable pace.
 - `ChatMessages` uses `src/utils/reservationConfirmation.js` to normalize reservation metadata or detect older confirmed reservation summaries and render `ReservationConfirmationCard` without adding backend tool logic to the browser.
 - `BirdMediaCard` and bird carousel thumbnails use `useResolvedMediaUrl` so relative RAG media is exchanged for renderable media URLs before rendering.
-- The UI does not currently call `POST /recommend`, even though the backend exposes it for structured recommendation use cases.
+- The UI does not currently call a standalone recommendations endpoint; tour recommendations are handled through the backend chat/tool flow.
 - The homepage calls public, cache-friendly content endpoints for hero media, tours, bird highlights, and transportation instead of using the streaming chat endpoint for static homepage sections.
 - Authenticated chat requests and conversation hydration include `Authorization: Bearer <token>`; visitor chat requests omit the token and send `role: "visitor"`.
 - Message cache failures are swallowed so chat still works when storage is unavailable.

@@ -1,6 +1,6 @@
 # Birdwatching AI UI
 
-React 18 + Vite frontend for the Birdwatching AI chat experience. The app collects booking-ready customer context, provides a responsive Costa Rica birdwatching assistant UI, and integrates with the Birdwatching AI API for streamed chat responses and conversation retrieval.
+React 18 + Vite frontend for the Birdwatching AI chat experience. The app collects booking-ready customer context, provides a responsive Costa Rica birdwatching assistant UI, and integrates with the Birdwatching AI API for streamed chat responses, voice chat, and conversation retrieval.
 
 ## Quick Links
 - Project context for AI agents: [CONTEXT.md](./CONTEXT.md)
@@ -32,28 +32,43 @@ VITE_API_PROXY_TARGET=http://localhost:3000
 VITE_CLOUDFRONT_BASE_URL=
 ```
 
-Leaving `VITE_API_URL` empty in local development makes the browser call relative `/chat` URLs, which Vite proxies to `VITE_API_PROXY_TARGET`. This avoids local CORS issues while developing against the backend.
+Leaving `VITE_API_URL` empty in local development makes the browser call relative backend URLs, which Vite proxies to `VITE_API_PROXY_TARGET` for the configured proxy paths. This avoids local CORS issues while developing against the backend.
 
 Set `VITE_CLOUDFRONT_BASE_URL` only when relative media keys should be rendered directly through a public CDN, for example `https://cdn.example.com`. Leave it empty to keep resolving relative media through the backend `/files` endpoint.
 
 All browser-exposed variables must use the `VITE_` prefix. Do not put backend secrets, OpenAI API keys, database URLs, or private tokens in frontend environment variables.
 
 ## Runtime Integration
-The UI calls backend APIs through focused adapters in `src/api/`: chat streaming and hydration live in `chatApi.js`, authentication lives in `authApi.js`, and RAG bird media resolution lives in `mediaApi.js`.
+The UI calls backend APIs through focused adapters in `src/api/`: chat streaming and hydration live in `chatApi.js`, voice chat lives in `voiceChatApi.js`, authentication lives in `authApi.js`, and media URL resolution lives in `mediaApi.js`.
 
 Runtime endpoints used by the browser:
+- `POST /auth/signup`
+- `POST /auth/login`
+- `POST /auth/refresh`
+- `POST /auth/logout`
+- `GET /cart`
+- `POST /cart/items`
+- `PATCH /cart/items/:itemId`
+- `DELETE /cart/items/:itemId`
+- `GET /cart/reservations`
+- `POST /cart/reservations`
 - `POST /chat`
+- `POST /voice-chat`
 - `GET /chat/latest`
 - `GET /chat/:conversationId`
+- `GET /homepage/hero`
+- `GET /tours`
+- `GET /birds/highlights`
+- `GET /birds/profile`
+- `GET /addons/transportation`
 - `GET /files/:folderName/:filename`
-
-Backend endpoints documented for future UI expansion:
-- `POST /recommend`
 
 The deployed static server also exposes:
 - `GET /health`
 
-The backend remains the source of truth for OpenAI, RAG, tour tools, discounts, reservations, PostgreSQL persistence, and private media storage. This frontend stores only UI conversation state, customer context entered by the user, and a local transcript cache in `localStorage`. When the backend returns guided action metadata, the UI renders choice/select buttons that send natural-language follow-up messages. When the backend returns reservation metadata for a confirmed booking, the UI renders a styled reservation confirmation card and keeps the assistant message visible. When the backend returns RAG bird profile matches in `done.meta.birdMatches`, the UI can render bird photos, songs, and sonograms. Absolute media URLs are rendered directly; relative media keys are rendered as CloudFront URLs when `VITE_CLOUDFRONT_BASE_URL` is configured, otherwise they are resolved through `GET /files/:folderName/:filename`, which returns a normalized envelope containing `data.url`.
+Local development note: the current Vite proxy includes `/auth`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/addons`, and `/files`.
+
+The backend remains the source of truth for OpenAI, speech-to-text, text-to-speech, RAG, tour tools, discounts, reservations, PostgreSQL persistence, and private media storage. This frontend stores only UI conversation state, customer context entered by the user, and a local transcript cache in `localStorage`. When the user records voice, the browser captures audio with `MediaRecorder`, converts it to WAV before upload because the backend accepts MP3/WAV raw audio, and sends it to `POST /voice-chat` with conversation context headers and `X-Response-Mode: field_assistant`. The backend returns the transcript, assistant answer, and a relative `/files/voice-chat/...` MP3 URL; the UI resolves that URL through `mediaApi.js` and renders playable assistant audio. When the backend returns guided action metadata, the UI renders choice/select buttons that send natural-language follow-up messages. When the backend returns reservation metadata for a confirmed booking, the UI renders a styled reservation confirmation card and keeps the assistant message visible. When the backend returns RAG bird profile matches in `done.meta.birdMatches`, the UI can render bird photos, songs, and sonograms. Absolute media URLs are rendered directly; relative media keys are rendered as CloudFront URLs when `VITE_CLOUDFRONT_BASE_URL` is configured, otherwise they are resolved through `GET /files/:folderName/:filename`, which returns a normalized envelope containing `data.url`.
 
 ## Scripts
 ```bash

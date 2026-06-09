@@ -8,6 +8,21 @@ import {
 } from '../utils/reservationConfirmation'
 import { normalizeText } from '../utils/normalizers'
 
+function VoiceResponseAudio({ audioUrl }) {
+  if (!audioUrl) {
+    return null
+  }
+
+  return (
+    <audio
+      className="message-audio"
+      controls
+      src={audioUrl}
+      aria-label="Voice response audio"
+    />
+  )
+}
+
 function MessageContent({ message, conversationMeta, onAction, viewerRole }) {
   if (message.isStopped && !message.content) {
     return (
@@ -48,11 +63,15 @@ function MessageContent({ message, conversationMeta, onAction, viewerRole }) {
   const birdMatches = message.role === 'assistant' && !message.isError && Array.isArray(message.metadata?.birdMatches)
     ? message.metadata.birdMatches
     : []
+  const audioUrl = message.role === 'assistant' && !message.isError
+    ? message.audioUrl || message.metadata?.audioUrl
+    : ''
 
   if (!reservation) {
     return (
       <>
         {message.content}
+        <VoiceResponseAudio audioUrl={audioUrl} />
         <BirdMatchesCarousel birds={birdMatches} />
         <MessageActions actions={messageActions} onAction={onAction} viewerRole={viewerRole} />
       </>
@@ -65,6 +84,7 @@ function MessageContent({ message, conversationMeta, onAction, viewerRole }) {
         <div className="message-text">{message.content}</div>
       )}
       <ReservationConfirmationCard reservation={reservation} />
+      <VoiceResponseAudio audioUrl={audioUrl} />
       <BirdMatchesCarousel birds={birdMatches} />
       <MessageActions actions={messageActions} onAction={onAction} viewerRole={viewerRole} />
     </>

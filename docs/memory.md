@@ -53,7 +53,18 @@ Cached state shape:
   "conversationId": "conversation-123",
   "messages": [
     { "role": "user", "content": "Where can I see toucans?" },
-    { "role": "assistant", "content": "Try the Caribbean lowlands..." }
+    { "role": "assistant", "content": "Try the Caribbean lowlands..." },
+    {
+      "role": "user",
+      "content": "What should I listen for?",
+      "transcript": "What should I listen for?"
+    },
+    {
+      "role": "assistant",
+      "content": "Listen for a repeated yelping call near fruiting trees.",
+      "audioUrl": "https://cdn.example.com/voice-chat/audio-id.mp3",
+      "audioResponseUrl": "/files/voice-chat/audio-id.mp3"
+    }
   ],
   "meta": {
     "customerContext": {
@@ -74,7 +85,13 @@ Cached state shape:
 are chat-level state.
 They are cached once per conversation instead of repeated on assistant message
 metadata. Assistant messages still keep turn-specific display metadata such as
-`uiAction`, `tours`, and `pricing`.
+`uiAction`, `tours`, `pricing`, and voice response audio URLs.
+
+Voice chat stores only rendered transcript state:
+- the transcribed user speech is cached as a normal user message with optional `transcript`
+- the assistant answer is cached as a normal assistant message with optional `audioUrl` for playback and `audioResponseUrl` for the original relative media reference
+- raw microphone recordings and generated MP3 bytes are not stored in `localStorage`
+- backend S3 storage and CloudFront delivery remain authoritative for generated response audio
 
 The UI may also receive `createdAt` from the backend during hydration, but it does not currently display timestamps.
 
@@ -98,6 +115,14 @@ When a user sends a message:
 5. `useChat` buffers chunks and reveals them into the assistant message at a readable pace.
 6. `useChat` finalizes the assistant response from the `done` event.
 7. `useChat` stores the finalized rendered transcript for that conversation ID.
+
+When a user sends a voice message:
+1. `useChat` records microphone audio and converts the capture to WAV.
+2. `sendVoiceChat(...)` posts raw audio bytes to `POST /voice-chat` with the active conversation ID and context headers.
+3. The backend returns `transcript`, `answer`, `audioResponseUrl`, and `meta.conversationId`.
+4. `useChat` appends the transcript as a user message.
+5. `useChat` appends the assistant answer with the resolved `audioUrl`.
+6. `useChat` stores the finalized rendered transcript for that conversation ID.
 
 If localStorage writes fail, the app continues without persistent local cache.
 

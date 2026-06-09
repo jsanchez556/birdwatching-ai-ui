@@ -50,6 +50,18 @@ Browser loads index.html
   -> ChatMessages scrolls to latest content
 ```
 
+Voice chat follows the same chat surface:
+```text
+ChatInput microphone control
+  -> useChat starts MediaRecorder after microphone permission
+  -> useChat stops the recorder, stops media tracks, and converts the captured blob to audio/wav
+  -> voiceChatApi posts raw WAV bytes to POST /voice-chat with conversation context headers
+  -> backend transcribes the audio, runs the existing chat orchestration, generates speech, and stores an MP3 response
+  -> voiceChatApi resolves the returned /files/voice-chat/... URL through mediaApi
+  -> useChat appends the transcript as a user message and the answer as an assistant message with audioUrl
+  -> ChatMessages renders assistant text plus a native audio control
+```
+
 ## Main Flows
 Chat submission uses:
 1. `ChatInput` for textarea state, autosizing, keyboard behavior, and submit button state
@@ -79,8 +91,8 @@ Conversation hydration uses:
 
 Development proxying uses:
 1. empty `VITE_API_URL` in local `.env`
-2. relative calls from `src/api/authApi.js`, `src/api/chatApi.js`, and `src/api/mediaApi.js`
-3. Vite proxy rules for `/auth`, `/chat`, and `/files`
+2. relative calls from `src/api/authApi.js`, `src/api/chatApi.js`, `src/api/voiceChatApi.js`, and `src/api/mediaApi.js`
+3. Vite proxy rules for `/auth`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/addons`, and `/files`
 4. `VITE_API_PROXY_TARGET` as the backend origin
 
 Production API calls use:
@@ -95,6 +107,8 @@ The UI state is intentionally small:
 - `messages`: rendered user and assistant transcript entries
 - `isLoading`: whether a chat request or stream is in flight
 - `isStreaming`: whether an assistant response can currently be stopped
+- `isRecording`: whether microphone capture is active
+- `voiceStatus`: voice flow stage such as `recording`, `processing`, or `uploading`
 - `error`: request or hydration error text for the alert
 
 ## Cross-Cutting Concerns
@@ -102,6 +116,7 @@ The UI state is intentionally small:
 - Error handling is split between user-friendly inline assistant fallback text and a page-level alert.
 - Dark mode and responsive behavior use CSS custom properties and media queries.
 - Network contract drift should be caught in `src/api/chatApi.js`, not in presentational components.
+- Voice chat contract drift should be caught in `src/api/voiceChatApi.js`, including envelope validation and relative audio URL resolution.
 - Relative bird media paths from RAG metadata should be resolved in `src/api/mediaApi.js` and consumed through hooks, keeping media endpoint details out of presentational markup.
 - Backend tool and reservation capabilities should be represented through documented API adapters before they are displayed as structured UI. The reservation confirmation card uses documented `/chat` metadata, with assistant-text parsing only as a fallback for older messages.
 - Routing is not active. If routes are added, preserve SPA fallback support in production serving.

@@ -168,11 +168,16 @@ function ChatSurface({ auth, chatEntry = null }) {
     messages,
     isLoading,
     isStreaming,
+    isRecording,
+    voiceStatus,
     error,
     customerContext,
     conversationMeta,
     setCustomerContext,
     sendMessage,
+    startVoiceRecording,
+    stopVoiceRecording,
+    cancelVoiceRecording,
     stopGenerating,
   } = useChat({
     token: auth.token,
@@ -217,8 +222,13 @@ function ChatSurface({ auth, chatEntry = null }) {
           <ChatInput
             onSendMessage={sendMessage}
             onStopGenerating={stopGenerating}
+            onStartVoiceRecording={startVoiceRecording}
+            onStopVoiceRecording={stopVoiceRecording}
+            onCancelVoiceRecording={cancelVoiceRecording}
             isLoading={isLoading}
             isStreaming={isStreaming}
+            isRecording={isRecording}
+            voiceStatus={voiceStatus}
           />
         </>
       )}

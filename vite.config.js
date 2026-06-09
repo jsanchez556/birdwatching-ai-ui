@@ -36,6 +36,10 @@ export default defineConfig(({ mode }) => {
           target: proxyTarget,
           changeOrigin: true
         },
+        '/voice-chat': {
+          target: proxyTarget,
+          changeOrigin: true
+        },
         '/homepage': {
           target: proxyTarget,
           changeOrigin: true

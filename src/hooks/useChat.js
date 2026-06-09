@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadConversationMessages, loadLatestConversation, streamChatMessage } from '../api/chatApi'
+import { sendVoiceChat } from '../api/voiceChatApi'
 import { CHAT_STORAGE_KEY, readJsonStorage, writeJsonStorage } from '../utils/storage'
 
 const REQUEST_FAILURE_MESSAGE = 'Sorry, something went wrong. Please try again.'
+const MICROPHONE_PERMISSION_MESSAGE = 'Microphone access was blocked. Please allow microphone access and try again.'
+const MICROPHONE_UNSUPPORTED_MESSAGE = 'Voice recording is not supported by this browser.'
+const EMPTY_RECORDING_MESSAGE = 'I could not hear anything. Please try recording again.'
 const STREAM_REVEAL_INTERVAL_MS = 28
 const STREAM_REVEAL_CHARS = 3
 const CONVERSATION_METADATA_KEYS = [
@@ -12,6 +16,7 @@ const CONVERSATION_METADATA_KEYS = [
   'entrySource',
   'reservationEntry',
   'reservation',
+  'conversationId',
   'selectedTour',
   'selectedTourId',
   'selectedTransportation',
@@ -158,6 +163,88 @@ function isAbortError(error) {
   return error?.name === 'AbortError' || error?.code === 'ABORT_ERR'
 }
 
+function selectRecorderMimeType() {
+  if (!window.MediaRecorder?.isTypeSupported) {
+    return ''
+  }
+
+  return [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/ogg;codecs=opus',
+    'audio/mp4',
+  ].find((type) => window.MediaRecorder.isTypeSupported(type)) || ''
+}
+
+function writeAscii(view, offset, value) {
+  for (let index = 0; index < value.length; index += 1) {
+    view.setUint8(offset + index, value.charCodeAt(index))
+  }
+}
+
+function audioBufferToWavBlob(audioBuffer) {
+  const channels = Array.from({ length: audioBuffer.numberOfChannels }, (_, index) => (
+    audioBuffer.getChannelData(index)
+  ))
+  const channelCount = channels.length || 1
+  const sampleRate = audioBuffer.sampleRate
+  const bytesPerSample = 2
+  const blockAlign = channelCount * bytesPerSample
+  const dataSize = audioBuffer.length * blockAlign
+  const wavBuffer = new ArrayBuffer(44 + dataSize)
+  const view = new DataView(wavBuffer)
+
+  writeAscii(view, 0, 'RIFF')
+  view.setUint32(4, 36 + dataSize, true)
+  writeAscii(view, 8, 'WAVE')
+  writeAscii(view, 12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, channelCount, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * blockAlign, true)
+  view.setUint16(32, blockAlign, true)
+  view.setUint16(34, 16, true)
+  writeAscii(view, 36, 'data')
+  view.setUint32(40, dataSize, true)
+
+  let offset = 44
+  for (let sampleIndex = 0; sampleIndex < audioBuffer.length; sampleIndex += 1) {
+    for (let channelIndex = 0; channelIndex < channelCount; channelIndex += 1) {
+      const sample = Math.max(-1, Math.min(1, channels[channelIndex]?.[sampleIndex] || 0))
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true)
+      offset += bytesPerSample
+    }
+  }
+
+  return new Blob([wavBuffer], { type: 'audio/wav' })
+}
+
+async function convertRecordingToWav(recordingBlob) {
+  if (!recordingBlob || recordingBlob.size <= 0) {
+    throw new Error(EMPTY_RECORDING_MESSAGE)
+  }
+
+  if (/audio\/(?:wav|wave|x-wav)/i.test(recordingBlob.type)) {
+    return new Blob([await recordingBlob.arrayBuffer()], { type: 'audio/wav' })
+  }
+
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext
+
+  if (!AudioContextClass) {
+    throw new Error(MICROPHONE_UNSUPPORTED_MESSAGE)
+  }
+
+  const audioContext = new AudioContextClass()
+
+  try {
+    const audioBuffer = await audioContext.decodeAudioData(await recordingBlob.arrayBuffer())
+    return audioBufferToWavBlob(audioBuffer)
+  } finally {
+    audioContext.close?.()
+  }
+}
+
 function getInitialConversationState(auth, options = {}) {
   if (options.isEphemeral) {
     return {
@@ -239,6 +326,8 @@ export default function useChat(authInput, options = {}) {
   const [isHydrating, setIsHydrating] = useState(initialConversationState.isHydrating)
   const [isLoading, setIsLoading] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [voiceStatus, setVoiceStatus] = useState('idle')
   const [error, setError] = useState(null)
   const activeAbortControllerRef = useRef(null)
   const activeAssistantMessageIdRef = useRef(null)
@@ -246,6 +335,9 @@ export default function useChat(authInput, options = {}) {
   const initialEntryTimerRef = useRef(null)
   const streamBufferRef = useRef('')
   const streamRevealTimerRef = useRef(null)
+  const mediaRecorderRef = useRef(null)
+  const mediaStreamRef = useRef(null)
+  const recordingChunksRef = useRef([])
 
   const appendToAssistantMessage = useCallback((messageId, content) => {
     if (!content) return
@@ -382,6 +474,8 @@ export default function useChat(authInput, options = {}) {
       initialEntryTimerRef.current = null
     }
     activeAbortControllerRef.current?.abort()
+    mediaRecorderRef.current?.state === 'recording' && mediaRecorderRef.current.stop()
+    mediaStreamRef.current?.getTracks?.().forEach((track) => track.stop())
     clearRevealTimer()
   }, [clearRevealTimer])
 
@@ -564,6 +658,205 @@ export default function useChat(authInput, options = {}) {
     }
   }
 
+  const sendVoiceMessage = useCallback(async (audioBlob, sendOptions = {}) => {
+    const recentAssistantMetadata = {
+      ...getRecentAssistantMetadata(messages, conversationMeta),
+      ...(sendOptions.recentAssistantMetadata || {}),
+    }
+    const nextConversationContext = {
+      recentAssistantMetadata,
+      ...(sendOptions.conversationContext || {}),
+    }
+    const activeConversationId = conversationId || createConversationId()
+    const abortController = new AbortController()
+
+    activeAbortControllerRef.current = abortController
+    setIsLoading(true)
+    setError(null)
+    setVoiceStatus('uploading')
+
+    try {
+      const result = await sendVoiceChat({
+        audioBlob,
+        conversationId: activeConversationId,
+        customerContext,
+        conversationContext: nextConversationContext,
+        role,
+        responseMode: 'field_assistant',
+        token: getAccessToken ? await getAccessToken() : token,
+        signal: abortController.signal,
+      })
+      const returnedConversationId = result.conversationId || activeConversationId
+      const { conversationMeta: nextConversationMeta, messageMetadata } = splitChatMetadata(result.metadata)
+      const mergedConversationMeta = {
+        ...conversationMeta,
+        ...nextConversationMeta,
+      }
+      const userMessage = {
+        role: 'user',
+        content: result.transcript,
+        transcript: result.transcript,
+      }
+      const assistantMessage = createAssistantMessage(result.answer, {
+        ...messageMetadata,
+        ...(result.audioUrl ? { audioUrl: result.audioUrl } : {}),
+        ...(result.audioResponseUrl ? { audioResponseUrl: result.audioResponseUrl } : {}),
+      })
+      const assistantVoiceMessage = {
+        ...assistantMessage,
+        ...(result.audioUrl ? { audioUrl: result.audioUrl } : {}),
+        ...(result.audioResponseUrl ? { audioResponseUrl: result.audioResponseUrl } : {}),
+      }
+
+      setConversationId(returnedConversationId)
+      setConversationMeta(mergedConversationMeta)
+      setMessages((prev) => {
+        const nextMessages = [...prev, userMessage, assistantVoiceMessage]
+        persistChatState({
+          conversationId: returnedConversationId,
+          customerContext,
+          conversationMeta: mergedConversationMeta,
+          messages: nextMessages,
+          userId,
+          shouldPersist,
+        })
+        return nextMessages
+      })
+    } catch (requestError) {
+      if (isAbortError(requestError) || abortController.signal.aborted) {
+        return
+      }
+
+      const message = requestError.message || REQUEST_FAILURE_MESSAGE
+      setError(message)
+      setMessages((prev) => ([
+        ...prev,
+        {
+          role: 'assistant',
+          content: message,
+          isError: true,
+        },
+      ]))
+    } finally {
+      if (activeAbortControllerRef.current === abortController) {
+        activeAbortControllerRef.current = null
+      }
+      setVoiceStatus('idle')
+      setIsLoading(false)
+    }
+  }, [
+    conversationId,
+    conversationMeta,
+    customerContext,
+    getAccessToken,
+    messages,
+    role,
+    shouldPersist,
+    token,
+    userId,
+  ])
+
+  const startVoiceRecording = useCallback(async () => {
+    if (isLoading || isRecording) {
+      return
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      setError(MICROPHONE_UNSUPPORTED_MESSAGE)
+      return
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = selectRecorderMimeType()
+      const recorder = mimeType
+        ? new window.MediaRecorder(stream, { mimeType })
+        : new window.MediaRecorder(stream)
+
+      recordingChunksRef.current = []
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size > 0) {
+          recordingChunksRef.current.push(event.data)
+        }
+      }
+      mediaStreamRef.current = stream
+      mediaRecorderRef.current = recorder
+      recorder.start()
+      setError(null)
+      setIsRecording(true)
+      setVoiceStatus('recording')
+    } catch (recordingError) {
+      const message = recordingError?.name === 'NotAllowedError'
+        ? MICROPHONE_PERMISSION_MESSAGE
+        : MICROPHONE_UNSUPPORTED_MESSAGE
+      setError(message)
+      setVoiceStatus('idle')
+    }
+  }, [isLoading, isRecording])
+
+  const stopVoiceRecording = useCallback(async () => {
+    const recorder = mediaRecorderRef.current
+
+    if (!recorder || !isRecording) {
+      return
+    }
+
+    setVoiceStatus('processing')
+
+    try {
+      const recordingBlob = await new Promise((resolve) => {
+        recorder.onstop = () => {
+          resolve(new Blob(recordingChunksRef.current, {
+            type: recorder.mimeType || 'audio/webm',
+          }))
+        }
+        recorder.stop()
+      })
+
+      mediaStreamRef.current?.getTracks?.().forEach((track) => track.stop())
+      mediaStreamRef.current = null
+      mediaRecorderRef.current = null
+      setIsRecording(false)
+
+      const wavBlob = await convertRecordingToWav(recordingBlob)
+      await sendVoiceMessage(wavBlob)
+    } catch (recordingError) {
+      const message = recordingError.message || EMPTY_RECORDING_MESSAGE
+      setError(message)
+      setVoiceStatus('idle')
+      setIsRecording(false)
+      mediaStreamRef.current?.getTracks?.().forEach((track) => track.stop())
+      mediaStreamRef.current = null
+      mediaRecorderRef.current = null
+    }
+  }, [isRecording, sendVoiceMessage])
+
+  const cancelVoiceRecording = useCallback(() => {
+    const recorder = mediaRecorderRef.current
+
+    recordingChunksRef.current = []
+    mediaStreamRef.current?.getTracks?.().forEach((track) => track.stop())
+    mediaStreamRef.current = null
+    mediaRecorderRef.current = null
+    setIsRecording(false)
+    setVoiceStatus('idle')
+
+    if (!recorder) {
+      return
+    }
+
+    recorder.ondataavailable = null
+    recorder.onstop = null
+
+    if (recorder.state === 'recording') {
+      try {
+        recorder.stop()
+      } catch {
+        // The recorder may already be stopping in some browsers.
+      }
+    }
+  }, [])
+
   useEffect(() => {
     const initialMessage = options.initialMessage
     const entryId = options.initialEntryId
@@ -600,6 +893,8 @@ export default function useChat(authInput, options = {}) {
     messages,
     isLoading,
     isStreaming,
+    isRecording,
+    voiceStatus,
     isHydrating,
     error,
     role,
@@ -607,6 +902,10 @@ export default function useChat(authInput, options = {}) {
     conversationMeta,
     setCustomerContext,
     sendMessage,
+    sendVoiceMessage,
+    startVoiceRecording,
+    stopVoiceRecording,
+    cancelVoiceRecording,
     stopGenerating,
   }
 }

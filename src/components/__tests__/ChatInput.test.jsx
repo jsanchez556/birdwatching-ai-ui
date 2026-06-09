@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { act, render, screen, fireEvent } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import ChatInput from '../ChatInput'
 
@@ -8,6 +8,9 @@ describe('ChatInput', () => {
 
     expect(screen.getByPlaceholderText(/Ask about birds in Costa Rica/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /start recording voice message/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /start recording voice message/i }).querySelector('svg'))
+      .toBeInTheDocument()
   })
 
   test('enables send button when user types a message', () => {
@@ -56,6 +59,57 @@ describe('ChatInput', () => {
     fireEvent.click(screen.getByRole('button', { name: /stop/i }))
 
     expect(onStopGenerating).toHaveBeenCalledTimes(1)
+  })
+
+  test('starts, shows timer, sends, and cancels voice recording controls', () => {
+    jest.useFakeTimers()
+    const onStartVoiceRecording = jest.fn()
+    const onStopVoiceRecording = jest.fn()
+    const onCancelVoiceRecording = jest.fn()
+    const { rerender } = render(
+      <ChatInput
+        onSendMessage={jest.fn()}
+        onStartVoiceRecording={onStartVoiceRecording}
+        onStopVoiceRecording={onStopVoiceRecording}
+        onCancelVoiceRecording={onCancelVoiceRecording}
+        isLoading={false}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /start recording voice message/i }))
+
+    expect(onStartVoiceRecording).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <ChatInput
+        onSendMessage={jest.fn()}
+        onStartVoiceRecording={onStartVoiceRecording}
+        onStopVoiceRecording={onStopVoiceRecording}
+        onCancelVoiceRecording={onCancelVoiceRecording}
+        isLoading={false}
+        isRecording={true}
+        voiceStatus="recording"
+      />
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent('0:00')
+    expect(screen.getByRole('button', { name: /cancel voice recording/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /send voice message/i })).toBeInTheDocument()
+
+    act(() => {
+      jest.advanceTimersByTime(3000)
+    })
+
+    expect(screen.getByRole('status')).toHaveTextContent('0:03')
+
+    fireEvent.click(screen.getByRole('button', { name: /send voice message/i }))
+
+    expect(onStopVoiceRecording).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: /cancel voice recording/i }))
+
+    expect(onCancelVoiceRecording).toHaveBeenCalledTimes(1)
+    jest.useRealTimers()
   })
 
   test('submits on Enter key press without shift', () => {

@@ -78,6 +78,38 @@ describe('ChatMessages', () => {
     expect(screen.getByText(/Look near Monteverde at dawn\./i)).toBeInTheDocument()
   })
 
+  test('renders returned voice response audio on assistant messages', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Listen for the repeated call near the canopy edge.',
+        audioUrl: 'https://cdn.example.com/files/voice-chat/response.mp3',
+      },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    expect(screen.getByLabelText(/voice response audio/i))
+      .toHaveAttribute('src', 'https://cdn.example.com/files/voice-chat/response.mp3')
+  })
+
+  test('renders voice response audio from assistant metadata', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Look low in the understory and pause at the bend.',
+        metadata: {
+          audioUrl: 'https://cdn.example.com/files/voice-chat/metadata-response.mp3',
+        },
+      },
+    ]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    expect(screen.getByLabelText(/voice response audio/i))
+      .toHaveAttribute('src', 'https://cdn.example.com/files/voice-chat/metadata-response.mp3')
+  })
+
   test('renders bird matches as a carousel and opens the selected bird in a modal', () => {
     const messages = [
       {

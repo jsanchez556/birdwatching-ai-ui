@@ -38,12 +38,23 @@ When `VITE_API_URL` is empty, `src/api/chatApi.js` sends relative requests:
 ```text
 /auth/signup
 /auth/login
+/auth/refresh
+/auth/logout
+/cart
+/cart/items
+/cart/reservations
 /chat
+/voice-chat
 /chat/:conversationId
+/homepage/hero
+/tours
+/birds/highlights
+/birds/profile
+/addons/transportation
 /files/:folderName/:filename
 ```
 
-`vite.config.js` proxies `/auth`, `/chat`, and `/files` to `VITE_API_PROXY_TARGET`. This avoids local CORS issues and lets the backend keep production CORS rules strict. `/files` is used to exchange relative RAG bird media keys for backend-issued media URLs when `VITE_CLOUDFRONT_BASE_URL` is empty; the frontend still does not store bucket credentials.
+`vite.config.js` proxies `/auth`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/addons`, and `/files` to `VITE_API_PROXY_TARGET`. This avoids local CORS issues and lets the backend keep production CORS rules strict. `/files` is used to exchange relative RAG bird media keys and voice response audio paths for backend-issued media URLs when `VITE_CLOUDFRONT_BASE_URL` is empty; the frontend still does not store bucket credentials.
 
 ## Railway
 `railway.json` uses Nixpacks and runs from the repository root:
