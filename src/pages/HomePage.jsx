@@ -19,6 +19,7 @@ function HomePage({
   isAuthenticated = false,
   onAddTourToCart,
   onAuthAction,
+  onOpenBirdIdentification,
   onOpenCart,
   onOpenMyTours,
   onLogin,
@@ -44,6 +45,7 @@ function HomePage({
         cartCount={cartCount}
         isAuthenticated={isAuthenticated}
         onAuthAction={onAuthAction || onLogin}
+        onOpenBirdIdentification={onOpenBirdIdentification}
         onOpenCart={onOpenCart}
         onOpenMyTours={onOpenMyTours}
         onStartChat={onStartChat}

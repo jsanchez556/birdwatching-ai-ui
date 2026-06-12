@@ -50,6 +50,17 @@ Browser loads index.html
   -> ChatMessages scrolls to latest content
 ```
 
+Bird identification follows the homepage surface:
+```text
+Authenticated HomeHeader Identify Bird action
+  -> App opens BirdIdentificationModal
+  -> user pastes an image URL, uploads a photo, or uses the mobile camera file input
+  -> useBirdIdentification validates local input and loading/error state
+  -> birdIdentificationApi sends POST /birds/identify with bearer auth
+  -> backend returns summary, image-analysis confidence, candidate birds, and optional media metadata
+  -> BirdIdentificationModal renders status, a best-match comparison with submitted-image clarity overlay and best-match reference overlay, candidate confidence/reasoning, supporting details, and optional inline candidate images
+```
+
 Voice chat follows the same chat surface:
 ```text
 ChatInput microphone control
@@ -91,9 +102,15 @@ Conversation hydration uses:
 
 Development proxying uses:
 1. empty `VITE_API_URL` in local `.env`
-2. relative calls from `src/api/authApi.js`, `src/api/chatApi.js`, `src/api/voiceChatApi.js`, and `src/api/mediaApi.js`
+2. relative calls from `src/api/authApi.js`, `src/api/chatApi.js`, `src/api/voiceChatApi.js`, `src/api/birdIdentificationApi.js`, and `src/api/mediaApi.js`
 3. Vite proxy rules for `/auth`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/addons`, and `/files`
 4. `VITE_API_PROXY_TARGET` as the backend origin
+
+Bird identification rendering uses:
+1. `birdIdentificationApi` to preserve the normalized backend envelope fields, including `status`, `bestMatch`, rich `imageAnalysis`, compatibility `imageObservations`, `candidates`, `notes`, and `meta`
+2. `useBirdIdentification` for ephemeral request state, input validation, token refresh, cancellation, and friendly errors
+3. `BirdIdentificationModal` to render status, a best-match comparison with submitted-image clarity overlay from `imageAnalysis.confidence` or `imageObservations.confidence`, optional best-match reference-image overlay, candidate evidence, supporting details, contradictions, missing evidence, notes, and optional inline square candidate media
+4. candidate media is rendered directly in `CandidateCard`; `BirdMatchesCarousel` remains available for chat bird media and is not used by the bird identification modal
 
 Production API calls use:
 1. `VITE_API_URL` baked into the Vite build
@@ -110,6 +127,7 @@ The UI state is intentionally small:
 - `isRecording`: whether microphone capture is active
 - `voiceStatus`: voice flow stage such as `recording`, `processing`, or `uploading`
 - `error`: request or hydration error text for the alert
+- bird identification modal state is ephemeral and stores only current request loading/error/result data in memory
 
 ## Cross-Cutting Concerns
 - Accessibility is handled at component boundaries through labels, semantic sections, and keyboard support.
@@ -117,6 +135,7 @@ The UI state is intentionally small:
 - Dark mode and responsive behavior use CSS custom properties and media queries.
 - Network contract drift should be caught in `src/api/chatApi.js`, not in presentational components.
 - Voice chat contract drift should be caught in `src/api/voiceChatApi.js`, including envelope validation and relative audio URL resolution.
+- Bird identification contract drift should be caught in `src/api/birdIdentificationApi.js`; components should receive already-normalized result fields.
 - Relative bird media paths from RAG metadata should be resolved in `src/api/mediaApi.js` and consumed through hooks, keeping media endpoint details out of presentational markup.
 - Backend tool and reservation capabilities should be represented through documented API adapters before they are displayed as structured UI. The reservation confirmation card uses documented `/chat` metadata, with assistant-text parsing only as a fallback for older messages.
 - Routing is not active. If routes are added, preserve SPA fallback support in production serving.

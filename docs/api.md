@@ -2,7 +2,7 @@
 
 Back to [Project Context](../CONTEXT.md). See [Architecture](./architecture.md) for UI flow details.
 
-The frontend integrates with the Birdwatching AI API through `src/api/authApi.js`, `src/api/cartApi.js`, `src/api/chatApi.js`, `src/api/voiceChatApi.js`, `src/api/homeApi.js`, and `src/api/mediaApi.js`. Backend API implementation lives in the backend repository.
+The frontend integrates with the Birdwatching AI API through `src/api/authApi.js`, `src/api/cartApi.js`, `src/api/chatApi.js`, `src/api/voiceChatApi.js`, `src/api/birdIdentificationApi.js`, `src/api/homeApi.js`, and `src/api/mediaApi.js`. Backend API implementation lives in the backend repository.
 
 The active UI currently calls:
 - `POST /auth/signup`
@@ -17,6 +17,7 @@ The active UI currently calls:
 - `POST /cart/reservations`
 - `POST /chat`
 - `POST /voice-chat`
+- `POST /birds/identify`
 - `GET /chat/latest`
 - `GET /chat/:conversationId`
 - `GET /homepage/hero`
@@ -113,6 +114,92 @@ Frontend behavior:
 - stores a safe visitor marker when the user enters visitor mode without credentials
 - clears auth storage on logout
 - uses the safe auth user profile to prefill customer context
+
+## `POST /birds/identify`
+Used by `identifyBirdByUrl({ imageUrl, token })` and `identifyBirdByFile({ file, token })` in `src/api/birdIdentificationApi.js`.
+
+Authenticated users can open the Identify Bird modal from the homepage header. Visitors and logged-out users do not see the action.
+
+URL request:
+```json
+{
+  "imageUrl": "https://example.com/bird.jpg"
+}
+```
+
+File or mobile camera request:
+```http
+POST /birds/identify
+Authorization: Bearer jwt
+Content-Type: image/jpeg
+X-Filename: bird.jpg
+
+<raw image bytes>
+```
+
+Expected success data:
+```json
+{
+  "status": "uncertain",
+  "bestMatch": {
+    "commonName": "Resplendent Quetzal",
+    "scientificName": "Pharomachrus mocinno",
+    "confidence": 0.64,
+    "reasoning": "Some diagnostic traits are visible, but the tail is cropped.",
+    "visualEvidence": ["green upperparts", "red underparts"],
+    "ragSupport": ["Field marks support green upperparts and red underparts."],
+    "contradictions": ["Long tail coverts are not visible."],
+    "missingEvidence": ["tail coverts"]
+  },
+  "summary": "The image evidence points most strongly to Resplendent Quetzal.",
+  "imageAnalysis": {
+    "dominantColors": ["green", "red"],
+    "fieldMarks": ["red underparts"],
+    "bill": {
+      "color": "yellow",
+      "shape": "short",
+      "length": "short"
+    },
+    "imageQuality": "clear but cropped",
+    "confidence": 0.82
+  },
+  "imageObservations": {
+    "colors": ["green", "red"],
+    "beak": "yellow",
+    "confidence": 0.82
+  },
+  "candidates": [
+    {
+      "commonName": "Resplendent Quetzal",
+      "scientificName": "Pharomachrus mocinno",
+      "confidence": 0.91,
+      "reasoning": "Green and red plumage fits a male quetzal.",
+      "visualEvidence": ["green plumage", "red belly"],
+      "ragSupport": ["Retrieved profile describes green plumage."],
+      "contradictions": [],
+      "missingEvidence": ["tail coverts not fully visible"],
+      "media": {
+        "photoUrl": "photos/quetzal.jpg"
+      }
+    }
+  ],
+  "notes": ["Identification remains uncertain because the tail is cropped."]
+}
+```
+
+Frontend behavior:
+- validates the normalized response envelope at the adapter boundary
+- preserves optional `status`, `bestMatch`, `imageAnalysis`, `imageObservations`, `candidates`, `notes`, and `meta` fields defensively
+- sends bearer auth through `getValidToken`
+- supports pasted HTTP(S) image URLs
+- sends chosen upload or mobile camera photo as raw image bytes
+- uses rich `imageAnalysis.confidence` for the submitted-image clarity overlay and falls back to compatibility `imageObservations.confidence`
+- renders `identified`, `uncertain`, and `unknown` states with matching user-facing context
+- renders the submitted image inside the best-match comparison without persisting image bytes or URLs beyond modal state
+- overlays best-match reference media on the submitted image when a usable candidate image is available
+- renders candidate visual evidence, supporting details, contradictions, and missing evidence when present
+- renders optional candidate media defensively as inline square candidate images
+- does not persist uploaded image data in browser storage
 
 `POST /auth/refresh` sends:
 ```json

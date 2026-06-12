@@ -15,6 +15,7 @@ function HomeHeader({
   isAuthenticated = false,
   onAuthAction,
   onOpenCart,
+  onOpenBirdIdentification,
   onOpenMyTours,
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -62,6 +63,11 @@ function HomeHeader({
   const handleMyToursAction = () => {
     closeMenu()
     onOpenMyTours?.()
+  }
+
+  const handleBirdIdentificationAction = () => {
+    closeMenu()
+    onOpenBirdIdentification?.()
   }
 
   const handleExploreClick = () => {
@@ -170,6 +176,9 @@ function HomeHeader({
           </a>
           {isAuthenticated && (
             <>
+              <button type="button" className="home-header-link" onClick={handleBirdIdentificationAction}>
+                Identify Bird
+              </button>
               <button type="button" className="home-header-link" onClick={handleMyToursAction}>
                 My Tours
               </button>

@@ -9,11 +9,12 @@ Frontend prompt-adjacent assets are UI text and user input affordances:
 - app title and subtitle in `src/App.jsx`
 - customer context form labels and helper text in `src/components/CustomerContextForm.jsx`
 - textarea placeholder in `src/components/ChatInput.jsx`
+- bird identification modal labels, helper states, and error copy in `src/components/BirdIdentificationModal.jsx`
 - empty chat state copy in `src/components/ChatMessages.jsx`
 - user-facing request fallback in `src/hooks/useChat.js`
 
 ## User Input Flow
-`CustomerContextForm` first collects booking context: customer name, customer email, itinerary start date, and itinerary end date. `ChatInput` then collects natural-language birdwatching questions.
+`CustomerContextForm` first collects booking context: customer name, customer email, itinerary start date, and itinerary end date. `ChatInput` then collects natural-language birdwatching questions. Authenticated users can also open `BirdIdentificationModal` from the homepage header to submit a pasted image URL, uploaded image, or mobile camera photo to the backend identification endpoint.
 
 Submit behavior:
 1. trim the input
@@ -25,6 +26,8 @@ Submit behavior:
 
 The frontend should not rewrite, summarize, classify, or pre-prompt typed user messages before sending them to the backend unless a future product requirement explicitly adds that behavior. Guided action controls intentionally translate backend-provided option values into short natural-language follow-up messages, such as `Confirm reservation` or `I choose tour 1: Monteverde Quetzal Tour`.
 
+Bird identification inputs are not rephrased or classified in the browser. The frontend only validates URL/file presence and supported image file types before sending the image to the backend. Results are rendered from backend-provided status, best match, image clarity confidence, candidates, notes, and optional media fields.
+
 ## Assistant Output Flow
 Assistant text streams from backend SSE `chunk` events, is revealed through a small frontend buffer so it reads like typing, and is finalized from the `done.response` field. The UI renders normal responses as plain text with `white-space: pre-wrap`.
 
@@ -35,6 +38,7 @@ Current behavior:
 - no raw tool result display
 - no client-side prompt injection
 - bird profile metadata can render compact media cards
+- bird identification responses can render identified/uncertain/unknown status, a best-match comparison with submitted-image clarity overlay and optional reference-image overlay, candidate confidence/reasoning, visual evidence, supporting details, contradictions, missing evidence, uncertainty notes, and optional inline candidate images
 - reservation confirmation summaries can render an additional styled card
 
 The backend may use RAG and tour tools before streaming the final assistant response. Tour discovery, tour selection, availability checks, transportation estimates, pricing, discounts, participant-count interpretation, and reservation creation are backend responsibilities. The current UI displays the final assistant text, renders structured `uiAction` and `uiActions` controls, renders `BirdMediaCard` from `meta.birdMatches` when bird profile media is present, and renders `ReservationConfirmationCard` from reservation metadata when present. If bird media fields are relative object keys, the UI resolves them through the backend media endpoint before rendering.

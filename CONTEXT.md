@@ -16,6 +16,7 @@ This repository is a single React/Vite frontend for Costa Rica birdwatching assi
 - backend hydration through `GET /chat/:conversationId`
 - backend streaming chat requests through `POST /chat`
 - browser voice chat through `POST /voice-chat`, with recorded audio converted to WAV before upload
+- authenticated bird identification through `POST /birds/identify`, supporting pasted image URLs, photo uploads, mobile camera capture, and the backend's conservative `identified | uncertain | unknown` response states
 - homepage content through `GET /homepage/hero`, `GET /tours`, `GET /birds/highlights`, and `GET /addons/transportation`
 - bird profile media resolution through CloudFront or `GET /files/:folderName/:filename` when RAG metadata contains relative media paths
 - backend-generated tour discovery, pricing, discounts, and reservation confirmations through assistant responses
@@ -45,6 +46,7 @@ The app uses a shell-component-hook-API split:
 - `src/api/authApi.js` owns auth HTTP calls and response shape validation.
 - `src/api/chatApi.js` owns backend HTTP calls and response shape validation.
 - `src/api/voiceChatApi.js` owns raw audio upload calls to `POST /voice-chat` and resolves returned audio response URLs.
+- `src/api/birdIdentificationApi.js` owns authenticated bird identification URL and raw image upload calls to `POST /birds/identify`, normalizes the `{ success, data, meta }` envelope, and should preserve optional bird-identification fields defensively.
 - `src/api/homeApi.js` owns homepage HTTP calls and response shape validation.
 - `src/api/mediaApi.js` owns bird media URL resolution through CloudFront when configured, with backend media endpoint fallback.
 - `src/index.css` owns global tokens, layout, responsive behavior, and dark mode.
@@ -113,6 +115,17 @@ Browser fetch('/voice-chat')
   -> Birdwatching AI API
 ```
 
+Bird identification:
+```text
+Authenticated HomeHeader Identify Bird action
+  -> BirdIdentificationModal
+  -> useBirdIdentification
+  -> birdIdentificationApi.identifyBirdByUrl or identifyBirdByFile
+  -> POST /birds/identify with bearer token
+  -> backend validates one image input, stores raw uploads when needed, extracts rich visual evidence, generates candidates, verifies/reranks them with bird-profile RAG, and returns normalized JSON
+  -> modal renders status, a best-match comparison with submitted-image clarity overlay plus optional reference-image overlay, candidate confidence/reasoning/evidence, uncertainty notes, and optional candidate images inline
+```
+
 Bird media development routing:
 ```text
 Browser fetch('/files/:folderName/:filename')
@@ -150,6 +163,9 @@ Browser fetch(`${VITE_API_URL}/auth/*`, `${VITE_API_URL}/cart/*`, `${VITE_API_UR
 - The backend may return RAG `sources`; the current UI accepts the field but does not render it.
 - The backend may return RAG bird profiles as `done.meta.birdMatches`; the UI stores those as assistant-message metadata and renders a compact carousel plus modal details.
 - Bird media values in `meta.birdMatches[].media` may be absolute URLs or relative object keys such as `/photos/123_medium.jpg`, `songs/123.mp3`, or `sonograms/123_grey-small.png`. Relative values are resolved by `src/api/mediaApi.js` through `VITE_CLOUDFRONT_BASE_URL` when configured, or through `GET /files/:folderName/:filename`; components must not assume those paths are directly browser-accessible.
+- Bird identification responses from `POST /birds/identify` now include `status`, `bestMatch`, `candidates`, rich `imageAnalysis`, compatibility `imageObservations`, `summary`, and `notes` when available. UI code uses image-analysis confidence for the submitted-image clarity overlay in the best-match comparison, overlays best-match reference media when available, falls back to `imageObservations.confidence`, and renders missing optional fields defensively.
+- Bird identification `status` values have product meaning: `identified` can emphasize `bestMatch`, `uncertain` should preserve multiple plausible candidates, and `unknown` should explain that the image evidence is insufficient instead of implying failure. Candidate cards may include `commonName`, legacy `species`, `scientificName`, `confidence`, `reasoning`, `visualEvidence`, `ragSupport` rendered as supporting details, `contradictions`, `missingEvidence`, inline square media, and profile metadata.
+- Bird identification debug details are not part of the normal UI contract. The backend can expose admin-only `meta.debug` with internal analysis/candidate/profile details when explicitly requested, but the frontend should not request or render it in the standard user flow.
 - Tour listing, recommendation, selection, availability, pricing, discounts, and reservations happen inside the backend chat flow and are summarized in the final streamed assistant response. Tour metadata can include graph-backed `location`, `node`, `subnode`, and `zone` fields.
 - Structured backend `uiAction` and `uiActions` metadata can render chat controls for choices, tour selection, date picking, participant count, transportation selection, and reservation confirmation.
 - Successful backend reservations can return `meta.reservation`; the UI stores that metadata on the assistant message for display and shows tour `location`, `node`, `subnode`, and `zone` when present.
@@ -159,7 +175,7 @@ Browser fetch(`${VITE_API_URL}/auth/*`, `${VITE_API_URL}/cart/*`, `${VITE_API_UR
 - `BirdMediaCard` and bird carousel thumbnails use `useResolvedMediaUrl` so relative RAG media is exchanged for renderable media URLs before rendering.
 - The UI does not currently call a standalone recommendations endpoint; tour recommendations are handled through the backend chat/tool flow.
 - The homepage calls public, cache-friendly content endpoints for hero media, tours, bird highlights, and transportation instead of using the streaming chat endpoint for static homepage sections.
-- Authenticated chat requests and conversation hydration include `Authorization: Bearer <token>`; visitor chat requests omit the token and send `role: "visitor"`.
+- Authenticated chat requests, conversation hydration, and bird identification requests include `Authorization: Bearer <token>`; visitor chat requests omit the token and send `role: "visitor"`.
 - Message cache failures are swallowed so chat still works when storage is unavailable.
 - Request failures append a user-friendly assistant error message and also expose the backend/client error in the alert.
 - Chat scroll position is pushed to the newest message with `useLayoutEffect`.

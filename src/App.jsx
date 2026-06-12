@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import ChatInput from './components/ChatInput'
 import ChatMessages from './components/ChatMessages'
 import CustomerContextForm from './components/CustomerContextForm'
+import BirdIdentificationModal from './components/BirdIdentificationModal'
 import LoginModal from './components/home/LoginModal'
 import MyToursDrawer from './components/home/MyToursDrawer'
 import TourCartDrawer from './components/home/TourCartDrawer'
@@ -287,6 +288,7 @@ function App() {
   const [isChatDrawerOpen, setIsChatDrawerOpen] = useState(false)
   const [chatEntry, setChatEntry] = useState(null)
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false)
+  const [isBirdIdentificationOpen, setIsBirdIdentificationOpen] = useState(false)
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [isMyToursOpen, setIsMyToursOpen] = useState(false)
   const [removingTourIds, setRemovingTourIds] = useState([])
@@ -356,6 +358,15 @@ function App() {
 
     setIsMyToursOpen(true)
     cartState.refreshMyTours().catch(() => {})
+  }
+
+  const openBirdIdentification = () => {
+    if (!auth.isAuthenticated || auth.isVisitor) {
+      openLogin()
+      return
+    }
+
+    setIsBirdIdentificationOpen(true)
   }
 
   const handleAddTourToCart = async (tour) => {
@@ -495,6 +506,7 @@ function App() {
         isAuthenticated={auth.isAuthenticated}
         onAddTourToCart={handleAddTourToCart}
         onAuthAction={handleHomeAuthAction}
+        onOpenBirdIdentification={openBirdIdentification}
         onOpenCart={openCart}
         onOpenMyTours={openMyTours}
         onRemoveTourFromCart={handleRemoveTourFromCart}
@@ -535,6 +547,12 @@ function App() {
           onRemoveItem={cartState.removeItem}
           onSaveItinerary={cartState.saveItinerary}
           onUpdateItem={cartState.updateItem}
+        />
+      )}
+      {isBirdIdentificationOpen && auth.isAuthenticated && !auth.isVisitor && (
+        <BirdIdentificationModal
+          auth={auth}
+          onClose={() => setIsBirdIdentificationOpen(false)}
         />
       )}
       {isMyToursOpen && auth.isAuthenticated && !auth.isVisitor && (
