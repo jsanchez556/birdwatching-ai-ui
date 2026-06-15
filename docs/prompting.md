@@ -38,7 +38,7 @@ Current behavior:
 - no raw tool result display
 - no client-side prompt injection
 - bird profile metadata can render compact media cards
-- bird identification responses can render identified/uncertain/unknown status, a best-match comparison with submitted-image clarity overlay and optional reference-image overlay, candidate confidence/reasoning, visual evidence, supporting details, contradictions, missing evidence, uncertainty notes, and optional inline candidate images
+- bird identification responses can render identified/uncertain/unknown status, a best-match comparison with an image-only submitted preview and optional reference-image thumbnail, image clarity as visual evidence, candidate confidence/reasoning, visual evidence, supporting details, contradictions, missing evidence, uncertainty notes, and optional inline candidate images
 - reservation confirmation summaries can render an additional styled card
 
 The backend may use RAG and tour tools before streaming the final assistant response. Tour discovery, tour selection, availability checks, transportation estimates, pricing, discounts, participant-count interpretation, and reservation creation are backend responsibilities. The current UI displays the final assistant text, renders structured `uiAction` and `uiActions` controls, renders `BirdMediaCard` from `meta.birdMatches` when bird profile media is present, and renders `ReservationConfirmationCard` from reservation metadata when present. If bird media fields are relative object keys, the UI resolves them through the backend media endpoint before rendering.

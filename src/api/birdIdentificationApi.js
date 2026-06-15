@@ -9,6 +9,25 @@ import {
   validateEnvelope,
 } from './http'
 
+const IMAGE_TYPE_BY_EXTENSION = new Map([
+  ['jpg', 'image/jpeg'],
+  ['jpeg', 'image/jpeg'],
+  ['png', 'image/png'],
+  ['webp', 'image/webp'],
+  ['gif', 'image/gif'],
+])
+
+function fileExtension(file) {
+  const name = typeof file?.name === 'string' ? file.name.trim().toLowerCase() : ''
+  const match = name.match(/\.([a-z0-9]+)$/)
+  return match?.[1] || ''
+}
+
+export function imageUploadContentType(file) {
+  const mimeType = typeof file?.type === 'string' ? file.type.trim().toLowerCase() : ''
+  return mimeType || IMAGE_TYPE_BY_EXTENSION.get(fileExtension(file)) || 'application/octet-stream'
+}
+
 function assertBirdIdentificationEnvelope(data) {
   if (!validateEnvelope(data) || data.success !== true || !isObject(data.data) || !isObject(data.meta)) {
     throw new Error(getApiErrorMessage(data, API_FALLBACK_ERROR_MESSAGE))
@@ -53,7 +72,7 @@ export async function identifyBirdByFile({ file, token, signal } = {}) {
   const response = await fetch(apiUrl('/birds/identify'), {
     method: 'POST',
     headers: {
-      'Content-Type': file?.type || 'application/octet-stream',
+      'Content-Type': imageUploadContentType(file),
       ...(file?.name ? { 'X-Filename': file.name } : {}),
       ...authHeaders(token),
     },

@@ -4,7 +4,40 @@ import { identifyBirdByFile, identifyBirdByUrl } from '../api/birdIdentification
 const EMPTY_INPUT_MESSAGE = 'Paste an image URL or choose a photo to identify.'
 const INVALID_URL_MESSAGE = 'Enter a valid image URL.'
 const INVALID_FILE_MESSAGE = 'Choose a JPEG, PNG, WebP, or GIF image.'
+const EMPTY_FILE_MESSAGE = 'Choose a photo that is not empty.'
+const OVERSIZED_FILE_MESSAGE = 'Choose a photo smaller than 10 MB.'
+const UNSUPPORTED_IPHONE_IMAGE_MESSAGE = 'iPhone HEIC/HEIF photos are not supported yet. Please choose a JPEG, PNG, WebP, or GIF image.'
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+const UNSUPPORTED_IPHONE_IMAGE_TYPES = new Set(['image/heic', 'image/heif'])
+const MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
+const IMAGE_TYPE_BY_EXTENSION = new Map([
+  ['jpg', 'image/jpeg'],
+  ['jpeg', 'image/jpeg'],
+  ['png', 'image/png'],
+  ['webp', 'image/webp'],
+  ['gif', 'image/gif'],
+])
+
+function fileExtension(file) {
+  const name = typeof file?.name === 'string' ? file.name.trim().toLowerCase() : ''
+  const match = name.match(/\.([a-z0-9]+)$/)
+  return match?.[1] || ''
+}
+
+function isUnsupportedIphoneImage(file) {
+  const extension = fileExtension(file)
+  return UNSUPPORTED_IPHONE_IMAGE_TYPES.has(file?.type) || extension === 'heic' || extension === 'heif'
+}
+
+function supportedImageType(file) {
+  const mimeType = typeof file?.type === 'string' ? file.type.trim().toLowerCase() : ''
+
+  if (ALLOWED_IMAGE_TYPES.has(mimeType)) {
+    return mimeType
+  }
+
+  return IMAGE_TYPE_BY_EXTENSION.get(fileExtension(file)) || ''
+}
 
 function isValidHttpUrl(value) {
   try {
@@ -33,9 +66,26 @@ export default function useBirdIdentification({ getAccessToken, token } = {}) {
       return null
     }
 
-    if (file && !ALLOWED_IMAGE_TYPES.has(file.type)) {
-      setError(INVALID_FILE_MESSAGE)
-      return null
+    if (file) {
+      if (file.size === 0) {
+        setError(EMPTY_FILE_MESSAGE)
+        return null
+      }
+
+      if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+        setError(OVERSIZED_FILE_MESSAGE)
+        return null
+      }
+
+      if (isUnsupportedIphoneImage(file)) {
+        setError(UNSUPPORTED_IPHONE_IMAGE_MESSAGE)
+        return null
+      }
+
+      if (!supportedImageType(file)) {
+        setError(INVALID_FILE_MESSAGE)
+        return null
+      }
     }
 
     if (!file && trimmedUrl && !isValidHttpUrl(trimmedUrl)) {
@@ -91,8 +141,14 @@ export default function useBirdIdentification({ getAccessToken, token } = {}) {
 
 export {
   ALLOWED_IMAGE_TYPES,
+  EMPTY_FILE_MESSAGE,
   EMPTY_INPUT_MESSAGE,
   INVALID_FILE_MESSAGE,
   INVALID_URL_MESSAGE,
+  MAX_IMAGE_UPLOAD_BYTES,
+  OVERSIZED_FILE_MESSAGE,
+  UNSUPPORTED_IPHONE_IMAGE_MESSAGE,
+  isUnsupportedIphoneImage,
   isValidHttpUrl,
+  supportedImageType,
 }

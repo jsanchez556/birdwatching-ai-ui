@@ -2063,13 +2063,12 @@ button.home-card:focus-visible {
   font-weight: 760;
 }
 
-.bird-id-url-row {
+.bird-id-input-group {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  gap: 8px;
 }
 
-.bird-id-url-row input {
+.bird-id-input-group input {
   min-width: 0;
   min-height: 46px;
   border: 1px solid var(--border-strong);
@@ -2079,8 +2078,8 @@ button.home-card:focus-visible {
   color: var(--text);
 }
 
-.bird-id-url-row button,
 .bird-id-file-control,
+.bird-id-primary-action,
 .bird-id-secondary-action {
   min-height: 46px;
   border: 1px solid transparent;
@@ -2090,12 +2089,12 @@ button.home-card:focus-visible {
   font-weight: 820;
 }
 
-.bird-id-url-row button {
+.bird-id-primary-action {
   background: var(--brand);
   color: #ffffff;
 }
 
-.bird-id-url-row button:disabled,
+.bird-id-primary-action:disabled,
 .bird-id-secondary-action:disabled {
   cursor: not-allowed;
   opacity: 0.52;
@@ -2109,10 +2108,15 @@ button.home-card:focus-visible {
 }
 
 .bird-id-file-control,
+.bird-id-primary-action,
 .bird-id-secondary-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.bird-id-file-control,
+.bird-id-secondary-action {
   background: var(--surface-softer);
   color: var(--text);
   border-color: var(--border-strong);
@@ -2127,11 +2131,6 @@ button.home-card:focus-visible {
   white-space: nowrap;
 }
 
-.bird-id-camera-control {
-  display: none;
-}
-
-.bird-id-selected-file,
 .bird-id-muted {
   margin: 0;
   color: var(--text-muted);
@@ -4300,19 +4299,14 @@ body.has-open-modal {
     padding-left: 18px;
   }
 
-  .bird-id-url-row,
   .bird-id-best-match-comparison {
     grid-template-columns: 1fr;
   }
 
-  .bird-id-url-row button,
   .bird-id-file-control,
+  .bird-id-primary-action,
   .bird-id-secondary-action {
     width: 100%;
-  }
-
-  .bird-id-camera-control {
-    display: inline-flex;
   }
 
   .bird-id-file-actions {

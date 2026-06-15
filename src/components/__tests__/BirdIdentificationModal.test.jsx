@@ -44,15 +44,12 @@ describe('BirdIdentificationModal', () => {
     })
   })
 
-  test('submits a selected upload file and exposes camera capture control', async () => {
+  test('submits a selected upload file from the single upload control', async () => {
     const file = new File(['image-bytes'], 'bird.jpg', { type: 'image/jpeg' })
 
     render(<BirdIdentificationModal auth={{ token: 'token-1' }} onClose={jest.fn()} />)
 
-    expect(screen.getByText(/take photo/i).closest('label').querySelector('input')).toHaveAttribute(
-      'capture',
-      'environment'
-    )
+    expect(screen.queryByText(/take photo/i)).not.toBeInTheDocument()
 
     const uploadInput = screen.getByText(/upload photo/i).closest('label').querySelector('input')
     fireEvent.change(uploadInput, {
@@ -66,7 +63,51 @@ describe('BirdIdentificationModal', () => {
         file,
       })
     })
-    expect(screen.getByText(/selected: bird\.jpg/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/image url or photo upload/i)).toHaveAttribute('placeholder', 'Selected: bird.jpg')
+    expect(screen.queryByText(/selected: bird\.jpg/i)).not.toBeInTheDocument()
+  })
+
+  test('keeps identify with the upload actions and clears one input when the other is used', () => {
+    const file = new File(['image-bytes'], 'bird.jpg', { type: 'image/jpeg' })
+
+    render(<BirdIdentificationModal auth={{ token: 'token-1' }} onClose={jest.fn()} />)
+
+    const form = screen.getByRole('button', { name: /^identify$/i }).closest('form')
+    const actions = form.querySelector('.bird-id-file-actions')
+    const uploadLabel = screen.getByText(/upload photo/i).closest('label')
+    const clearButton = screen.getByRole('button', { name: /^clear$/i })
+    const identifyButton = screen.getByRole('button', { name: /^identify$/i })
+    const urlInput = screen.getByLabelText(/image url or photo upload/i)
+    const uploadInput = uploadLabel.querySelector('input')
+
+    expect(actions).toContainElement(uploadLabel)
+    expect(actions).toContainElement(clearButton)
+    expect(actions).toContainElement(identifyButton)
+    expect(uploadLabel.compareDocumentPosition(identifyButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(clearButton.compareDocumentPosition(identifyButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    fireEvent.change(urlInput, {
+      target: { value: 'https://example.test/bird.jpg' },
+    })
+    expect(urlInput).toHaveValue('https://example.test/bird.jpg')
+    expect(urlInput).toHaveAttribute('placeholder', 'https://example.com/bird.jpg')
+
+    fireEvent.change(uploadInput, {
+      target: { files: [file] },
+    })
+    expect(urlInput).toHaveValue('')
+    expect(urlInput).toHaveAttribute('placeholder', 'Selected: bird.jpg')
+    expect(screen.queryByText(/selected: bird\.jpg/i)).not.toBeInTheDocument()
+
+    fireEvent.change(urlInput, {
+      target: { value: 'https://example.test/other-bird.jpg' },
+    })
+    expect(urlInput).toHaveAttribute('placeholder', 'https://example.com/bird.jpg')
+    expect(screen.queryByText(/selected: bird\.jpg/i)).not.toBeInTheDocument()
+
+    fireEvent.click(clearButton)
+    expect(urlInput).toHaveValue('')
+    expect(urlInput).toHaveAttribute('placeholder', 'https://example.com/bird.jpg')
   })
 
   function identificationResult() {

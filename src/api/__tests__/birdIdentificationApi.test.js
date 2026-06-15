@@ -1,4 +1,4 @@
-import { identifyBirdByFile, identifyBirdByUrl } from '../birdIdentificationApi'
+import { identifyBirdByFile, identifyBirdByUrl, imageUploadContentType } from '../birdIdentificationApi'
 
 describe('birdIdentificationApi', () => {
   beforeEach(() => {
@@ -75,6 +75,33 @@ describe('birdIdentificationApi', () => {
         Authorization: 'Bearer token-1',
         'Content-Type': 'image/jpeg',
         'X-Filename': 'bird.jpg',
+      }),
+      body: file,
+    }))
+  })
+
+  test('infers upload content type from filename when browser MIME metadata is missing', async () => {
+    const file = new File(['image-bytes'], 'iphone-photo.JPG', { type: '' })
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          summary: '',
+          imageObservations: {},
+          candidates: [],
+        },
+        meta: {},
+      }),
+    })
+
+    await identifyBirdByFile({ file, token: 'token-1' })
+
+    expect(imageUploadContentType(file)).toBe('image/jpeg')
+    expect(global.fetch).toHaveBeenCalledWith('/birds/identify', expect.objectContaining({
+      headers: expect.objectContaining({
+        'Content-Type': 'image/jpeg',
+        'X-Filename': 'iphone-photo.JPG',
       }),
       body: file,
     }))

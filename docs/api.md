@@ -127,7 +127,7 @@ URL request:
 }
 ```
 
-File or mobile camera request:
+Raw photo upload request:
 ```http
 POST /birds/identify
 Authorization: Bearer jwt
@@ -136,6 +136,8 @@ X-Filename: bird.jpg
 
 <raw image bytes>
 ```
+
+The frontend accepts JPEG, PNG, WebP, and GIF uploads up to 10 MB for this endpoint. Unsupported iPhone HEIC/HEIF files, empty files, and oversized files are rejected in the bird identification hook before the raw upload request is sent. When Safari omits image MIME metadata, the upload adapter infers the backend `Content-Type` from supported file extensions.
 
 Expected success data:
 ```json
