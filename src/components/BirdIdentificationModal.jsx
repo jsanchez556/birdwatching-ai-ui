@@ -195,46 +195,51 @@ function EvidenceList({ items, label, title, tone = '' }) {
   )
 }
 
-function StatusBanner({ result }) {
-  const statusText = formatStatus(result?.status)
+function StatusBanner({ result, job, isLoading }) {
+  let banner = null
 
-  if (!statusText) {
+  if (result) {
+    const statusText = formatStatus(result.status)
+
+    if (statusText) {
+      banner = {
+        text: statusText,
+        description: result.status === 'identified'
+          ? 'This looks like a likely match based on the visible field marks.'
+          : result.status === 'uncertain'
+            ? 'The image is not definitive, but these birds are plausible matches.'
+            : 'The image does not show enough detail for a reliable identification.',
+      }
+    }
+  } else if (job?.jobId || isLoading) {
+    const status = job?.status || 'queued'
+    const text = status === 'active' || status === 'processing'
+      ? 'Processing image'
+      : status === 'completed'
+        ? 'Identification ready'
+        : status === 'delayed'
+          ? 'Identification delayed'
+          : 'Queued for identification'
+    const description = status === 'completed'
+      ? 'Results are ready below.'
+      : status === 'delayed'
+        ? 'Identification is taking a little longer than usual. Please try again shortly.'
+        : 'This can take a moment while the image is analyzed.'
+
+    banner = {
+      text,
+      description,
+    }
+  }
+
+  if (!banner) {
     return null
   }
 
-  const description = result.status === 'identified'
-    ? 'This looks like a likely match based on the visible field marks.'
-    : result.status === 'uncertain'
-      ? 'The image is not definitive, but these birds are plausible matches.'
-      : 'The image does not show enough detail for a reliable identification.'
-
   return (
-    <div className={`bird-id-status bird-id-status-${result.status}`} role="status">
-      <span>{statusText}</span>
-      <p>{description}</p>
-    </div>
-  )
-}
-
-function JobStatusBanner({ job, isLoading }) {
-  if (!job?.jobId && !isLoading) {
-    return null
-  }
-
-  const status = job?.status || 'queued'
-  const text = status === 'active' || status === 'processing'
-    ? 'Processing image'
-    : status === 'completed'
-      ? 'Identification ready'
-      : 'Queued for identification'
-  const description = status === 'completed'
-    ? 'Results are ready below.'
-    : 'This can take a moment while the image is analyzed.'
-
-  return (
-    <div className="bird-id-job-status" role="status" aria-live="polite">
-      <span>{text}</span>
-      <p>{description}</p>
+    <div className="bird-id-status" role="status" aria-live="polite">
+      <span>{banner.text}</span>
+      <p>{banner.description}</p>
     </div>
   )
 }
@@ -459,11 +464,10 @@ function BirdIdentificationModal({ auth, onClose }) {
           {error && <div className="bird-id-alert" role="alert">{error}</div>}
         </form>
 
-        <JobStatusBanner job={job} isLoading={isLoading} />
+        <StatusBanner job={job} isLoading={isLoading} result={result} />
 
         {result && (
           <div className="bird-id-results">
-            <StatusBanner result={result} />
             <BestMatch bestMatch={result.bestMatch} previewImageUrl={previewImageUrl} clarity={clarity} />
 
             {likelyCandidates.length > 0 && (

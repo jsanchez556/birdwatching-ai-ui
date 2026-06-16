@@ -11,6 +11,7 @@ const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'i
 const UNSUPPORTED_IPHONE_IMAGE_TYPES = new Set(['image/heic', 'image/heif'])
 const MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
 const POLL_INTERVAL_MS = 1500
+const MAX_JOB_POLL_ATTEMPTS = 40
 const QUEUED_STATUSES = new Set(['queued', 'active', 'processing'])
 const IMAGE_TYPE_BY_EXTENSION = new Map([
   ['jpg', 'image/jpeg'],
@@ -132,8 +133,10 @@ export default function useBirdIdentification({ getAccessToken, token } = {}) {
         })
 
         let statusResponse = initialResponse
+        let pollAttempts = 0
 
-        while (QUEUED_STATUSES.has(statusResponse.jobStatus)) {
+        while (QUEUED_STATUSES.has(statusResponse.jobStatus) && pollAttempts < MAX_JOB_POLL_ATTEMPTS) {
+          pollAttempts += 1
           statusResponse = await getBirdIdentificationJobStatus({
             jobId: initialResponse.jobId,
             token: accessToken,
@@ -148,7 +151,18 @@ export default function useBirdIdentification({ getAccessToken, token } = {}) {
             break
           }
 
-          await wait(POLL_INTERVAL_MS, abortController.signal)
+          if (pollAttempts < MAX_JOB_POLL_ATTEMPTS) {
+            await wait(POLL_INTERVAL_MS, abortController.signal)
+          }
+        }
+
+        if (QUEUED_STATUSES.has(statusResponse.jobStatus)) {
+          setJob({
+            jobId: statusResponse.jobId || initialResponse.jobId,
+            status: 'delayed',
+          })
+          setError('Bird identification is taking longer than expected. Please try again in a few minutes.')
+          return null
         }
 
         if (statusResponse.jobStatus === 'completed' && statusResponse.result) {
@@ -211,6 +225,7 @@ export {
   EMPTY_INPUT_MESSAGE,
   INVALID_FILE_MESSAGE,
   INVALID_URL_MESSAGE,
+  MAX_JOB_POLL_ATTEMPTS,
   MAX_IMAGE_UPLOAD_BYTES,
   OVERSIZED_FILE_MESSAGE,
   POLL_INTERVAL_MS,

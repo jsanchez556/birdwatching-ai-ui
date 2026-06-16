@@ -66,6 +66,27 @@ describe('BirdIdentificationModal', () => {
     expect(screen.queryByText(/bullmq/i)).not.toBeInTheDocument()
   })
 
+  test('shows delayed job status when polling stops', () => {
+    mockHookState = {
+      result: null,
+      job: {
+        jobId: 'job-1',
+        status: 'delayed',
+      },
+      error: 'Bird identification is taking longer than expected. Please try again in a few minutes.',
+      isLoading: false,
+      identify: mockIdentify,
+      clear: mockClear,
+    }
+
+    render(<BirdIdentificationModal auth={{ token: 'token-1' }} onClose={jest.fn()} />)
+
+    expect(screen.getByRole('status')).toHaveTextContent('Identification delayed')
+    expect(screen.getByText(/taking a little longer than usual/i)).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(/taking longer than expected/i)
+    expect(screen.queryByText(/job-1/i)).not.toBeInTheDocument()
+  })
+
   test('submits a selected upload file from the single upload control', async () => {
     const file = new File(['image-bytes'], 'bird.jpg', { type: 'image/jpeg' })
 

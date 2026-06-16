@@ -1,8 +1,10 @@
 import { act, renderHook } from '@testing-library/react'
 import useBirdIdentification, {
   EMPTY_FILE_MESSAGE,
+  MAX_JOB_POLL_ATTEMPTS,
   MAX_IMAGE_UPLOAD_BYTES,
   OVERSIZED_FILE_MESSAGE,
+  POLL_INTERVAL_MS,
   UNSUPPORTED_IPHONE_IMAGE_MESSAGE,
 } from '../useBirdIdentification'
 import { getBirdIdentificationJobStatus, identifyBirdByFile, identifyBirdByUrl } from '../../api/birdIdentificationApi'
@@ -145,6 +147,49 @@ describe('useBirdIdentification', () => {
       jobId: 'job-1',
       status: 'failed',
     })
+  })
+
+  test('stops polling when a queued job does not complete', async () => {
+    jest.useFakeTimers()
+    identifyBirdByUrl.mockResolvedValue({
+      jobId: 'job-1',
+      jobStatus: 'queued',
+    })
+    getBirdIdentificationJobStatus.mockResolvedValue({
+      jobId: 'job-1',
+      jobStatus: 'queued',
+    })
+    const { result } = renderHook(() => useBirdIdentification({ token: 'token-1' }))
+
+    let response
+    let identifyPromise
+    await act(async () => {
+      identifyPromise = result.current.identify({
+        imageUrl: 'https://example.test/bird.jpg',
+      })
+      await Promise.resolve()
+    })
+
+    for (let attempt = 0; attempt < MAX_JOB_POLL_ATTEMPTS; attempt += 1) {
+      await act(async () => {
+        await Promise.resolve()
+        jest.advanceTimersByTime(POLL_INTERVAL_MS)
+        await Promise.resolve()
+      })
+    }
+
+    await act(async () => {
+      response = await identifyPromise
+    })
+    jest.useRealTimers()
+
+    expect(response).toBeNull()
+    expect(getBirdIdentificationJobStatus).toHaveBeenCalledTimes(MAX_JOB_POLL_ATTEMPTS)
+    expect(result.current.job).toEqual({
+      jobId: 'job-1',
+      status: 'delayed',
+    })
+    expect(result.current.error).toBe('Bird identification is taking longer than expected. Please try again in a few minutes.')
   })
 
   test('accepts supported image extensions when browser MIME metadata is missing', async () => {

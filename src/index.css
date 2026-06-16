@@ -2149,7 +2149,7 @@ button.home-card:focus-visible {
 .bird-id-results {
   display: grid;
   gap: 18px;
-  padding: 22px 24px 24px;
+  padding: 10px 24px 24px;
 }
 
 .bird-id-summary {
@@ -2165,12 +2165,13 @@ button.home-card:focus-visible {
   border-radius: 8px;
   padding: 12px 14px;
   background: var(--surface-softer);
+  margin: 12px 24px 12px;
 }
 
 .bird-id-job-status {
   display: grid;
   gap: 4px;
-  margin: 18px 24px 0;
+  margin: 18px 24px 18px;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px 14px;
