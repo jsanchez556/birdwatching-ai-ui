@@ -57,7 +57,9 @@ Authenticated HomeHeader Identify Bird action
   -> user pastes an image URL, uploads a photo, or uses the mobile camera file input
   -> useBirdIdentification validates local input and loading/error state
   -> birdIdentificationApi sends POST /birds/identify with bearer auth
-  -> backend returns summary, image-analysis confidence, candidate birds, and optional media metadata
+  -> backend returns either a queued job or a completed normalized identification result
+  -> queued jobs are polled through GET /jobs/:id until completed, failed, or not_found
+  -> completed jobs return summary, image-analysis confidence, candidate birds, and optional media metadata
   -> BirdIdentificationModal renders status, a best-match comparison with submitted-image clarity overlay and best-match reference overlay, candidate confidence/reasoning, supporting details, and optional inline candidate images
 ```
 
@@ -127,7 +129,7 @@ The UI state is intentionally small:
 - `isRecording`: whether microphone capture is active
 - `voiceStatus`: voice flow stage such as `recording`, `processing`, or `uploading`
 - `error`: request or hydration error text for the alert
-- bird identification modal state is ephemeral and stores only current request loading/error/result data in memory
+- bird identification modal state is ephemeral and stores only current request loading/error/job/result data in memory
 
 ## Cross-Cutting Concerns
 - Accessibility is handled at component boundaries through labels, semantic sections, and keyboard support.

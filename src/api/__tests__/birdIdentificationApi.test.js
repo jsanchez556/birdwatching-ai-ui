@@ -1,4 +1,9 @@
-import { identifyBirdByFile, identifyBirdByUrl, imageUploadContentType } from '../birdIdentificationApi'
+import {
+  getBirdIdentificationJobStatus,
+  identifyBirdByFile,
+  identifyBirdByUrl,
+  imageUploadContentType,
+} from '../birdIdentificationApi'
 
 describe('birdIdentificationApi', () => {
   beforeEach(() => {
@@ -78,6 +83,94 @@ describe('birdIdentificationApi', () => {
       }),
       body: file,
     }))
+  })
+
+  test('normalizes queued bird identification responses', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          jobId: 'job-1',
+          status: 'queued',
+        },
+        meta: {},
+      }),
+    })
+
+    await expect(identifyBirdByUrl({
+      imageUrl: 'https://example.test/bird.jpg',
+      token: 'token-1',
+    })).resolves.toEqual({
+      jobId: 'job-1',
+      jobStatus: 'queued',
+      meta: {},
+    })
+  })
+
+  test('loads completed bird identification job status', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          jobId: 'job-1',
+          status: 'completed',
+          result: {
+            status: 'identified',
+            bestMatch: { commonName: 'Resplendent Quetzal' },
+            candidates: [],
+          },
+        },
+        meta: {},
+      }),
+    })
+
+    await expect(getBirdIdentificationJobStatus({
+      jobId: 'job-1',
+      token: 'token-1',
+    })).resolves.toEqual({
+      jobId: 'job-1',
+      jobStatus: 'completed',
+      result: expect.objectContaining({
+        status: 'identified',
+        bestMatch: { commonName: 'Resplendent Quetzal' },
+      }),
+      meta: {},
+    })
+    expect(global.fetch).toHaveBeenCalledWith('/jobs/job-1', expect.objectContaining({
+      method: 'GET',
+      headers: expect.objectContaining({
+        Authorization: 'Bearer token-1',
+      }),
+    }))
+  })
+
+  test('loads failed bird identification job status with a safe message', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          jobId: 'job-1',
+          status: 'failed',
+          error: {
+            message: 'Bird identification failed. Please try again.',
+          },
+        },
+        meta: {},
+      }),
+    })
+
+    await expect(getBirdIdentificationJobStatus({
+      jobId: 'job-1',
+      token: 'token-1',
+    })).resolves.toEqual({
+      jobId: 'job-1',
+      jobStatus: 'failed',
+      error: 'Bird identification failed. Please try again.',
+      meta: {},
+    })
   })
 
   test('infers upload content type from filename when browser MIME metadata is missing', async () => {

@@ -18,6 +18,7 @@ The active UI currently calls:
 - `POST /chat`
 - `POST /voice-chat`
 - `POST /birds/identify`
+- `GET /jobs/:id`
 - `GET /chat/latest`
 - `GET /chat/:conversationId`
 - `GET /homepage/hero`
@@ -61,7 +62,7 @@ import.meta.env.VITE_API_URL
 Behavior:
 - trailing slashes are removed
 - empty value means requests are relative to the current origin
-- local relative `/auth`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/addons`, and `/files` calls are proxied by Vite to `VITE_API_PROXY_TARGET`
+- local relative `/auth`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files` calls are proxied by Vite to `VITE_API_PROXY_TARGET`
 - production should set `VITE_API_URL` to the public backend URL
 
 ## Auth
@@ -139,7 +140,55 @@ X-Filename: bird.jpg
 
 The frontend accepts JPEG, PNG, WebP, and GIF uploads up to 10 MB for this endpoint. Unsupported iPhone HEIC/HEIF files, empty files, and oversized files are rejected in the bird identification hook before the raw upload request is sent. When Safari omits image MIME metadata, the upload adapter infers the backend `Content-Type` from supported file extensions.
 
-Expected success data:
+Expected queued data:
+```json
+{
+  "jobId": "abc123",
+  "status": "queued"
+}
+```
+
+The frontend treats queued bird identification responses as background jobs and polls:
+
+```http
+GET /jobs/:id
+Authorization: Bearer jwt
+```
+
+Queued or active job data:
+```json
+{
+  "jobId": "abc123",
+  "status": "active"
+}
+```
+
+Completed job data:
+```json
+{
+  "jobId": "abc123",
+  "status": "completed",
+  "result": {
+    "status": "uncertain",
+    "bestMatch": {
+      "commonName": "Resplendent Quetzal"
+    }
+  }
+}
+```
+
+Failed job data:
+```json
+{
+  "jobId": "abc123",
+  "status": "failed",
+  "error": {
+    "message": "Bird identification failed. Please try again."
+  }
+}
+```
+
+Completed `result` data follows the existing bird identification shape:
 ```json
 {
   "status": "uncertain",
@@ -191,6 +240,10 @@ Expected success data:
 
 Frontend behavior:
 - validates the normalized response envelope at the adapter boundary
+- stores background job IDs only in modal hook state
+- polls `GET /jobs/:id` for queued, active, or processing responses
+- renders completed job results under the same bird identification result UI
+- renders safe user-facing messages for failed or missing jobs
 - preserves optional `status`, `bestMatch`, `imageAnalysis`, `imageObservations`, `candidates`, `notes`, and `meta` fields defensively
 - sends bearer auth through `getValidToken`
 - supports pasted HTTP(S) image URLs

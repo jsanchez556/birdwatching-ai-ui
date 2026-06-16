@@ -49,6 +49,53 @@ function normalizeIdentificationResponse(data) {
   }
 }
 
+function normalizeQueuedIdentificationResponse(data) {
+  assertBirdIdentificationEnvelope(data)
+
+  return {
+    jobId: typeof data.data.jobId === 'string' ? data.data.jobId : '',
+    jobStatus: typeof data.data.status === 'string' ? data.data.status : '',
+    meta: data.meta || {},
+  }
+}
+
+function normalizeJobStatusResponse(data) {
+  assertBirdIdentificationEnvelope(data)
+
+  const jobStatus = typeof data.data.status === 'string' ? data.data.status : ''
+  const response = {
+    jobId: typeof data.data.jobId === 'string' ? data.data.jobId : '',
+    jobStatus,
+    meta: data.meta || {},
+  }
+
+  if (jobStatus === 'completed' && isObject(data.data.result)) {
+    response.result = normalizeIdentificationResponse({
+      success: true,
+      data: data.data.result,
+      meta: data.meta || {},
+    })
+  }
+
+  if (jobStatus === 'failed') {
+    response.error = isObject(data.data.error) && typeof data.data.error.message === 'string'
+      ? data.data.error.message
+      : 'Bird identification failed. Please try again.'
+  }
+
+  return response
+}
+
+function normalizeIdentifyResponse(data) {
+  assertBirdIdentificationEnvelope(data)
+
+  if (typeof data.data.jobId === 'string' && ['queued', 'active', 'processing'].includes(data.data.status)) {
+    return normalizeQueuedIdentificationResponse(data)
+  }
+
+  return normalizeIdentificationResponse(data)
+}
+
 export async function identifyBirdByUrl({ imageUrl, token, signal } = {}) {
   const response = await fetch(apiUrl('/birds/identify'), {
     method: 'POST',
@@ -65,7 +112,7 @@ export async function identifyBirdByUrl({ imageUrl, token, signal } = {}) {
     throw new Error(getApiErrorMessage(data, 'Unable to identify this bird.'))
   }
 
-  return normalizeIdentificationResponse(data)
+  return normalizeIdentifyResponse(data)
 }
 
 export async function identifyBirdByFile({ file, token, signal } = {}) {
@@ -85,5 +132,28 @@ export async function identifyBirdByFile({ file, token, signal } = {}) {
     throw new Error(getApiErrorMessage(data, 'Unable to identify this bird.'))
   }
 
-  return normalizeIdentificationResponse(data)
+  return normalizeIdentifyResponse(data)
+}
+
+export async function getBirdIdentificationJobStatus({ jobId, token, signal } = {}) {
+  const response = await fetch(apiUrl(`/jobs/${encodeURIComponent(jobId || '')}`), {
+    method: 'GET',
+    headers: {
+      ...authHeaders(token),
+    },
+    signal,
+  })
+  const data = await parseJsonResponse(response)
+
+  if (!response.ok) {
+    throw new Error(getApiErrorMessage(data, 'Unable to check this identification.'))
+  }
+
+  return normalizeJobStatusResponse(data)
+}
+
+export {
+  normalizeIdentificationResponse,
+  normalizeJobStatusResponse,
+  normalizeQueuedIdentificationResponse,
 }

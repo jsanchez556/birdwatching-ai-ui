@@ -21,6 +21,7 @@ describe('BirdIdentificationModal', () => {
     URL.revokeObjectURL = revokeObjectURL
     mockHookState = {
       result: null,
+      job: null,
       error: null,
       isLoading: false,
       identify: mockIdentify,
@@ -42,6 +43,27 @@ describe('BirdIdentificationModal', () => {
         file: null,
       })
     })
+  })
+
+  test('shows queued and processing job status without backend details', () => {
+    mockHookState = {
+      result: null,
+      job: {
+        jobId: 'job-1',
+        status: 'active',
+      },
+      error: null,
+      isLoading: true,
+      identify: mockIdentify,
+      clear: mockClear,
+    }
+
+    render(<BirdIdentificationModal auth={{ token: 'token-1' }} onClose={jest.fn()} />)
+
+    expect(screen.getByRole('status')).toHaveTextContent('Processing image')
+    expect(screen.getByText(/this can take a moment/i)).toBeInTheDocument()
+    expect(screen.queryByText(/job-1/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/bullmq/i)).not.toBeInTheDocument()
   })
 
   test('submits a selected upload file from the single upload control', async () => {
@@ -180,6 +202,7 @@ describe('BirdIdentificationModal', () => {
     mockIdentify.mockResolvedValue(result)
     mockHookState = {
       result,
+      job: null,
       error: 'Try a clearer image.',
       isLoading: false,
       identify: mockIdentify,
@@ -255,6 +278,7 @@ describe('BirdIdentificationModal', () => {
     mockIdentify.mockResolvedValue(result)
     mockHookState = {
       result,
+      job: null,
       error: null,
       isLoading: false,
       identify: mockIdentify,
@@ -281,6 +305,7 @@ describe('BirdIdentificationModal', () => {
     mockIdentify.mockResolvedValue(result)
     mockHookState = {
       result,
+      job: null,
       error: null,
       isLoading: false,
       identify: mockIdentify,

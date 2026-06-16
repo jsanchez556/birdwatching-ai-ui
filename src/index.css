@@ -2167,6 +2167,27 @@ button.home-card:focus-visible {
   background: var(--surface-softer);
 }
 
+.bird-id-job-status {
+  display: grid;
+  gap: 4px;
+  margin: 18px 24px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: var(--surface-softer);
+}
+
+.bird-id-job-status span {
+  color: var(--text);
+  font-weight: 850;
+}
+
+.bird-id-job-status p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
 .bird-id-status span {
   color: var(--text);
   font-weight: 850;

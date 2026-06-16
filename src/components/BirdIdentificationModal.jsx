@@ -216,6 +216,29 @@ function StatusBanner({ result }) {
   )
 }
 
+function JobStatusBanner({ job, isLoading }) {
+  if (!job?.jobId && !isLoading) {
+    return null
+  }
+
+  const status = job?.status || 'queued'
+  const text = status === 'active' || status === 'processing'
+    ? 'Processing image'
+    : status === 'completed'
+      ? 'Identification ready'
+      : 'Queued for identification'
+  const description = status === 'completed'
+    ? 'Results are ready below.'
+    : 'This can take a moment while the image is analyzed.'
+
+  return (
+    <div className="bird-id-job-status" role="status" aria-live="polite">
+      <span>{text}</span>
+      <p>{description}</p>
+    </div>
+  )
+}
+
 function ReferenceImageOverlay({ candidate }) {
   const name = getCandidateName(candidate)
   const imageReference = getCandidateReferenceImageUrl(candidate)
@@ -285,6 +308,7 @@ function BirdIdentificationModal({ auth, onClose }) {
   const previewObjectUrlRef = useRef('')
   const {
     result,
+    job,
     error,
     isLoading,
     identify,
@@ -434,6 +458,8 @@ function BirdIdentificationModal({ auth, onClose }) {
 
           {error && <div className="bird-id-alert" role="alert">{error}</div>}
         </form>
+
+        <JobStatusBanner job={job} isLoading={isLoading} />
 
         {result && (
           <div className="bird-id-results">

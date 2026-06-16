@@ -52,6 +52,10 @@ export default defineConfig(({ mode }) => {
           target: proxyTarget,
           changeOrigin: true
         },
+        '/jobs': {
+          target: proxyTarget,
+          changeOrigin: true
+        },
         '/addons': {
           target: proxyTarget,
           changeOrigin: true

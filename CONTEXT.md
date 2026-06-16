@@ -16,7 +16,7 @@ This repository is a single React/Vite frontend for Costa Rica birdwatching assi
 - backend hydration through `GET /chat/:conversationId`
 - backend streaming chat requests through `POST /chat`
 - browser voice chat through `POST /voice-chat`, with recorded audio converted to WAV before upload
-- authenticated bird identification through `POST /birds/identify`, supporting pasted image URLs, photo uploads, and the backend's conservative `identified | uncertain | unknown` response states
+- authenticated bird identification through `POST /birds/identify`, supporting pasted image URLs, photo uploads, async job polling through `GET /jobs/:id`, and the backend's conservative `identified | uncertain | unknown` response states
 - homepage content through `GET /homepage/hero`, `GET /tours`, `GET /birds/highlights`, and `GET /addons/transportation`
 - bird profile media resolution through CloudFront or `GET /files/:folderName/:filename` when RAG metadata contains relative media paths
 - backend-generated tour discovery, pricing, discounts, and reservation confirmations through assistant responses
@@ -46,7 +46,7 @@ The app uses a shell-component-hook-API split:
 - `src/api/authApi.js` owns auth HTTP calls and response shape validation.
 - `src/api/chatApi.js` owns backend HTTP calls and response shape validation.
 - `src/api/voiceChatApi.js` owns raw audio upload calls to `POST /voice-chat` and resolves returned audio response URLs.
-- `src/api/birdIdentificationApi.js` owns authenticated bird identification URL and raw image upload calls to `POST /birds/identify`, normalizes the `{ success, data, meta }` envelope, and should preserve optional bird-identification fields defensively.
+- `src/api/birdIdentificationApi.js` owns authenticated bird identification URL and raw image upload calls to `POST /birds/identify`, job polling through `GET /jobs/:id`, normalizes the `{ success, data, meta }` envelope, and should preserve optional bird-identification fields defensively.
 - `src/api/homeApi.js` owns homepage HTTP calls and response shape validation.
 - `src/api/mediaApi.js` owns bird media URL resolution through CloudFront when configured, with backend media endpoint fallback.
 - `src/index.css` owns global tokens, layout, responsive behavior, and dark mode.
@@ -122,7 +122,9 @@ Authenticated HomeHeader Identify Bird action
   -> useBirdIdentification
   -> birdIdentificationApi.identifyBirdByUrl or identifyBirdByFile
   -> POST /birds/identify with bearer token
-  -> backend validates one image input, stores raw uploads when needed, extracts rich visual evidence, generates candidates, verifies/reranks them with bird-profile RAG, and returns normalized JSON
+  -> backend validates one image input, stores raw uploads when needed, and returns either a queued job or a completed normalized JSON result
+  -> for queued jobs, useBirdIdentification polls GET /jobs/:id until completed, failed, or not_found
+  -> completed jobs render the final rich visual evidence, candidates, bird-profile RAG verification/reranking, and normalized response
   -> modal renders status, a best-match comparison with submitted-image clarity overlay plus optional reference-image overlay, candidate confidence/reasoning/evidence, uncertainty notes, and optional candidate images inline
 ```
 
@@ -151,7 +153,7 @@ Browser fetch(`${VITE_API_URL}/auth/*`, `${VITE_API_URL}/cart/*`, `${VITE_API_UR
 - Authenticated chat state is stored under `birdwatchingAI.chatState.<userId>` so user switching cannot reuse another user's local transcript.
 - `VITE_API_URL` is trimmed of trailing slash before request URLs are built.
 - Empty `VITE_API_URL` intentionally produces relative `/auth`, `/chat`, and homepage content URLs for local proxying.
-- The current dev proxy covers `/auth`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/addons`, and `/files`.
+- The current dev proxy covers `/auth`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files`.
 - `VITE_API_PROXY_TARGET` should point to the local or remote backend during `npm run dev`.
 - `CustomerContextForm` collects `customerName`, `customerEmail`, `itineraryStartDate`, and `itineraryEndDate` before the authenticated chat transcript is shown. Visitor mode skips customer context and is limited by the backend to bird questions only.
 - `useChat` creates a client conversation ID before the first backend response.
@@ -163,7 +165,7 @@ Browser fetch(`${VITE_API_URL}/auth/*`, `${VITE_API_URL}/cart/*`, `${VITE_API_UR
 - The backend may return RAG `sources`; the current UI accepts the field but does not render it.
 - The backend may return RAG bird profiles as `done.meta.birdMatches`; the UI stores those as assistant-message metadata and renders a compact carousel plus modal details.
 - Bird media values in `meta.birdMatches[].media` may be absolute URLs or relative object keys such as `/photos/123_medium.jpg`, `songs/123.mp3`, or `sonograms/123_grey-small.png`. Relative values are resolved by `src/api/mediaApi.js` through `VITE_CLOUDFRONT_BASE_URL` when configured, or through `GET /files/:folderName/:filename`; components must not assume those paths are directly browser-accessible.
-- Bird identification responses from `POST /birds/identify` now include `status`, `bestMatch`, `candidates`, rich `imageAnalysis`, compatibility `imageObservations`, `summary`, and `notes` when available. UI code uses image-analysis confidence as visual evidence in the best-match comparison, overlays best-match reference media when available, falls back to `imageObservations.confidence`, and renders missing optional fields defensively.
+- Bird identification responses from `POST /birds/identify` may immediately include `{ jobId, status: "queued" }`. The hook stores the job ID in memory only, shows queued/processing state, polls `GET /jobs/:id`, renders completed `result`, and shows safe failed/not-found messages. Completed bird identification results include `status`, `bestMatch`, `candidates`, rich `imageAnalysis`, compatibility `imageObservations`, `summary`, and `notes` when available. UI code uses image-analysis confidence as visual evidence in the best-match comparison, overlays best-match reference media when available, falls back to `imageObservations.confidence`, and renders missing optional fields defensively.
 - Bird identification `status` values have product meaning: `identified` can emphasize `bestMatch`, `uncertain` should preserve multiple plausible candidates, and `unknown` should explain that the image evidence is insufficient instead of implying failure. Candidate cards may include `commonName`, legacy `species`, `scientificName`, `confidence`, `reasoning`, `visualEvidence`, `ragSupport` rendered as supporting details, `contradictions`, `missingEvidence`, inline square media, and profile metadata.
 - Bird identification debug details are not part of the normal UI contract. The backend can expose admin-only `meta.debug` with internal analysis/candidate/profile details when explicitly requested, but the frontend should not request or render it in the standard user flow.
 - Tour listing, recommendation, selection, availability, pricing, discounts, and reservations happen inside the backend chat flow and are summarized in the final streamed assistant response. Tour metadata can include graph-backed `location`, `node`, `subnode`, and `zone` fields.
