@@ -29,6 +29,8 @@ Back to [Project Context](../CONTEXT.md). Pair this with [API Integration](./api
 - Validate backend response shapes before returning data to hooks.
 - Throw ordinary `Error` instances with user-meaningful messages.
 - Keep optional backend fields optional in the UI.
+- Keep browser HTTP calls in `src/api/`; components and hooks should consume adapter functions rather than constructing backend URLs directly.
+- Keep billing provider-neutral in the frontend. Use backend-returned `paymentUrl` and `managementUrl` values and do not name generic UI state after Stripe objects.
 - Treat backend `sources`, tour recommendations, discount details, and reservation details as explicit UI features that require confirmed contracts before rendering.
 - Prefer `meta.reservation` for reservation confirmation cards.
 - Keep fallback reservation confirmation parsing conservative: require clear confirmation language plus a confirmation code, and preserve the original assistant message beside the card.

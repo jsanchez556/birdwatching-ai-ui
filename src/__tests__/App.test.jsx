@@ -101,6 +101,38 @@ describe('App authentication flow', () => {
     expect(screen.queryByText(/Plan your birding chat/i)).not.toBeInTheDocument()
   })
 
+  test('refreshes authenticated user state after a successful billing return', async () => {
+    const refreshCurrentUser = jest.fn().mockResolvedValue({
+      id: 'user-1',
+      email: 'ana@example.com',
+      plan: 'PRO',
+    })
+    window.history.pushState({}, '', '/?billing=success')
+    useAuth.mockReturnValue({
+      isAuthenticated: true,
+      isVisitor: false,
+      isLoading: false,
+      error: null,
+      user: {
+        id: 'user-1',
+        email: 'ana@example.com',
+        name: 'Ana',
+        plan: 'FREE',
+      },
+      getValidToken: jest.fn(),
+      refreshCurrentUser,
+      logout: jest.fn(),
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(refreshCurrentUser).toHaveBeenCalledTimes(1)
+    })
+
+    window.history.pushState({}, '', '/')
+  })
+
   test('renders homepage hero video when content provides one', () => {
     useHomeContent.mockReturnValue({
       hero: {
@@ -352,10 +384,15 @@ describe('App authentication flow', () => {
 
     render(<App />)
 
-    expect(screen.getByRole('button', { name: /^Logout$/i })).toBeInTheDocument()
+    const accountButton = screen.getByRole('button', {
+      name: /manage account for ana gomez, ana@example.com/i,
+    })
+
+    expect(accountButton).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Login$/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/Log in to save your itinerary/i)).not.toBeInTheDocument()
 
+    fireEvent.click(accountButton)
     fireEvent.click(screen.getByRole('button', { name: /^Logout$/i }))
 
     expect(logout).toHaveBeenCalledTimes(1)

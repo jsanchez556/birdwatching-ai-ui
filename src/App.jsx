@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import ChatInput from './components/ChatInput'
 import ChatMessages from './components/ChatMessages'
 import CustomerContextForm from './components/CustomerContextForm'
@@ -6,6 +6,7 @@ import BirdIdentificationModal from './components/BirdIdentificationModal'
 import LoginModal from './components/home/LoginModal'
 import MyToursDrawer from './components/home/MyToursDrawer'
 import TourCartDrawer from './components/home/TourCartDrawer'
+import { createCheckoutSession, createCustomerPortalSession } from './api/billingApi'
 import useAuth from './hooks/useAuth'
 import useCart from './hooks/useCart'
 import useChat from './hooks/useChat'
@@ -293,6 +294,9 @@ function App() {
   const [isMyToursOpen, setIsMyToursOpen] = useState(false)
   const [removingTourIds, setRemovingTourIds] = useState([])
   const [reservingTourIds, setReservingTourIds] = useState([])
+  const [billingError, setBillingError] = useState(null)
+  const [isBillingLoading, setIsBillingLoading] = useState(false)
+  const hasHandledBillingSuccess = useRef(false)
   const auth = useAuth()
   const cartState = useCart({
     isAuthenticated: auth.isAuthenticated && !auth.isVisitor,
@@ -317,6 +321,41 @@ function App() {
       return currentIds.filter((id) => id !== key)
     })
   }
+
+  useEffect(() => {
+    const billingStatus = new URLSearchParams(window.location.search).get('billing')
+
+    if (
+      billingStatus !== 'success'
+      || hasHandledBillingSuccess.current
+      || !auth.isAuthenticated
+      || auth.isVisitor
+      || typeof auth.refreshCurrentUser !== 'function'
+    ) {
+      return undefined
+    }
+
+    hasHandledBillingSuccess.current = true
+    let isActive = true
+
+    setBillingError(null)
+    setIsBillingLoading(true)
+    auth.refreshCurrentUser()
+      .catch((error) => {
+        if (isActive) {
+          setBillingError(error.message || 'Unable to refresh your plan. Please reload the page.')
+        }
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsBillingLoading(false)
+        }
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [auth.isAuthenticated, auth.isVisitor, auth.refreshCurrentUser])
 
   const startChat = () => {
     if (!auth.isAuthenticated && !auth.isVisitor) {
@@ -367,6 +406,49 @@ function App() {
     }
 
     setIsBirdIdentificationOpen(true)
+  }
+
+  const handleUpgradePlan = async () => {
+    if (!auth.isAuthenticated || auth.isVisitor) {
+      openLogin()
+      return
+    }
+
+    setBillingError(null)
+    setIsBillingLoading(true)
+
+    try {
+      const result = await createCheckoutSession({
+        token: await auth.getValidToken(),
+        plan: 'PRO',
+      })
+      window.location.assign(result.paymentUrl)
+    } catch (error) {
+      setBillingError(error.message || 'Unable to start checkout. Please try again.')
+    } finally {
+      setIsBillingLoading(false)
+    }
+  }
+
+  const handleManageBilling = async () => {
+    if (!auth.isAuthenticated || auth.isVisitor) {
+      openLogin()
+      return
+    }
+
+    setBillingError(null)
+    setIsBillingLoading(true)
+
+    try {
+      const result = await createCustomerPortalSession({
+        token: await auth.getValidToken(),
+      })
+      window.location.assign(result.managementUrl)
+    } catch (error) {
+      setBillingError(error.message || 'Unable to open billing portal. Please try again.')
+    } finally {
+      setIsBillingLoading(false)
+    }
   }
 
   const handleAddTourToCart = async (tour) => {
@@ -504,17 +586,24 @@ function App() {
         cartItemsByTourId={cartItemsByTourId}
         isCartEnabled={auth.isAuthenticated && !auth.isVisitor}
         isAuthenticated={auth.isAuthenticated}
+        isBillingLoading={isBillingLoading}
+        billingError={billingError}
         onAddTourToCart={handleAddTourToCart}
         onAuthAction={handleHomeAuthAction}
+        onManageBilling={handleManageBilling}
         onOpenBirdIdentification={openBirdIdentification}
         onOpenCart={openCart}
         onOpenMyTours={openMyTours}
+        onUpdateProfile={auth.updateProfile}
+        onUpdateProfileImage={auth.updateProfileImage}
+        onUpgradePlan={handleUpgradePlan}
         onRemoveTourFromCart={handleRemoveTourFromCart}
         removingTourIds={removingTourIds}
         onReserveTour={handleReserveTour}
         reservingTourIds={reservingTourIds}
         onStartChat={startChat}
         onLogin={openLogin}
+        user={auth.user}
       />
       {isChatDrawerOpen && (auth.isAuthenticated || auth.isVisitor) && (
         <HomeChatDrawer

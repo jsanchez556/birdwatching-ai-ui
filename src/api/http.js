@@ -1,6 +1,7 @@
 const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 
 export const API_FALLBACK_ERROR_MESSAGE = 'Something went wrong. Please try again.'
+export const API_QUOTA_ERROR_MESSAGE = 'You have reached your daily plan limit. Please try again tomorrow or upgrade your plan.'
 
 export function apiUrl(path) {
   return `${apiBaseUrl}${path}`
@@ -17,6 +18,10 @@ export async function parseJsonResponse(response) {
 }
 
 export function getApiErrorMessage(data, fallbackMessage) {
+  if (data?.error?.code === 'QUOTA_EXCEEDED' && !data?.error?.message && !data?.meta?.message) {
+    return API_QUOTA_ERROR_MESSAGE
+  }
+
   return data?.meta?.message || data?.error?.message || data?.error || fallbackMessage
 }
 

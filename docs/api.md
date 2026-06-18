@@ -9,6 +9,11 @@ The active UI currently calls:
 - `POST /auth/login`
 - `POST /auth/refresh`
 - `POST /auth/logout`
+- `PATCH /auth/profile`
+- `POST /auth/profile-image`
+- `POST /billing/checkout`
+- `POST /billing/portal`
+- `GET /billing/usage`
 - `GET /cart`
 - `POST /cart/items`
 - `PATCH /cart/items/:itemId`
@@ -45,13 +50,20 @@ Errors are expected to use:
 ```json
 {
   "success": false,
+  "data": null,
   "error": {
     "code": "VALIDATION_ERROR",
     "message": "Invalid chat payload",
     "details": []
+  },
+  "meta": {
+    "message": "Invalid chat payload"
   }
 }
 ```
+
+Quota errors use code `QUOTA_EXCEEDED`. The API adapters surface the backend
+message when present and fall back to a friendly daily-limit message.
 
 ## API Base URL
 The API adapters read:
@@ -62,7 +74,7 @@ import.meta.env.VITE_API_URL
 Behavior:
 - trailing slashes are removed
 - empty value means requests are relative to the current origin
-- local relative `/auth`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files` calls are proxied by Vite to `VITE_API_PROXY_TARGET`
+- local relative `/auth`, `/billing`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files` calls are proxied by Vite to `VITE_API_PROXY_TARGET`
 - production should set `VITE_API_URL` to the public backend URL
 
 ## Auth
@@ -98,7 +110,9 @@ Both endpoints are expected to return:
       "id": "user-1",
       "email": "ana@example.com",
       "name": "Ana Rivera",
-      "role": "customer"
+      "role": "customer",
+      "plan": "FREE",
+      "imageUrl": "/files/user-profile-images/user-1.png"
     }
   },
   "meta": {}
@@ -115,6 +129,84 @@ Frontend behavior:
 - stores a safe visitor marker when the user enters visitor mode without credentials
 - clears auth storage on logout
 - uses the safe auth user profile to prefill customer context
+- updates display name through `PATCH /auth/profile`
+- uploads JPEG, PNG, or WebP profile images up to 5 MB through `POST /auth/profile-image`
+- stores only the returned safe profile image URL in auth state, never selected image bytes or data URLs
+
+`PATCH /auth/profile` sends:
+```json
+{
+  "name": "Ana Rivera"
+}
+```
+
+`POST /auth/profile-image` sends raw image bytes with `Content-Type: image/jpeg`, `image/png`, or `image/webp`.
+Both profile endpoints require bearer auth and return:
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "user-1",
+      "email": "ana@example.com",
+      "name": "Ana Rivera",
+      "role": "customer",
+      "plan": "FREE",
+      "imageUrl": "/files/user-profile-images/user-1.png"
+    }
+  },
+  "meta": {}
+}
+```
+
+## Billing
+`src/api/billingApi.js` starts provider-hosted checkout/payment for authenticated FREE users and opens provider-hosted billing management for authenticated PRO users with stored billing state. Stripe may be the backend's current provider, but UI components consume provider-neutral URLs.
+
+`POST /billing/checkout` sends an empty JSON body by default, or optional provider/plan fields, with bearer auth and expects:
+
+```json
+{
+  "success": true,
+  "data": {
+    "provider": "stripe",
+    "plan": "PRO",
+    "paymentUrl": "https://checkout.stripe.com/c/pay/cs_test_..."
+  },
+  "meta": {}
+}
+```
+
+The frontend redirects the browser to `paymentUrl`.
+
+`POST /billing/portal` sends an empty JSON body by default, or an optional provider field, with bearer auth and expects:
+
+```json
+{
+  "success": true,
+  "data": {
+    "provider": "stripe",
+    "managementUrl": "https://billing.stripe.com/p/session/..."
+  },
+  "meta": {}
+}
+```
+
+The frontend redirects the browser to `managementUrl` so subscription
+cancellation, payment method updates, and invoices stay inside the provider's
+hosted billing surface.
+
+`GET /billing/usage` returns:
+
+```json
+{
+  "success": true,
+  "data": {
+    "monthlyCost": 4.28,
+    "monthlyRequests": 142
+  },
+  "meta": {}
+}
+```
 
 ## `POST /birds/identify`
 Used by `identifyBirdByUrl({ imageUrl, token })` and `identifyBirdByFile({ file, token })` in `src/api/birdIdentificationApi.js`.
@@ -364,7 +456,7 @@ Backend behavior relevant to UI:
 - associates authenticated conversations and reservations with the logged-in user and rejects cross-user conversation access
 - treats authenticated identity as authoritative over frontend-provided customer email
 - loads recent conversation history from PostgreSQL
-- may retrieve RAG sources from PostgreSQL pgvector knowledge chunks ingested from backend `src/db/ingestion/data`
+- may retrieve RAG sources from PostgreSQL pgvector knowledge chunks ingested from backend `src/ingestion/data`
 - may use OpenAI tool calls for tour search/recommendation, availability checks, transportation estimates, pricing, discounts, and reservations
 - when tour listing or recommendation tools return tours, the assistant response should stay short, for example `I found 2 tours that match your preferences.`, while tour details are provided in `meta.tours`
 - tour records in chat metadata may include `location`, `node`, `subnode`, and `zone`; `location` is a display label derived from the node graph, while `node`, `subnode`, and `zone` are the structured location fields
@@ -466,7 +558,7 @@ Tour and reservation notes:
 - Available backend tools are `searchTours`, `calculateTransportation`, `checkAvailability`, `calculatePricing`, and `createReservation`.
 - Tour listing and recommendation details are returned in `meta.tours` when available.
 - Tour listing, selection, and reservation metadata can include `location`, `node`, `subnode`, and `zone`. The frontend treats these as display metadata and does not infer booking logic from them.
-- Tour selection can use a `tourId` or clear/partial `tourName`; the backend resolves matching names before validating availability.
+- Tour selection can use a `tourId` or a backend-supported tour name/location value; the backend owns matching, ambiguity handling, and availability validation.
 - The backend may return `meta.uiAction` or `meta.uiActions` for guided controls. Supported UI action types include `choice`, `tour_selection`, `date_picker`, `participant_count`, `transportation_selection`, and `reservation_confirmation`.
 - The backend may return `meta.uiAction.type === "participant_count"` with `min`, `max`, and numeric `options`; the UI renders this as a select control and sends the selected number back as the next chat message.
 - After participant count is selected, the backend may include `meta.participants`; the UI preserves it in chat-level `conversationMeta` so later backend turns can reuse it.

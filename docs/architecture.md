@@ -99,14 +99,24 @@ Conversation hydration uses:
 1. `birdwatchingAI.chatState` from `localStorage`
 2. the stored `conversationId`, `customerContext`, and optional cached transcript
 3. `loadConversationMessages(...)` when a conversation ID exists but no local transcript is cached
-4. backend response data containing `conversationId` and `messages`
-5. replacement of local state with backend-loaded messages
+4. `loadLatestConversation(...)` when an authenticated user has no scoped local cache
+5. backend response data containing `conversationId`, `messages`, and optional chat-level metadata
+6. replacement of local state with backend-loaded messages
+
+Billing checkout and management use:
+1. account menu actions in `App.jsx`
+2. `createCheckoutSession(...)` or `createCustomerPortalSession(...)` from `src/api/billingApi.js`
+3. authenticated `POST /billing/checkout` or `POST /billing/portal`
+4. backend provider selection through its billing provider registry
+5. browser redirects to provider-neutral `paymentUrl` or `managementUrl` values
+
+The UI does not store billing provider customer IDs, subscription IDs, product IDs, price IDs, SKUs, or secrets. Stripe may be the backend's first provider adapter, but the frontend boundary remains provider-neutral.
 
 Development proxying uses:
 1. empty `VITE_API_URL` in local `.env`
-2. relative calls from `src/api/authApi.js`, `src/api/chatApi.js`, `src/api/voiceChatApi.js`, `src/api/birdIdentificationApi.js`, and `src/api/mediaApi.js`
-3. Vite proxy rules for `/auth`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/addons`, and `/files`
-4. `VITE_API_PROXY_TARGET` as the backend origin
+2. relative calls from the adapters under `src/api/`
+3. Vite proxy rules for `/auth`, `/billing`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files`
+4. proxy target selection from `VITE_API_URL`, then `VITE_API_PROXY_TARGET`, then `http://localhost:3000`
 
 Bird identification rendering uses:
 1. `birdIdentificationApi` to preserve the normalized backend envelope fields, including `status`, `bestMatch`, rich `imageAnalysis`, compatibility `imageObservations`, `candidates`, `notes`, and `meta`
@@ -136,6 +146,7 @@ The UI state is intentionally small:
 - Error handling is split between user-friendly inline assistant fallback text and a page-level alert.
 - Dark mode and responsive behavior use CSS custom properties and media queries.
 - Network contract drift should be caught in `src/api/chatApi.js`, not in presentational components.
+- Billing contract drift should be caught in `src/api/billingApi.js`; components should consume provider-neutral payment and management URLs.
 - Voice chat contract drift should be caught in `src/api/voiceChatApi.js`, including envelope validation and relative audio URL resolution.
 - Bird identification contract drift should be caught in `src/api/birdIdentificationApi.js`; components should receive already-normalized result fields.
 - Relative bird media paths from RAG metadata should be resolved in `src/api/mediaApi.js` and consumed through hooks, keeping media endpoint details out of presentational markup.

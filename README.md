@@ -46,6 +46,11 @@ Runtime endpoints used by the browser:
 - `POST /auth/login`
 - `POST /auth/refresh`
 - `POST /auth/logout`
+- `PATCH /auth/profile`
+- `POST /auth/profile-image`
+- `POST /billing/checkout`
+- `POST /billing/portal`
+- `GET /billing/usage`
 - `GET /cart`
 - `POST /cart/items`
 - `PATCH /cart/items/:itemId`
@@ -54,6 +59,8 @@ Runtime endpoints used by the browser:
 - `POST /cart/reservations`
 - `POST /chat`
 - `POST /voice-chat`
+- `POST /birds/identify`
+- `GET /jobs/:id`
 - `GET /chat/latest`
 - `GET /chat/:conversationId`
 - `GET /homepage/hero`
@@ -66,9 +73,9 @@ Runtime endpoints used by the browser:
 The deployed static server also exposes:
 - `GET /health`
 
-Local development note: the current Vite proxy includes `/auth`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/addons`, and `/files`.
+Local development note: the current Vite proxy includes `/auth`, `/billing`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files`.
 
-The backend remains the source of truth for OpenAI, speech-to-text, text-to-speech, RAG, tour tools, discounts, reservations, PostgreSQL persistence, and private media storage. This frontend stores only UI conversation state, customer context entered by the user, and a local transcript cache in `localStorage`. When the user records voice, the browser captures audio with `MediaRecorder`, converts it to WAV before upload because the backend accepts MP3/WAV raw audio, and sends it to `POST /voice-chat` with conversation context headers and `X-Response-Mode: field_assistant`. The backend returns the transcript, assistant answer, and a relative `/files/voice-chat/...` MP3 URL; the UI resolves that URL through `mediaApi.js` and renders playable assistant audio. When the backend returns guided action metadata, the UI renders choice/select buttons that send natural-language follow-up messages. When the backend returns reservation metadata for a confirmed booking, the UI renders a styled reservation confirmation card and keeps the assistant message visible. When the backend returns RAG bird profile matches in `done.meta.birdMatches`, the UI can render bird photos, songs, and sonograms. Absolute media URLs are rendered directly; relative media keys are rendered as CloudFront URLs when `VITE_CLOUDFRONT_BASE_URL` is configured, otherwise they are resolved through `GET /files/:folderName/:filename`, which returns a normalized envelope containing `data.url`.
+The backend remains the source of truth for OpenAI, speech-to-text, text-to-speech, RAG, tour tools, discounts, reservations, billing providers, PostgreSQL persistence, and private media storage. This frontend stores only UI conversation state, customer context entered by the user, and a local transcript cache in `localStorage`. Billing UI calls `src/api/billingApi.js` and redirects to backend-returned provider-hosted `paymentUrl` or `managementUrl` values without hard-coding provider objects. When the user records voice, the browser captures audio with `MediaRecorder`, converts it to WAV before upload because the backend accepts MP3/WAV raw audio, and sends it to `POST /voice-chat` with conversation context headers and `X-Response-Mode: field_assistant`. The backend returns the transcript, assistant answer, and a relative `/files/voice-chat/...` MP3 URL; the UI resolves that URL through `mediaApi.js` and renders playable assistant audio. When the backend returns guided action metadata, the UI renders choice/select buttons that send natural-language follow-up messages. When the backend returns reservation metadata for a confirmed booking, the UI renders a styled reservation confirmation card and keeps the assistant message visible. When the backend returns RAG bird profile matches in `done.meta.birdMatches`, the UI can render bird photos, songs, and sonograms. Absolute media URLs are rendered directly; relative media keys are rendered as CloudFront URLs when `VITE_CLOUDFRONT_BASE_URL` is configured, otherwise they are resolved through `GET /files/:folderName/:filename`, which returns a normalized envelope containing `data.url`.
 
 ## Scripts
 ```bash
@@ -97,10 +104,10 @@ Required Railway variable:
 VITE_API_URL=https://your-api-service.up.railway.app
 ```
 
-Replace the value with the public URL of the backend that serves the `/chat` API. The backend must include the deployed frontend origin in its `CORS_ORIGINS` allowlist. For custom domains or extra preview hosts, set:
+Replace the value with the public URL of the backend API. The backend must include the deployed frontend origin in its `CORS_ORIGINS` allowlist. For custom domains or extra preview hosts, set:
 ```bash
 ALLOWED_HOSTS=example.com,www.example.com
 ```
 
 ## Current UI Shape
-The app currently renders one product surface: a customer context form followed by the chat screen. It does not use React Router. If routing is added later, preserve the existing chat route as the primary product surface and keep SPA fallback behavior in deployment.
+The app currently renders a one-screen product surface: a homepage entry point for tours, bird highlights, add-ons, login, visitor chat, authenticated chat, cart/My Tours, billing actions, and bird identification. Chat opens inside the same app shell and, for authenticated users, collects customer context before the transcript. It does not use React Router. If routing is added later, preserve the current homepage/chat surface and keep SPA fallback behavior in deployment.

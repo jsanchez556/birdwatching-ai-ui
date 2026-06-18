@@ -32,6 +32,10 @@ export default defineConfig(({ mode }) => {
           target: proxyTarget,
           changeOrigin: true
         },
+        '/billing': {
+          target: proxyTarget,
+          changeOrigin: true
+        },
         '/chat': {
           target: proxyTarget,
           changeOrigin: true

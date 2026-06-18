@@ -15,19 +15,26 @@ function HomePage({
   authActionLabel,
   cartCount = 0,
   cartItemsByTourId = {},
+  billingError = null,
   isCartEnabled = false,
   isAuthenticated = false,
+  isBillingLoading = false,
   onAddTourToCart,
   onAuthAction,
   onOpenBirdIdentification,
   onOpenCart,
   onOpenMyTours,
   onLogin,
+  onManageBilling,
   onRemoveTourFromCart,
+  onUpdateProfile,
+  onUpdateProfileImage,
+  onUpgradePlan,
   removingTourIds = [],
   onReserveTour,
   reservingTourIds = [],
   onStartChat,
+  user,
 }) {
   const {
     tours,
@@ -42,13 +49,20 @@ function HomePage({
     <main id="home" className="home-page">
       <HomeHeader
         authActionLabel={authActionLabel}
+        billingError={billingError}
         cartCount={cartCount}
         isAuthenticated={isAuthenticated}
+        isBillingLoading={isBillingLoading}
         onAuthAction={onAuthAction || onLogin}
         onOpenBirdIdentification={onOpenBirdIdentification}
         onOpenCart={onOpenCart}
         onOpenMyTours={onOpenMyTours}
         onStartChat={onStartChat}
+        onManageBilling={onManageBilling}
+        onUpdateProfile={onUpdateProfile}
+        onUpdateProfileImage={onUpdateProfileImage}
+        onUpgradePlan={onUpgradePlan}
+        user={user}
       />
       <HeroSection
         heroVideo={hero?.heroVideo}

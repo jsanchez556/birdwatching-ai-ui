@@ -1,12 +1,21 @@
 import { act, renderHook } from '@testing-library/react'
 import useAuth from '../useAuth'
-import { login, logoutSession, refreshSession, signup } from '../../api/authApi'
+import {
+  login,
+  logoutSession,
+  refreshSession,
+  signup,
+  updateProfile,
+  updateProfileImage,
+} from '../../api/authApi'
 
 jest.mock('../../api/authApi', () => ({
   login: jest.fn(),
   logoutSession: jest.fn(),
   refreshSession: jest.fn(),
   signup: jest.fn(),
+  updateProfile: jest.fn(),
+  updateProfileImage: jest.fn(),
 }))
 
 describe('useAuth', () => {
@@ -24,6 +33,7 @@ describe('useAuth', () => {
         id: 'user-1',
         email: 'ana@example.com',
         name: 'Ana Gomez',
+        imageUrl: '/files/user-profile-images/user-1.png',
       },
     }))
 
@@ -37,6 +47,8 @@ describe('useAuth', () => {
       email: 'ana@example.com',
       name: 'Ana Gomez',
       role: 'customer',
+      plan: 'FREE',
+      imageUrl: '/files/user-profile-images/user-1.png',
     })
   })
 
@@ -123,6 +135,83 @@ describe('useAuth', () => {
     expect(logoutSession).toHaveBeenCalledWith('stored-refresh-token')
   })
 
+  test('updates and persists safe profile fields', async () => {
+    window.localStorage.setItem('birdwatchingAI.authState', JSON.stringify({
+      token: 'stored-token',
+      refreshToken: 'stored-refresh-token',
+      accessTokenExpiresAt: '2099-01-01T00:00:00.000Z',
+      user: {
+        id: 'user-1',
+        email: 'ana@example.com',
+        name: 'Ana Gomez',
+      },
+    }))
+    updateProfile.mockResolvedValue({
+      user: {
+        id: 'user-1',
+        email: 'ana@example.com',
+        name: 'Ana Maria',
+        role: 'customer',
+        plan: 'PRO',
+        imageUrl: '/files/user-profile-images/user-1.png',
+      },
+    })
+
+    const { result } = renderHook(() => useAuth())
+
+    await act(async () => {
+      await result.current.updateProfile({ name: 'Ana Maria' })
+    })
+
+    expect(updateProfile).toHaveBeenCalledWith({
+      token: 'stored-token',
+      name: 'Ana Maria',
+    })
+    expect(result.current.user).toMatchObject({
+      name: 'Ana Maria',
+      imageUrl: '/files/user-profile-images/user-1.png',
+    })
+    expect(JSON.parse(window.localStorage.getItem('birdwatchingAI.authState'))).toMatchObject({
+      user: {
+        name: 'Ana Maria',
+        imageUrl: '/files/user-profile-images/user-1.png',
+      },
+    })
+  })
+
+  test('updates profile images through the authenticated API', async () => {
+    window.localStorage.setItem('birdwatchingAI.authState', JSON.stringify({
+      token: 'stored-token',
+      refreshToken: 'stored-refresh-token',
+      accessTokenExpiresAt: '2099-01-01T00:00:00.000Z',
+      user: {
+        id: 'user-1',
+        email: 'ana@example.com',
+      },
+    }))
+    const file = new File(['profile'], 'profile.png', { type: 'image/png' })
+    updateProfileImage.mockResolvedValue({
+      user: {
+        id: 'user-1',
+        email: 'ana@example.com',
+        name: 'Ana Gomez',
+        imageUrl: '/files/user-profile-images/user-1.png',
+      },
+    })
+
+    const { result } = renderHook(() => useAuth())
+
+    await act(async () => {
+      await result.current.updateProfileImage({ file })
+    })
+
+    expect(updateProfileImage).toHaveBeenCalledWith({
+      token: 'stored-token',
+      file,
+    })
+    expect(result.current.user.imageUrl).toBe('/files/user-profile-images/user-1.png')
+  })
+
   test('refreshes an expiring access token', async () => {
     window.localStorage.setItem('birdwatchingAI.authState', JSON.stringify({
       token: 'stored-token',
@@ -157,6 +246,47 @@ describe('useAuth', () => {
     expect(JSON.parse(window.localStorage.getItem('birdwatchingAI.authState'))).toMatchObject({
       token: 'fresh-token',
       refreshToken: 'fresh-refresh-token',
+    })
+  })
+
+  test('force-refreshes the current user session after account changes', async () => {
+    window.localStorage.setItem('birdwatchingAI.authState', JSON.stringify({
+      token: 'stored-token',
+      refreshToken: 'stored-refresh-token',
+      accessTokenExpiresAt: '2099-01-01T00:00:00.000Z',
+      user: {
+        id: 'user-1',
+        email: 'ana@example.com',
+        plan: 'FREE',
+      },
+    }))
+    refreshSession.mockResolvedValue({
+      token: 'fresh-token',
+      refreshToken: 'fresh-refresh-token',
+      accessTokenExpiresAt: '2099-01-01T00:00:00.000Z',
+      refreshTokenExpiresAt: '2099-02-01T00:00:00.000Z',
+      user: {
+        id: 'user-1',
+        email: 'ana@example.com',
+        role: 'customer',
+        plan: 'PRO',
+      },
+    })
+
+    const { result } = renderHook(() => useAuth())
+
+    await act(async () => {
+      await result.current.refreshCurrentUser()
+    })
+
+    expect(refreshSession).toHaveBeenCalledWith('stored-refresh-token')
+    expect(result.current.user.plan).toBe('PRO')
+    expect(JSON.parse(window.localStorage.getItem('birdwatchingAI.authState'))).toMatchObject({
+      token: 'fresh-token',
+      refreshToken: 'fresh-refresh-token',
+      user: {
+        plan: 'PRO',
+      },
     })
   })
 

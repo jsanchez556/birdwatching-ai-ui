@@ -34,27 +34,35 @@ Useful for Railway preview host validation:
 Do not commit `.env` files. Frontend variables are public once built, so never place secrets in `VITE_` variables.
 
 ## Local Development Proxy
-When `VITE_API_URL` is empty, `src/api/chatApi.js` sends relative requests:
+When `VITE_API_URL` is empty, the adapters under `src/api/` send relative requests:
 ```text
 /auth/signup
 /auth/login
 /auth/refresh
 /auth/logout
+/auth/profile
+/auth/profile-image
+/billing/checkout
+/billing/portal
+/billing/usage
 /cart
 /cart/items
 /cart/reservations
 /chat
 /voice-chat
 /chat/:conversationId
+/chat/latest
 /homepage/hero
 /tours
+/birds/identify
 /birds/highlights
 /birds/profile
+/jobs/:id
 /addons/transportation
 /files/:folderName/:filename
 ```
 
-`vite.config.js` proxies `/auth`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/addons`, and `/files` to `VITE_API_PROXY_TARGET`. This avoids local CORS issues and lets the backend keep production CORS rules strict. `/files` is used to exchange relative RAG bird media keys and voice response audio paths for backend-issued media URLs when `VITE_CLOUDFRONT_BASE_URL` is empty; the frontend still does not store bucket credentials.
+`vite.config.js` proxies `/auth`, `/billing`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files` to `VITE_API_URL`, then `VITE_API_PROXY_TARGET`, then `http://localhost:3000`. This avoids local CORS issues and lets the backend keep production CORS rules strict. `/files` is used to exchange relative RAG bird media keys and voice response audio paths for backend-issued media URLs when `VITE_CLOUDFRONT_BASE_URL` is empty; the frontend still does not store bucket credentials.
 
 ## Railway
 `railway.json` uses Nixpacks and runs from the repository root:
@@ -71,6 +79,7 @@ Backend deployment expectations:
 - backend `OPENAI_API_KEY`, `DATABASE_URL`, and `JWT_SECRET` must be configured in the backend service, not the frontend service
 - backend database migrations must be applied before chat memory, tour tools, or reservations are reliable
 - backend `CORS_ORIGINS` should include the Railway frontend domain or custom frontend domain
+- backend billing provider variables, webhook secrets, storage credentials, Redis, and worker configuration belong only in the backend service
 
 ## Static Server
 `server.js` is a small Node static file server that can serve `dist/`, fallback to `index.html`, log JSON request metadata, and answer `GET /health`.
@@ -90,5 +99,6 @@ Also verify:
 - `VITE_API_URL` points to the intended backend
 - the backend allows the frontend origin through `CORS_ORIGINS`
 - the backend has run chat and tour reservation migrations before reservation testing
+- the backend API and worker services are deployed when testing bird identification job polling
 - `ALLOWED_HOSTS` includes any custom preview host if needed
 - no frontend build output contains backend secrets
