@@ -33,6 +33,7 @@ This repository is a single React/Vite frontend for Costa Rica birdwatching assi
 - UI copy and prompt-adjacent guidance: [docs/prompting.md](./docs/prompting.md)
 - Conversation state behavior: [docs/memory.md](./docs/memory.md)
 - Deployment and environment: [docs/deployment.md](./docs/deployment.md)
+- Product analytics and event ownership: [docs/analytics.md](./docs/analytics.md)
 - Frontend implementation rules: [docs/frontend-guidelines.md](./docs/frontend-guidelines.md)
 - Historical AI prompts: [docs/development_prompts/README.md](./docs/development_prompts/README.md)
 

@@ -31,6 +31,11 @@ Useful for local development:
 Useful for Railway preview host validation:
 - `ALLOWED_HOSTS`: comma-separated extra hosts for Vite preview
 
+Optional product analytics:
+- `VITE_POSTHOG_ENABLED`: set to `true` to allow consent-gated PostHog initialization
+- `VITE_POSTHOG_KEY`: public PostHog project key
+- `VITE_POSTHOG_HOST`: PostHog ingest host; defaults to `https://us.i.posthog.com`
+
 Do not commit `.env` files. Frontend variables are public once built, so never place secrets in `VITE_` variables.
 
 ## Local Development Proxy

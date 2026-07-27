@@ -8,6 +8,7 @@ import {
   updateProfile,
   updateProfileImage,
 } from '../../api/authApi'
+import analytics from '../../analytics/analytics'
 
 jest.mock('../../api/authApi', () => ({
   login: jest.fn(),
@@ -16,6 +17,14 @@ jest.mock('../../api/authApi', () => ({
   signup: jest.fn(),
   updateProfile: jest.fn(),
   updateProfileImage: jest.fn(),
+}))
+
+jest.mock('../../analytics/analytics', () => ({
+  __esModule: true,
+  default: {
+    identify: jest.fn(),
+    reset: jest.fn(),
+  },
 }))
 
 describe('useAuth', () => {
@@ -82,6 +91,10 @@ describe('useAuth', () => {
         email: 'ana@example.com',
       },
     })
+    expect(analytics.identify).toHaveBeenCalledWith('user-1', {
+      role: 'customer',
+      plan: 'FREE',
+    })
   })
 
   test('persists signup results', async () => {
@@ -133,6 +146,7 @@ describe('useAuth', () => {
     expect(result.current.isAuthenticated).toBe(false)
     expect(window.localStorage.getItem('birdwatchingAI.authState')).toBeNull()
     expect(logoutSession).toHaveBeenCalledWith('stored-refresh-token')
+    expect(analytics.reset).toHaveBeenCalledTimes(1)
   })
 
   test('updates and persists safe profile fields', async () => {

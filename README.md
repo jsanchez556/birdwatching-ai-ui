@@ -10,6 +10,7 @@ React 18 + Vite frontend for the Birdwatching AI chat experience. The app collec
 - UI prompting and copy: [docs/prompting.md](./docs/prompting.md)
 - Conversation state: [docs/memory.md](./docs/memory.md)
 - Deployment: [docs/deployment.md](./docs/deployment.md)
+- Product analytics: [docs/analytics.md](./docs/analytics.md)
 - Frontend implementation rules: [docs/frontend-guidelines.md](./docs/frontend-guidelines.md)
 
 ## Stack
@@ -30,6 +31,9 @@ Create a local `.env` file with public frontend variables only:
 VITE_API_URL=
 VITE_API_PROXY_TARGET=http://localhost:3000
 VITE_CLOUDFRONT_BASE_URL=
+VITE_POSTHOG_ENABLED=false
+VITE_POSTHOG_KEY=
+VITE_POSTHOG_HOST=https://us.i.posthog.com
 ```
 
 Leaving `VITE_API_URL` empty in local development makes the browser call relative backend URLs, which Vite proxies to `VITE_API_PROXY_TARGET` for the configured proxy paths. This avoids local CORS issues while developing against the backend.

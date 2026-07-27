@@ -2,6 +2,7 @@ const DEFAULT_PATH = '/'
 const DEFAULT_SAME_SITE = 'Lax'
 const COOKIE_CONSENT_COOKIE = 'birdwatchingAI.cookieConsent'
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
+const CONSENT_CHANGED_EVENT = 'birdwatching:consent-changed'
 
 const defaultConsent = {
   choice: null, // 'accepted' | 'declined' | 'customize'
@@ -168,6 +169,9 @@ function writeConsent(next) {
   writeJsonCookie(COOKIE_CONSENT_COOKIE, payload, {
     maxAge: COOKIE_MAX_AGE_SECONDS,
   })
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    window.dispatchEvent(new CustomEvent(CONSENT_CHANGED_EVENT, { detail: payload }))
+  }
   return payload
 }
 

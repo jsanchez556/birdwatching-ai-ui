@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import analytics from '../analytics/analytics'
 import {
   login as loginRequest,
   logoutSession,
@@ -93,6 +94,15 @@ export default function useAuth() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
 
+  useEffect(() => {
+    if (user?.id && user.role !== 'visitor') {
+      analytics.identify(user.id, {
+        role: user.role || 'customer',
+        plan: user.plan || 'FREE',
+      })
+    }
+  }, [user?.id, user?.plan, user?.role])
+
   const applyAuthResult = useCallback((result) => {
     setUser(result.user)
     setToken(result.token)
@@ -125,6 +135,7 @@ export default function useAuth() {
   }, [accessTokenExpiresAt, refreshToken, refreshTokenExpiresAt, token])
 
   const clearSession = useCallback((message = null) => {
+    analytics.reset()
     setUser(null)
     setToken(null)
     setRefreshToken(null)

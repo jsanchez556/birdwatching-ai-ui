@@ -7,6 +7,8 @@ import LoginModal from './components/home/LoginModal'
 import MyToursDrawer from './components/home/MyToursDrawer'
 import TourCartDrawer from './components/home/TourCartDrawer'
 import { createCheckoutSession, createCustomerPortalSession } from './api/billingApi'
+import analytics from './analytics/analytics'
+import { ANALYTICS_EVENTS } from './analytics/events'
 import useAuth from './hooks/useAuth'
 import useCart from './hooks/useCart'
 import useChat from './hooks/useChat'
@@ -59,6 +61,17 @@ function compactObject(value) {
   return Object.fromEntries(
     Object.entries(value).filter(([, item]) => item !== undefined && item !== null && item !== '')
   )
+}
+
+function trackChatStarted({ plan, source, userType }) {
+  analytics.track({
+    event: ANALYTICS_EVENTS.CHAT_STARTED,
+    properties: {
+      plan,
+      source,
+      userType,
+    },
+  })
 }
 
 function summarizeTour(tour) {
@@ -370,6 +383,11 @@ function App() {
 
     setChatEntry(null)
     setIsChatDrawerOpen(true)
+    trackChatStarted({
+      plan: auth.user?.plan || (auth.isAuthenticated ? 'FREE' : 'VISITOR'),
+      source: 'homepage',
+      userType: auth.isAuthenticated ? 'authenticated' : 'visitor',
+    })
   }
 
   const openLogin = () => {
@@ -494,6 +512,11 @@ function App() {
       }))
       setIsCartDrawerOpen(false)
       setIsChatDrawerOpen(true)
+      trackChatStarted({
+        plan: auth.user?.plan || 'FREE',
+        source: 'featured_tour',
+        userType: 'authenticated',
+      })
     } catch {
       setIsChatDrawerOpen(true)
     } finally {
@@ -521,6 +544,11 @@ function App() {
     }))
     setIsCartDrawerOpen(false)
     setIsChatDrawerOpen(true)
+    trackChatStarted({
+      plan: auth.user?.plan || 'FREE',
+      source: 'tour_cart',
+      userType: 'authenticated',
+    })
   }
 
   const handleRemoveTourFromCart = async (tour) => {
@@ -572,6 +600,11 @@ function App() {
     auth.enterAsVisitor()
     setIsLoginModalOpen(false)
     setIsChatDrawerOpen(true)
+    trackChatStarted({
+      plan: 'VISITOR',
+      source: 'login_modal',
+      userType: 'visitor',
+    })
   }
 
   const authActionLabel = auth.isAuthenticated
