@@ -3,12 +3,15 @@ import posthogProvider from './posthog'
 
 const CONSENT_CHANGED_EVENT = 'birdwatching:consent-changed'
 const BLOCKED_PROPERTY_PATTERN = /(authorization|customer|email|message|name|password|prompt|provider.*id|response|secret|session.*id|token)/i
+const SERVICE_NAME = 'birdwatching-ai-ui'
 
 function analyticsConfig() {
   return {
     enabled: import.meta.env.VITE_POSTHOG_ENABLED === 'true',
+    environment: import.meta.env.MODE || 'unknown',
     key: import.meta.env.VITE_POSTHOG_KEY || '',
     host: import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
+    service: SERVICE_NAME,
   }
 }
 
@@ -151,7 +154,14 @@ export function createAnalytics({
 
       if ((initializeProvider() || initialized) && trackingAllowed) {
         try {
-          provider.track(event.trim(), compactSafeProperties(properties))
+          const config = getConfig()
+          provider.track(event.trim(), {
+            ...compactSafeProperties(properties),
+            ...compactSafeProperties({
+              environment: config.environment,
+              service: config.service,
+            }),
+          })
         } catch {
           // Capture is best-effort.
         }

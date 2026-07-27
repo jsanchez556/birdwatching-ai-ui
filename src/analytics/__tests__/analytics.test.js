@@ -20,8 +20,10 @@ describe('frontend analytics abstraction', () => {
       eventTarget,
       getConfig: () => ({
         enabled: true,
+        environment: 'development',
         key: 'phc_test',
         host: 'https://posthog.example.test',
+        service: 'birdwatching-ai-ui',
       }),
       hasConsent: () => hasConsent,
     })
@@ -35,8 +37,10 @@ describe('frontend analytics abstraction', () => {
 
     expect(provider.initialize).toHaveBeenCalledWith({
       enabled: true,
+      environment: 'development',
       key: 'phc_test',
       host: 'https://posthog.example.test',
+      service: 'birdwatching-ai-ui',
     })
     expect(provider.setTrackingAllowed).toHaveBeenCalledWith(true)
   })
@@ -48,7 +52,13 @@ describe('frontend analytics abstraction', () => {
     const analytics = createAnalytics({
       provider,
       eventTarget,
-      getConfig: () => ({ enabled: true, key: 'phc_test', host: 'https://posthog.test' }),
+      getConfig: () => ({
+        enabled: true,
+        environment: 'development',
+        key: 'phc_test',
+        host: 'https://posthog.test',
+        service: 'birdwatching-ai-ui',
+      }),
       hasConsent: () => hasConsent,
     })
 
@@ -69,7 +79,13 @@ describe('frontend analytics abstraction', () => {
     const analytics = createAnalytics({
       provider,
       eventTarget: null,
-      getConfig: () => ({ enabled: true, key: 'phc_test', host: 'https://posthog.test' }),
+      getConfig: () => ({
+        enabled: true,
+        environment: 'development',
+        key: 'phc_test',
+        host: 'https://posthog.test',
+        service: 'birdwatching-ai-ui',
+      }),
       hasConsent: () => true,
     })
 
@@ -77,8 +93,9 @@ describe('frontend analytics abstraction', () => {
     analytics.track({
       event: 'chat_started',
       properties: {
-        conversationId: 'conversation-1',
-        recommendationCount: 2,
+        plan: 'PRO',
+        source: 'homepage',
+        userType: 'authenticated',
         message: 'private chat text',
         nested: { private: true },
       },
@@ -86,8 +103,11 @@ describe('frontend analytics abstraction', () => {
     analytics.reset()
 
     expect(provider.track).toHaveBeenCalledWith('chat_started', {
-      conversationId: 'conversation-1',
-      recommendationCount: 2,
+      environment: 'development',
+      plan: 'PRO',
+      service: 'birdwatching-ai-ui',
+      source: 'homepage',
+      userType: 'authenticated',
     })
     expect(provider.reset).toHaveBeenCalledTimes(1)
   })

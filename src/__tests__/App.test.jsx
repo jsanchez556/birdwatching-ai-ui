@@ -30,6 +30,12 @@ jest.mock('../hooks/useResolvedMediaUrl', () => {
     })),
   }
 })
+jest.mock('../analytics/analytics', () => ({
+  __esModule: true,
+  default: {
+    track: jest.fn(),
+  },
+}))
 
 const App = require('../App').default
 const useAuth = require('../hooks/useAuth').default
@@ -37,6 +43,7 @@ const useChat = require('../hooks/useChat').default
 const useCart = require('../hooks/useCart').default
 const useHomeContent = require('../hooks/useHomeContent').default
 const useResolvedMediaUrl = require('../hooks/useResolvedMediaUrl').default
+const analytics = require('../analytics/analytics').default
 
 describe('App authentication flow', () => {
   beforeEach(() => {
@@ -1028,5 +1035,13 @@ describe('App authentication flow', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Start Birdwatching Chat/i })[0])
 
     expect(enterAsVisitor).toHaveBeenCalledTimes(1)
+    expect(analytics.track).toHaveBeenCalledWith({
+      event: 'chat_started',
+      properties: {
+        plan: 'VISITOR',
+        source: 'homepage',
+        userType: 'visitor',
+      },
+    })
   })
 })

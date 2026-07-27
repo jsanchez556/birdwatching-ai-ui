@@ -17,12 +17,29 @@ of capture.
 
 | Event | Trigger | Properties |
 |---|---|---|
-| `chat_started` | A homepage, login-modal, featured-tour, or cart action opens chat | `plan`, `source`, `userType` |
+| `chat_started` | A homepage, login-modal, featured-tour, or cart action opens chat | `environment`, `service`, `plan`, `source`, `userType` |
 
 Backend events such as `chat_message_sent`, `tour_recommended`,
 `reservation_completed`, and `subscription_activated` are documented in the
 API repository. The browser does not infer business outcomes from assistant
 text, redirects, or checkout return URLs.
+
+## Booking Funnel
+
+In PostHog, create an ordered unique-user funnel:
+
+```text
+chat_started
+  -> tour_recommended
+  -> reservation_started
+  -> reservation_completed
+```
+
+Filter every step to the same `environment` being evaluated. Use `plan` and
+`source` for cohort breakdowns. The `featured_tour` and `tour_cart`
+chat entry sources begin with a preselected tour and can legitimately skip
+`tour_recommended`; keep those direct-booking entries separate when measuring
+the tour-discovery funnel.
 
 ## Privacy
 
