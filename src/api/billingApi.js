@@ -8,8 +8,30 @@ import {
   validateEnvelope,
 } from './http'
 
+const BILLING_REQUEST_TIMEOUT_MS = 15_000
+
+async function billingRequest(path, options) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), BILLING_REQUEST_TIMEOUT_MS)
+
+  try {
+    return await fetch(apiUrl(path), {
+      ...options,
+      signal: controller.signal,
+    })
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('Billing took too long to respond. Please try again.')
+    }
+
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
 export async function createCheckoutSession({ token, provider, plan } = {}) {
-  const response = await fetch(apiUrl('/billing/checkout'), {
+  const response = await billingRequest('/billing/checkout', {
     method: 'POST',
     headers: {
       ...JSON_HEADERS,
@@ -38,7 +60,7 @@ export async function createCheckoutSession({ token, provider, plan } = {}) {
 }
 
 export async function createCustomerPortalSession({ token, provider } = {}) {
-  const response = await fetch(apiUrl('/billing/portal'), {
+  const response = await billingRequest('/billing/portal', {
     method: 'POST',
     headers: {
       ...JSON_HEADERS,
@@ -65,7 +87,7 @@ export async function createCustomerPortalSession({ token, provider } = {}) {
 }
 
 export async function getBillingUsage({ token } = {}) {
-  const response = await fetch(apiUrl('/billing/usage'), {
+  const response = await billingRequest('/billing/usage', {
     method: 'GET',
     headers: authHeaders(token),
   })
@@ -84,3 +106,5 @@ export async function getBillingUsage({ token } = {}) {
     monthlyRequests: Number(data.data.monthlyRequests || 0),
   }
 }
+
+export { BILLING_REQUEST_TIMEOUT_MS }

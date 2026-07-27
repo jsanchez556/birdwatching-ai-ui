@@ -42,6 +42,7 @@ describe('App authentication flow', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     window.localStorage.clear()
+    window.history.replaceState({}, '', '/')
     useHomeContent.mockReturnValue({
       hero: null,
       tours: [],
@@ -130,7 +131,85 @@ describe('App authentication flow', () => {
       expect(refreshCurrentUser).toHaveBeenCalledTimes(1)
     })
 
-    window.history.pushState({}, '', '/')
+    expect(screen.getByText(/Subscription confirmed/i)).toBeInTheDocument()
+    expect(window.location.search).toBe('')
+  })
+
+  test('keeps billing actions enabled while the plan refresh completes', async () => {
+    let resolveRefresh
+    const refreshCurrentUser = jest.fn(() => new Promise((resolve) => {
+      resolveRefresh = resolve
+    }))
+    const initialAuth = {
+      isAuthenticated: true,
+      isVisitor: false,
+      isLoading: false,
+      error: null,
+      user: {
+        id: 'user-1',
+        email: 'ana@example.com',
+        name: 'Ana',
+        plan: 'FREE',
+      },
+      getValidToken: jest.fn(),
+      refreshCurrentUser,
+      logout: jest.fn(),
+    }
+    window.history.pushState({}, '', '/?billing=success')
+    useAuth.mockReturnValue(initialAuth)
+
+    const { rerender } = render(<App />)
+
+    await waitFor(() => {
+      expect(refreshCurrentUser).toHaveBeenCalledTimes(1)
+    })
+
+    fireEvent.click(screen.getByRole('button', {
+      name: /manage account for ana, ana@example.com/i,
+    }))
+    expect(screen.getByRole('button', { name: /upgrade to pro/i })).toBeEnabled()
+
+    useAuth.mockReturnValue({
+      ...initialAuth,
+      refreshCurrentUser: jest.fn(),
+    })
+    rerender(<App />)
+
+    await act(async () => {
+      resolveRefresh(initialAuth.user)
+    })
+
+    expect(screen.getByRole('button', { name: /upgrade to pro/i })).toBeEnabled()
+  })
+
+  test('shows a non-error notice after cancelled checkout without refreshing the user', () => {
+    const refreshCurrentUser = jest.fn()
+    window.history.pushState({}, '', '/?billing=cancelled')
+    useAuth.mockReturnValue({
+      isAuthenticated: true,
+      isVisitor: false,
+      isLoading: false,
+      error: null,
+      user: {
+        id: 'user-1',
+        email: 'ana@example.com',
+        name: 'Ana',
+        plan: 'FREE',
+      },
+      getValidToken: jest.fn(),
+      refreshCurrentUser,
+      logout: jest.fn(),
+    })
+
+    render(<App />)
+
+    expect(screen.getByText(/Checkout cancelled/i)).toBeInTheDocument()
+    expect(screen.getByText(/No changes were made/i)).toBeInTheDocument()
+    expect(refreshCurrentUser).not.toHaveBeenCalled()
+    expect(window.location.search).toBe('')
+
+    fireEvent.click(screen.getByRole('button', { name: /dismiss billing notification/i }))
+    expect(screen.queryByText(/Checkout cancelled/i)).not.toBeInTheDocument()
   })
 
   test('renders homepage hero video when content provides one', () => {

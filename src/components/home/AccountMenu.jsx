@@ -292,7 +292,7 @@ function AccountMenu({
                       disabled={isBillingLoading}
                       onClick={handleManageBilling}
                     >
-                      {isBillingLoading ? 'Opening billing' : 'Manage billing'}
+                      {isBillingLoading ? 'Opening billing portal' : 'Manage billing'}
                     </button>
                   )}
                 </article>

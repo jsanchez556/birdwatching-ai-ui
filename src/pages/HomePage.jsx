@@ -1,4 +1,5 @@
 import BirdHighlights from '../components/home/BirdHighlights'
+import BillingReturnNotice from '../components/home/BillingReturnNotice'
 import ChatbotCTA from '../components/home/ChatbotCTA'
 import CookieConsent from '../components/home/CookieConsent'
 import FeaturedTours from '../components/home/FeaturedTours'
@@ -16,6 +17,7 @@ function HomePage({
   cartCount = 0,
   cartItemsByTourId = {},
   billingError = null,
+  billingReturnStatus = null,
   isCartEnabled = false,
   isAuthenticated = false,
   isBillingLoading = false,
@@ -26,6 +28,7 @@ function HomePage({
   onOpenMyTours,
   onLogin,
   onManageBilling,
+  onDismissBillingReturn,
   onRemoveTourFromCart,
   onUpdateProfile,
   onUpdateProfileImage,
@@ -47,6 +50,10 @@ function HomePage({
 
   return (
     <main id="home" className="home-page">
+      <BillingReturnNotice
+        status={billingReturnStatus}
+        onDismiss={onDismissBillingReturn}
+      />
       <HomeHeader
         authActionLabel={authActionLabel}
         billingError={billingError}

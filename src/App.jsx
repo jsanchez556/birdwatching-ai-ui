@@ -295,8 +295,13 @@ function App() {
   const [removingTourIds, setRemovingTourIds] = useState([])
   const [reservingTourIds, setReservingTourIds] = useState([])
   const [billingError, setBillingError] = useState(null)
+  const [billingReturnStatus, setBillingReturnStatus] = useState(() => {
+    const status = new URLSearchParams(window.location.search).get('billing')
+    return status === 'success' || status === 'cancelled' ? status : null
+  })
   const [isBillingLoading, setIsBillingLoading] = useState(false)
   const hasHandledBillingSuccess = useRef(false)
+  const isAppMounted = useRef(true)
   const auth = useAuth()
   const cartState = useCart({
     isAuthenticated: auth.isAuthenticated && !auth.isVisitor,
@@ -322,8 +327,18 @@ function App() {
     })
   }
 
+  useEffect(() => () => {
+    isAppMounted.current = false
+  }, [])
+
   useEffect(() => {
     const billingStatus = new URLSearchParams(window.location.search).get('billing')
+
+    if (billingStatus === 'success' || billingStatus === 'cancelled') {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('billing')
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+    }
 
     if (
       billingStatus !== 'success'
@@ -336,25 +351,16 @@ function App() {
     }
 
     hasHandledBillingSuccess.current = true
-    let isActive = true
 
     setBillingError(null)
-    setIsBillingLoading(true)
     auth.refreshCurrentUser()
       .catch((error) => {
-        if (isActive) {
+        if (isAppMounted.current) {
           setBillingError(error.message || 'Unable to refresh your plan. Please reload the page.')
         }
       })
-      .finally(() => {
-        if (isActive) {
-          setIsBillingLoading(false)
-        }
-      })
 
-    return () => {
-      isActive = false
-    }
+    return undefined
   }, [auth.isAuthenticated, auth.isVisitor, auth.refreshCurrentUser])
 
   const startChat = () => {
@@ -588,9 +594,11 @@ function App() {
         isAuthenticated={auth.isAuthenticated}
         isBillingLoading={isBillingLoading}
         billingError={billingError}
+        billingReturnStatus={billingReturnStatus}
         onAddTourToCart={handleAddTourToCart}
         onAuthAction={handleHomeAuthAction}
         onManageBilling={handleManageBilling}
+        onDismissBillingReturn={() => setBillingReturnStatus(null)}
         onOpenBirdIdentification={openBirdIdentification}
         onOpenCart={openCart}
         onOpenMyTours={openMyTours}

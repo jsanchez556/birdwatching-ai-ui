@@ -138,6 +138,7 @@ describe('HomeHeader cart and My Tours actions', () => {
 
     expect(screen.getByText('Current plan')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /upgrade to pro/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /downgrade to free/i })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /manage billing/i }))
 
