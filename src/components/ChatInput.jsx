@@ -49,6 +49,7 @@ function ChatInput({
   isRecording = false,
   voiceStatus = 'idle',
   voiceEnabled = true,
+  voiceUnavailableMessage = '',
 }) {
   const [input, setInput] = useState('')
   const [recordingSeconds, setRecordingSeconds] = useState(0)
@@ -156,17 +157,16 @@ function ChatInput({
               disabled={isLoading || isVoiceBusy}
               rows="1"
             />
-            {voiceEnabled && (
-              <button
+            <button
                 type="button"
                 className="voice-button"
                 onClick={handleVoiceClick}
-                disabled={isLoading || isVoiceBusy}
+                disabled={!voiceEnabled || isLoading || isVoiceBusy}
                 aria-label="Start recording voice message"
+                aria-describedby={!voiceEnabled && voiceUnavailableMessage ? 'voice-unavailable-message' : undefined}
               >
                 <MicrophoneIcon />
               </button>
-            )}
             <button
               type="submit"
               className="send-button"
@@ -191,6 +191,11 @@ function ChatInput({
       {voiceStatusLabel && !isRecording && (
         <div className="voice-status" role="status" aria-live="polite">
           {voiceStatusLabel}
+        </div>
+      )}
+      {!voiceEnabled && voiceUnavailableMessage && (
+        <div id="voice-unavailable-message" className="voice-status" role="status">
+          {voiceUnavailableMessage}
         </div>
       )}
     </div>

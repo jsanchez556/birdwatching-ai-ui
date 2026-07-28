@@ -13,11 +13,11 @@ describe('ChatInput', () => {
       .toBeInTheDocument()
   })
 
-  test('hides voice controls when voice AI is disabled', () => {
+  test('disables voice controls when voice AI is disabled', () => {
     render(<ChatInput onSendMessage={jest.fn()} isLoading={false} voiceEnabled={false} />)
 
-    expect(screen.queryByRole('button', { name: /start recording voice message/i }))
-      .not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /start recording voice message/i }))
+      .toBeDisabled()
   })
 
   test('enables send button when user types a message', () => {

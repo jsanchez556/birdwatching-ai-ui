@@ -10,7 +10,7 @@ function UsageChart({ data }) {
       <header className="admin-panel-header">
         <div>
           <p className="admin-eyebrow">AI operations</p>
-          <h2 id="admin-usage-title">AI usage</h2>
+          <h3 id="admin-usage-title">AI usage</h3>
         </div>
         <strong>{countFormatter.format(Number(data?.totals?.requests || 0))} requests</strong>
       </header>

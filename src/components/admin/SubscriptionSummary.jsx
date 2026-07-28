@@ -5,7 +5,12 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 0,
 })
 
-function SubscriptionSummary({ activeSubscriptions = 0, mrr = 0, subscriptions }) {
+function SubscriptionSummary({
+  activeSubscriptions = 0,
+  mrr = 0,
+  subscriptions,
+  showTotals = true,
+}) {
   const rows = Array.isArray(subscriptions?.data) ? subscriptions.data : []
   const statuses = rows.reduce((summary, subscription) => {
     const status = subscription.status || 'unknown'
@@ -18,19 +23,21 @@ function SubscriptionSummary({ activeSubscriptions = 0, mrr = 0, subscriptions }
       <header className="admin-panel-header">
         <div>
           <p className="admin-eyebrow">Billing</p>
-          <h2 id="admin-subscriptions-title">Subscriptions</h2>
+          <h3 id="admin-subscriptions-title">Subscriptions</h3>
         </div>
       </header>
-      <div className="admin-summary-pair">
-        <div>
-          <span>Active</span>
-          <strong>{countFormatter.format(activeSubscriptions)}</strong>
+      {showTotals && (
+        <div className="admin-summary-pair">
+          <div>
+            <span>Active</span>
+            <strong>{countFormatter.format(activeSubscriptions)}</strong>
+          </div>
+          <div>
+            <span>MRR</span>
+            <strong>{currencyFormatter.format(mrr)}</strong>
+          </div>
         </div>
-        <div>
-          <span>MRR</span>
-          <strong>{currencyFormatter.format(mrr)}</strong>
-        </div>
-      </div>
+      )}
       <ul className="admin-status-list">
         {Object.entries(statuses).map(([status, count]) => (
           <li key={status}>

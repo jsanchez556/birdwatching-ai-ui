@@ -20,6 +20,12 @@ vite.config.js          Vite dev server, React plugin, proxy, preview hosts
 railway.json            Nixpacks build and Railway start command
 ```
 
+`useAdminDashboard` owns authoritative feature and suspension reads plus expiry
+refresh; `useAdminOperations` owns independent reversal submissions.
+`useFeatureAvailability` owns public availability and countdown expiry.
+Components only render state and open named confirmation dialogs; HTTP remains
+inside adapters.
+
 ## Layer Rules
 - Components render UI and receive behavior through props.
 - Hooks own state transitions, browser storage, async orchestration, and effects.
@@ -152,3 +158,43 @@ The UI state is intentionally small:
 - Relative bird media paths from RAG metadata should be resolved in `src/api/mediaApi.js` and consumed through hooks, keeping media endpoint details out of presentational markup.
 - Backend tool and reservation capabilities should be represented through documented API adapters before they are displayed as structured UI. The reservation confirmation card uses documented `/chat` metadata, with assistant-text parsing only as a fallback for older messages.
 - Routing is not active. If routes are added, preserve SPA fallback support in production serving.
+The admin operations dashboard follows the same boundaries: `adminApi.js`
+owns all `/admin/*` requests and strict read/mutation payload validation,
+`useAdminDashboard` owns local section selection, independent section request
+state, session caching, invalidation, refresh, retry, duplicate prevention, and
+stale-response rejection. `useAdminOperations` owns independent per-target
+submissions and targeted refresh-after-success, and admin components render responsive accessible cards
+and confirmations. Trace links open
+in a new tab with `noopener noreferrer`; records without a validated URL show
+`Trace unavailable`.
+
+The existing dashboard route is organized into three local-state sections:
+
+- AI Operations (default): compact Users, MRR, AI Cost, and Errors KPIs,
+  followed in order by usage/cost breakdowns, offline quality, queues, and
+  recent failed jobs/errors.
+- Commercial administration: subscription status and user operations.
+- Emergency controls: current feature state, shutdown, expiry, and re-enable.
+
+The default operational loader intentionally excludes users, subscriptions, and
+feature controls. Secondary sections load on first selection and reuse their
+mounted-session cache. AI Operations is range-dependent; Commercial and
+Emergency are not. Desktop uses a persistent side menu, while smaller screens
+use the same ordered navigation as a horizontally scrollable control.
+
+`AiQualitySummary.jsx` owns percentage, percentage-point delta, sample-size, and
+empty-data presentation. `AdminOperationDialog.jsx` owns accessible confirmation
+and audit-reference presentation; focused panels own target rendering. The page
+remains composition-only, hooks own request lifecycles, and components never
+call `fetch`.
+
+Admin mutation flow:
+
+```text
+Recent Failures, Commercial administration, or Emergency control
+  -> AdminOperationDialog confirms exact target and impact
+  -> useAdminOperations rejects duplicates and clears old target state
+  -> adminApi sends authenticated POST and strictly validates the response
+  -> validated success updates per-target state and refreshes only affected loaded sections
+  -> failure leaves dashboard data unchanged and exposes only safe UI copy
+```

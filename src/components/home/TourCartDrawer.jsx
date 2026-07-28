@@ -21,6 +21,7 @@ function getTourName(item) {
 
 function TourCartDrawer({
   agentBookingEnabled = true,
+  bookingUnavailableMessage = '',
   authUser,
   cart,
   error,
@@ -151,33 +152,33 @@ function TourCartDrawer({
                 <button type="button" className="cart-secondary-action" onClick={() => onRemoveItem(item.id)}>
                   Remove
                 </button>
-                {agentBookingEnabled && (
-                  <button
+                <button
                     type="button"
                     className="cart-secondary-action"
-                    disabled={isLoading}
+                    disabled={!agentBookingEnabled || isLoading}
+                    title={!agentBookingEnabled ? bookingUnavailableMessage : undefined}
                     onClick={() => handleReserveItem(item)}
                   >
-                    Reserve this tour
+                    {agentBookingEnabled ? 'Reserve this tour' : 'Booking unavailable'}
                   </button>
-                )}
               </li>
             ))}
           </ul>
         )}
 
-        {agentBookingEnabled && (
-          <footer className="cart-drawer-footer">
+        <footer className="cart-drawer-footer">
+          {!agentBookingEnabled && bookingUnavailableMessage && (
+            <p role="status">{bookingUnavailableMessage}</p>
+          )}
             <button
               type="button"
               className="cart-primary-action"
-              disabled={isLoading || cart.items.length === 0}
+              disabled={!agentBookingEnabled || isLoading || cart.items.length === 0}
               onClick={handleReserveCart}
             >
-              Reserve cart
+              {agentBookingEnabled ? 'Reserve cart' : 'Booking unavailable'}
             </button>
-          </footer>
-        )}
+        </footer>
       </aside>
     </div>
   )

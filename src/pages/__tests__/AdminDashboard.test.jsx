@@ -1,140 +1,207 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import '@testing-library/jest-dom'
-import AdminDashboard from '../AdminDashboard'
-import useAdminDashboard from '../../hooks/useAdminDashboard'
+import AdminDashboard, { affectedSectionsForOperation } from '../AdminDashboard'
+import useAdminDashboard, { ADMIN_SECTION_IDS } from '../../hooks/useAdminDashboard'
 
-jest.mock('../../hooks/useAdminDashboard', () => ({
-  __esModule: true,
-  default: jest.fn(),
-}))
+jest.mock('../../hooks/useAdminDashboard', () => {
+  const ids = {
+    AI_OPERATIONS: 'ai_operations',
+    COMMERCIAL: 'commercial',
+    EMERGENCY: 'emergency',
+  }
+  return {
+    __esModule: true,
+    ADMIN_SECTION_IDS: ids,
+    default: jest.fn(),
+  }
+})
 
-const dashboardData = {
-  overview: {
-    activeUsers: 147,
-    activeSubscriptions: 63,
-    mrr: 1890,
-    reservations: 42,
-    aiRequestsToday: 1294,
-    aiCostToday: 18.72,
-    averageLatencyMs: 1840,
-    errorRate: 0.021,
-  },
-  usage: {
-    totals: { requests: 1294 },
-    byFeature: [
-      { feature: 'chat', requests: 900 },
-      { feature: 'identification', requests: 394 },
-    ],
-  },
-  costs: {
-    totals: {
-      estimatedCost: 18.72,
-      unpricedRequests: 2,
-    },
-    byFeature: [
-      { feature: 'chat', estimatedCost: 12.5 },
-      { feature: 'identification', estimatedCost: 6.22 },
-    ],
-  },
-  subscriptions: {
-    data: [
-      { userId: '1', status: 'active', plan: 'PRO' },
-      { userId: '2', status: 'past_due', plan: 'PRO' },
-    ],
-    meta: { total: 2 },
-  },
-  failures: {
-    data: [{
-      id: 'job-1',
-      category: 'background_job',
-      type: 'embedding',
-      occurredAt: '2026-07-28T12:00:00.000Z',
-      error: { message: 'Background job failed' },
-    }],
-    meta: { total: 1 },
-  },
-  queueHealth: {
-    status: 'attention',
-    queues: [{
-      name: 'embedding',
-      status: 'attention',
-      counts: { waiting: 2, active: 1, failed: 1, delayed: 0 },
-    }],
+const sections = [
+  { id: 'ai_operations', label: 'AI Operations', rangeDependent: true },
+  { id: 'commercial', label: 'Commercial administration', rangeDependent: false },
+  { id: 'emergency', label: 'Emergency controls', rangeDependent: false },
+]
+
+const quality = {
+  range: { startAt: '2026-07-01T00:00:00.000Z', endAt: '2026-08-01T00:00:00.000Z', timezone: 'UTC' },
+  previousRange: { startAt: '2026-05-31T00:00:00.000Z', endAt: '2026-07-01T00:00:00.000Z', timezone: 'UTC' },
+  metrics: {
+    groundingScore: { current: 0.86, previous: 0.82, delta: 0.04, currentSampleSize: 120, previousSampleSize: 110 },
+    answerRelevance: { current: 0.89, previous: 0.91, delta: -0.02, currentSampleSize: 120, previousSampleSize: 110 },
+    retrievalQuality: { current: 0.79, previous: 0.79, delta: 0, currentSampleSize: 75, previousSampleSize: 70 },
+    toolSuccessRate: { current: null, previous: null, delta: null, currentSampleSize: 0, previousSampleSize: 0 },
   },
 }
 
-function hookResult(overrides = {}) {
+const sectionData = {
+  ai_operations: {
+    overview: { activeUsers: 147, mrr: 1890, aiCostToday: 18.72, errorRate: 0.021 },
+    usage: { totals: { requests: 1294 }, byFeature: [{ feature: 'chat', requests: 1294 }] },
+    costs: {
+      totals: { requests: 1294, tokens: 870400, estimatedCost: 18.72, averageCostPerRequest: 0.0145, unpricedRequests: 0 },
+      byFeature: [{ feature: 'chat', requests: 1294, tokens: 870400, estimatedCost: 18.72, averageCostPerRequest: 0.0145 }],
+      byModel: [],
+      byPlan: [],
+      byUser: [],
+    },
+    quality,
+    queueHealth: {
+      observedAt: '2026-07-28T12:00:00.000Z',
+      queues: [{ id: 'embeddings', name: 'Embeddings', waiting: 0, active: 1, completed: 86, failed: 2, delayed: 0 }],
+    },
+    failures: {
+      data: [{
+        id: 'job-1',
+        category: 'background_job',
+        type: 'embedding',
+        status: 'failed',
+        occurredAt: '2026-07-28T11:30:00.000Z',
+        error: { code: 'JOB_FAILED', message: 'Background job failed' },
+      }],
+      meta: { total: 1 },
+    },
+    errors: {
+      data: {
+        errors: [{
+          id: 'error-1',
+          timestamp: '2026-07-28T12:00:00.000Z',
+          type: 'TOOL_ERROR',
+          user: { id: '42', label: 'User 42' },
+          traceId: null,
+          traceUrl: null,
+          message: 'Tool execution failed',
+          status: 'failed',
+        }],
+      },
+      meta: { total: 1 },
+    },
+  },
+  commercial: {
+    subscriptions: { data: [{ userId: '1', status: 'active', plan: 'PRO' }], meta: { total: 1 } },
+    users: {
+      data: [
+        { id: '1', name: 'Admin', role: 'admin', plan: 'PRO', status: 'active' },
+        { id: '7', name: 'Example User', role: 'customer', plan: 'FREE', status: 'active' },
+      ],
+      meta: { total: 2 },
+    },
+  },
+  emergency: {
+    aiFeatures: {
+      features: [
+        { name: 'voice_ai', enabled: true, status: 'enabled', disabledUntil: null },
+        { name: 'multimodal_bird_identification', enabled: true, status: 'enabled', disabledUntil: null },
+        { name: 'agent_booking', enabled: true, status: 'enabled', disabledUntil: null },
+      ],
+    },
+  },
+}
+
+function hookResult(section = ADMIN_SECTION_IDS.AI_OPERATIONS, overrides = {}) {
   return {
-    data: dashboardData,
-    error: null,
-    isLoading: false,
-    isRefreshing: false,
+    activeSection: section,
+    activeState: { status: 'success', data: sectionData[section], error: null },
+    now: Date.now(),
     range: '30d',
-    rangeOptions: [
-      { value: 'today', label: 'Today' },
-      { value: '30d', label: 'Last 30 days' },
-    ],
+    rangeOptions: [{ value: 'today', label: 'Today' }, { value: '30d', label: 'Last 30 days' }],
     refresh: jest.fn(),
+    refreshSections: jest.fn(),
+    sections,
+    setActiveSection: jest.fn(),
     setRange: jest.fn(),
     ...overrides,
   }
 }
 
-describe('AdminDashboard', () => {
-  beforeEach(() => {
-    jest.clearAllMocks()
+describe('AdminDashboard section composition', () => {
+  beforeEach(() => jest.clearAllMocks())
+
+  test('selects AI Operations by default with the compact KPI hierarchy', () => {
+    const state = hookResult()
+    useAdminDashboard.mockReturnValue(state)
+    render(<AdminDashboard currentUserId="1" getAccessToken={jest.fn()} onBack={jest.fn()} />)
+
+    const navigation = screen.getByRole('navigation', { name: /admin dashboard sections/i })
+    const buttons = Array.from(navigation.querySelectorAll('button'))
+    expect(buttons.map((button) => button.textContent)).toEqual(sections.map(({ label }) => label))
+    expect(screen.getByRole('button', { name: 'AI Operations' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('heading', { name: 'AI Operations' })).toHaveFocus()
+    expect(screen.getByText('147')).toHaveAccessibleName('147 active users')
+    expect(screen.getByText('$1.9K')).toHaveAccessibleName('$1,890.00 monthly recurring revenue')
+    expect(screen.getByLabelText('$18.72 estimated AI cost')).toHaveTextContent('$18.72')
+    expect(screen.getByText('2.1%')).toHaveAccessibleName('2.1% AI error rate')
+
+    const contentHeadings = screen.getAllByRole('heading')
+      .map((heading) => heading.textContent)
+    expect(contentHeadings).toEqual(expect.arrayContaining([
+      'AI usage',
+      'AI quality',
+      'Queues',
+      'Recent failures',
+    ]))
+    expect(contentHeadings.indexOf('AI usage')).toBeLessThan(contentHeadings.indexOf('AI quality'))
+    expect(contentHeadings.indexOf('AI quality')).toBeLessThan(contentHeadings.indexOf('Queues'))
+    expect(contentHeadings.indexOf('Queues')).toBeLessThan(contentHeadings.indexOf('Recent failures'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Commercial administration' }))
+    expect(state.setActiveSection).toHaveBeenCalledWith('commercial')
   })
 
-  test('renders accessible loading placeholders', () => {
-    useAdminDashboard.mockReturnValue(hookResult({
-      data: null,
-      isLoading: true,
+  test.each([
+    ['commercial', 'Commercial administration', /user administration/i],
+    ['emergency', 'Emergency controls', /AI feature controls/i],
+  ])('renders only the active %s section', (section, label, contentHeading) => {
+    useAdminDashboard.mockReturnValue(hookResult(section))
+    render(<AdminDashboard currentUserId="1" getAccessToken={jest.fn()} onBack={jest.fn()} />)
+    expect(screen.getByRole('heading', { name: label })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: contentHeading })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: label })).toHaveAttribute('aria-current', 'page')
+  })
+
+  test('shows section-specific loading and retry without rendering another section', () => {
+    const refresh = jest.fn()
+    useAdminDashboard.mockReturnValue(hookResult('ai_operations', {
+      activeState: { status: 'error', data: null, error: 'AI operations unavailable' },
+      refresh,
     }))
-
-    render(<AdminDashboard getAccessToken={jest.fn()} onBack={jest.fn()} />)
-
-    expect(screen.getByRole('status', { name: /loading admin dashboard/i })).toBeInTheDocument()
+    render(<AdminDashboard currentUserId="1" getAccessToken={jest.fn()} onBack={jest.fn()} />)
+    expect(screen.getByRole('alert')).toHaveTextContent('AI Operations is unavailable')
+    expect(screen.queryByText('$1.9K')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    expect(refresh).toHaveBeenCalledTimes(1)
   })
 
-  test('renders KPI, chart, subscription, error, and queue sections', () => {
-    useAdminDashboard.mockReturnValue(hookResult())
-
-    render(<AdminDashboard getAccessToken={jest.fn()} onBack={jest.fn()} />)
-
-    expect(screen.getByRole('heading', { name: /operations dashboard/i })).toBeInTheDocument()
-    expect(screen.getByText('147')).toBeInTheDocument()
-    expect(screen.getByText('$1,890.00')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /AI usage/i })).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: /AI requests by feature/i })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /AI cost/i })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /Subscriptions/i })).toBeInTheDocument()
-    expect(screen.getByText(/Background job failed/i)).toBeInTheDocument()
-    expect(screen.getAllByText('embedding')).toHaveLength(2)
-  })
-
-  test('supports range changes, refresh, retry, and returning to the site', () => {
+  test('refresh and reporting controls delegate only through the section hook', () => {
     const refresh = jest.fn()
     const setRange = jest.fn()
     const onBack = jest.fn()
-    useAdminDashboard.mockReturnValue(hookResult({
-      data: null,
-      error: 'Service unavailable',
-      refresh,
-      setRange,
-    }))
-
-    render(<AdminDashboard getAccessToken={jest.fn()} onBack={onBack} />)
-
-    fireEvent.change(screen.getByLabelText(/reporting range/i), {
-      target: { value: 'today' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: /refresh/i }))
-    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    useAdminDashboard.mockReturnValue(hookResult('ai_operations', { refresh, setRange }))
+    render(<AdminDashboard currentUserId="1" getAccessToken={jest.fn()} onBack={onBack} />)
+    fireEvent.click(screen.getByRole('button', { name: /refresh section/i }))
+    fireEvent.change(screen.getByLabelText(/reporting range/i), { target: { value: 'today' } })
     fireEvent.click(screen.getByRole('button', { name: /back to site/i }))
-
+    expect(refresh).toHaveBeenCalledTimes(1)
     expect(setRange).toHaveBeenCalledWith('today')
-    expect(refresh).toHaveBeenCalledTimes(2)
     expect(onBack).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole('alert')).toHaveTextContent('Service unavailable')
+  })
+
+  test('operation controls keep existing accessible confirmation dialogs', () => {
+    useAdminDashboard.mockReturnValue(hookResult('ai_operations'))
+    const { unmount } = render(<AdminDashboard currentUserId="1" getAccessToken={jest.fn()} onBack={jest.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /retry failed job job-1/i }))
+    expect(screen.getByRole('dialog', { name: /retry failed job/i })).toHaveTextContent('Job job-1')
+    unmount()
+
+    useAdminDashboard.mockReturnValue(hookResult('emergency'))
+    render(<AdminDashboard currentUserId="1" getAccessToken={jest.fn()} onBack={jest.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /disable feature voice ai/i }))
+    expect(screen.getByRole('dialog', { name: /temporarily disable ai feature/i })).toBeInTheDocument()
+  })
+
+  test('maps successful operations only to their affected section caches', () => {
+    expect(affectedSectionsForOperation('retry')).toEqual(['ai_operations'])
+    expect(affectedSectionsForOperation('suspend')).toEqual(['commercial'])
+    expect(affectedSectionsForOperation('unsuspend')).toEqual(['commercial'])
+    expect(affectedSectionsForOperation('disable')).toEqual(['emergency'])
+    expect(affectedSectionsForOperation('enable')).toEqual(['emergency'])
   })
 })

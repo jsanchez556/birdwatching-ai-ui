@@ -20,6 +20,8 @@ function HomePage({
   billingError = null,
   billingReturnStatus = null,
   birdIdentificationEnabled = true,
+  birdIdentificationUnavailableMessage = '',
+  bookingUnavailableMessage = '',
   isCartEnabled = false,
   isAuthenticated = false,
   isBillingLoading = false,
@@ -60,6 +62,7 @@ function HomePage({
       <HomeHeader
         authActionLabel={authActionLabel}
         birdIdentificationEnabled={birdIdentificationEnabled}
+        birdIdentificationUnavailableMessage={birdIdentificationUnavailableMessage}
         billingError={billingError}
         cartCount={cartCount}
         isAuthenticated={isAuthenticated}
@@ -84,6 +87,7 @@ function HomePage({
       />
       <FeaturedTours
         agentBookingEnabled={agentBookingEnabled}
+        bookingUnavailableMessage={bookingUnavailableMessage}
         addedTourIds={addedTourIds}
         addingTourIds={addingTourIds}
         cartItemsByTourId={cartItemsByTourId}

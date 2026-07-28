@@ -18,7 +18,22 @@ React 18 + Vite frontend for the Birdwatching AI chat experience. The app collec
 - Vite 5 and `@vitejs/plugin-react`
 - CSS custom properties with utility-minded component classes
 - Jest 30 with React Testing Library and jsdom
+- Admin Operations Dashboard organized around AI usage, quality, queues, and
+  recent failures, with secondary commercial and emergency-control sections
 - Railway deployment through Nixpacks
+
+## AI Operations Center
+
+![Birdwatching AI Operations Dashboard showing usage, cost, quality, queues, and recent failures](./docs/images/admin-dashboard.png)
+
+Operational visibility across:
+
+- AI cost
+- LLM latency
+- RAG quality
+- Agent reliability
+- Queue health
+- Subscriptions
 
 ## Local Setup
 ```bash
@@ -52,6 +67,12 @@ Runtime endpoints used by the browser:
 - `POST /auth/logout`
 - `PATCH /auth/profile`
 - `POST /auth/profile-image`
+- `GET /admin/ai-quality` (admin only)
+- `GET /admin/users` (admin only)
+- `GET /admin/failures` (admin only)
+- `POST /admin/jobs/:jobId/retry` (admin only)
+- `POST /admin/users/:userId/suspend` (admin only)
+- `POST /admin/ai-features/:feature/disable` (admin only)
 - `POST /billing/checkout`
 - `POST /billing/portal`
 - `GET /billing/usage`
@@ -77,9 +98,18 @@ Runtime endpoints used by the browser:
 The deployed static server also exposes:
 - `GET /health`
 
-Local development note: the current Vite proxy includes `/auth`, `/billing`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files`.
+Local development note: the current Vite proxy includes `/admin`, `/auth`,
+`/billing`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`,
+`/jobs`, `/addons`, and `/files`.
 
 The backend remains the source of truth for OpenAI, speech-to-text, text-to-speech, RAG, tour tools, discounts, reservations, billing providers, PostgreSQL persistence, and private media storage. This frontend stores only UI conversation state, customer context entered by the user, and a local transcript cache in `localStorage`. Billing UI calls `src/api/billingApi.js` and redirects to backend-returned provider-hosted `paymentUrl` or `managementUrl` values without hard-coding provider objects. When the user records voice, the browser captures audio with `MediaRecorder`, converts it to WAV before upload because the backend accepts MP3/WAV raw audio, and sends it to `POST /voice-chat` with conversation context headers and `X-Response-Mode: field_assistant`. The backend returns the transcript, assistant answer, and a relative `/files/voice-chat/...` MP3 URL; the UI resolves that URL through `mediaApi.js` and renders playable assistant audio. When the backend returns guided action metadata, the UI renders choice/select buttons that send natural-language follow-up messages. When the backend returns reservation metadata for a confirmed booking, the UI renders a styled reservation confirmation card and keeps the assistant message visible. When the backend returns RAG bird profile matches in `done.meta.birdMatches`, the UI can render bird photos, songs, and sonograms. Absolute media URLs are rendered directly; relative media keys are rendered as CloudFront URLs when `VITE_CLOUDFRONT_BASE_URL` is configured, otherwise they are resolved through `GET /files/:folderName/:filename`, which returns a normalized envelope containing `data.url`.
+
+The Admin Dashboard places job retry in Recent Failures, user suspension in
+Commercial administration, and temporary AI feature shutdown in Emergency
+controls. Every operation requires an accessible confirmation and waits for a
+strictly validated success response before changing visible state. Success
+dialogs show the returned audit reference; failed requests never render backend
+internals.
 
 ## Scripts
 ```bash
@@ -89,6 +119,11 @@ npm run preview # local preview server on 0.0.0.0
 npm run start   # Railway start command
 npm test        # Jest + React Testing Library
 ```
+
+Admin-operation coverage includes request contracts, safe HTTP error mapping,
+independent pending state, duplicate prevention, refresh-after-success,
+confirmation/cancellation, input validation, audit references, keyboard
+behavior, and focus restoration.
 
 ## Railway Deployment
 Railway builds the Vite app and starts a static preview server.

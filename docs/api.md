@@ -9,8 +9,15 @@ The active UI currently calls:
 - `GET /admin/subscriptions`
 - `GET /admin/ai-usage`
 - `GET /admin/ai-costs`
+- `GET /admin/ai-quality`
+- `GET /admin/users`
+- `GET /admin/failures`
+- `POST /admin/jobs/:jobId/retry`
+- `POST /admin/users/:userId/suspend`
+- `POST /admin/ai-features/:feature/disable`
 - `GET /admin/queue-health`
 - `GET /admin/failures`
+- `GET /admin/errors`
 - `POST /auth/signup`
 - `POST /auth/login`
 - `POST /auth/refresh`
@@ -168,15 +175,86 @@ Both profile endpoints require bearer auth and return:
 ## Admin operations
 
 Authenticated users with the server-issued `admin` role can open the operations
-dashboard from the account menu. The dashboard loads overview, AI usage, AI
-cost, subscription, queue-health, and sanitized failure data through
-`src/api/adminApi.js`. Requests include the current bearer token and validate the
-normalized `{ success, data, meta }` envelope before rendering.
+dashboard from the account menu. `src/api/adminApi.js` exposes explicit
+section-to-loader mappings. The default AI Operations section requests overview,
+usage, costs, quality, queue health, failures, and sanitized errors. It does not
+request subscriptions, users, or feature controls. Commercial administration
+requests subscriptions and safe users; Emergency Controls requests feature
+state. Every response validates the normalized
+`{ success, data, meta }` envelope before entering a section cache.
 
 The reporting range selector sends ISO `startDate` and exclusive `endDate`
-parameters to overview, AI usage, and AI cost endpoints. Subscription and
-failure lists use bounded pagination. Admin responses are not persisted in
-browser storage.
+parameters to the range-dependent AI Operations request. Commercial
+administration and Emergency Controls are range-independent. Subscription and failure lists use
+bounded pagination. Admin responses are cached only for the mounted dashboard
+session and are not persisted. AI cost analytics show requests, tokens, estimated cost, and
+average cost per request, with switchable feature, model, subscription plan,
+and user breakdowns from `GET /admin/ai-costs`. `GET /admin/queue-health`
+returns live BullMQ `waiting`, `active`, `completed`, `failed`, and `delayed`
+counts for bird identification, embeddings, and document ingestion. The queue
+panel labels `active` work as “Running”. A failed section refresh clears only
+that section so stale data is not presented as current.
+
+`GET /admin/errors` supplies the Operational errors section using
+`{ success, data: { errors }, meta }`. The adapter validates all seven
+normalized types, timestamps, safe user references, statuses, and trace fields.
+It accepts only HTTPS trace links on the explicit LangSmith hostname allowlist;
+an unsafe link is normalized to `null`. Presentational components never derive
+a LangSmith URL from `traceId`.
+
+The dashboard loads the first 25 errors for the selected reporting range,
+newest-first as returned by the API. A refresh failure clears the AI Operations
+section before showing its retry state without affecting secondary caches.
+The legacy `/admin/failures` adapter
+now supplies only retained failed-job targets for the retry controls; its safe
+records contain no job payloads or raw exception details.
+
+`GET /admin/ai-quality` must return UTC `range` and `previousRange` objects plus
+exactly four metrics: `groundingScore`, `answerRelevance`,
+`retrievalQuality`, and `toolSuccessRate`. Each metric contains nullable
+`current`, `previous`, and `delta` values on a `0–1` scale plus non-negative
+integer sample sizes for both periods. The adapter rejects malformed
+timestamps, non-UTC ranges, missing metrics, inconsistent null/sample-size
+combinations, non-finite values, and a previous range that does not end at the
+current range start.
+
+The UI formats values as percentages and deltas as percentage points. A null
+current value renders `No evaluation data`; it is never displayed as `0%`.
+AI-quality data is part of the AI Operations cache; a failed refresh clears
+that active section without clearing Commercial or Emergency Controls.
+
+### Safe admin mutation requests
+
+All operation requests use `POST`, include the current bearer token and JSON
+content type, and require a valid normalized envelope with an object `meta`.
+The adapter validates exact operation-specific success fields. Extra job
+payload, user, provider, or secret-bearing fields make the response invalid and
+prevent any UI success state.
+
+- `POST /admin/jobs/:jobId/retry` sends `{}` and is offered only for
+  `background_job` records whose status is `failed`. Success requires the same
+  job ID, a known job type, queue name, `status: "queued"`, and an audit ID.
+- `POST /admin/users/:userId/suspend` sends one selected `reasonCode`:
+  `abuse`, `spam`, `security`, or `policy_violation`. The UI never offers the
+  action for an administrator or the current admin and never collects
+  free-form allegations or evidence.
+- `POST /admin/ai-features/:feature/disable` sends an integer
+  `durationMinutes` from `1` through `1440`. Supported features are `voice_ai`,
+  `multimodal_bird_identification`, and `agent_booking`. Presets cover 15
+  minutes, 1 hour, 4 hours, and 24 hours; a bounded custom value is also
+  available. The returned UTC `disabledUntil` remains in the `dateTime`
+  attribute and is displayed in the user’s locale.
+
+Every operation opens a named modal confirmation showing the exact target and
+expected impact. The dialog supports Cancel, Escape, initial focus, return
+focus, live pending/error/success announcements, and a specific action label.
+Visible state changes only after a validated success. The success message
+includes the audit ID as a support reference.
+
+Operation errors never render backend messages. `401` and `403` disable further
+submission in the dialog; `404`, `409`, and `422` receive action-specific safe
+explanations; network, timeout, invalid-success, and `5xx` failures offer manual
+retry. A failed operation does not change the target’s displayed state.
 
 ## Billing
 `src/api/billingApi.js` starts provider-hosted checkout/payment for authenticated FREE users and opens provider-hosted billing management for authenticated PRO users with stored billing state. Stripe may be the backend's current provider, but UI components consume provider-neutral URLs.
@@ -720,3 +798,14 @@ The adapter requires `data.bird` to be an object and treats `404` as a normal mi
 - Do not invent backend fields in UI code. If the UI needs sources, discounts, additional reservation details, or tour metadata, first confirm the backend contract and update this file.
 - Keep backend CORS allowlists aligned with deployed frontend origins.
 - Do not expose backend secrets through `VITE_` variables.
+## Feature availability and admin reversals
+
+`GET /features/availability` returns strict state for `voice_ai`,
+`multimodal_bird_identification`, and `agent_booking`. Disabled entries require
+an ISO UTC expiration. Malformed envelopes never update UI state.
+
+Admin data also loads `GET /admin/ai-features` and suspension state from
+`GET /admin/users`. Reversal requests are
+`POST /admin/ai-features/:feature/enable` and
+`POST /admin/users/:userId/unsuspend`, both with `{}` bodies and the admin
+bearer header. Responses are operation-specifically validated before refresh.

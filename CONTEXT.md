@@ -47,6 +47,24 @@ The app uses a shell-component-hook-API split:
 - `src/components/home/*` owns presentational homepage sections.
 - `src/hooks/useAuth.js` owns auth state, token persistence, login, signup, logout, and profile updates.
 - `src/hooks/useChat.js` owns conversation state, local persistence, loading, and errors.
+- The admin Operations Dashboard uses three locally selected sections:
+  AI Operations, Commercial administration, and Emergency controls.
+  AI Operations is the default and presents compact Users, MRR, AI Cost, and
+  Errors KPIs followed by AI Usage, AI Quality, Queues, and Recent Failures.
+  `useAdminDashboard` loads only the active section, keeps independent
+  session-only caches and request states, and never persists admin responses.
+  The responsive section menu remains local state and does not add routing.
+- AI Operations is range-dependent. A reporting-range change invalidates and
+  reloads it when active; Commercial administration and Emergency Controls
+  remain cached. Refresh and retry clear and reload only affected sections, so
+  a failure cannot clear another section’s successful data.
+- Safe admin mutations stay in their relevant sections: retained failed BullMQ
+  jobs in Recent Failures, eligible users in Commercial administration, and AI
+  feature controls in Emergency controls. `adminApi.js` strictly validates every
+  operation envelope and payload, `useAdminOperations` owns per-target pending,
+  success, safe error, duplicate prevention, and targeted refresh behavior, and
+  `AdminOperationDialog` owns confirmation, keyboard/focus, reason/duration,
+  and audit-reference presentation.
 - `src/hooks/useHomeContent.js` owns homepage content loading state.
 - `src/api/authApi.js` owns auth/profile HTTP calls and response shape validation.
 - `src/api/billingApi.js` owns provider-neutral checkout/payment, billing management, and billing usage calls. It validates `paymentUrl` and `managementUrl` rather than provider-specific checkout or portal field names.
@@ -215,6 +233,10 @@ Current coverage focuses on:
 - authenticated customer context prefill and locked email behavior
 - homepage entry flow and cookie consent persistence
 - `useChat` persistence, streaming, metadata forwarding, and cancellation behavior
+- admin-operation adapter paths/headers/bodies, strict payload validation, safe
+  `401`/`403`/`404`/`409`/`422`/network/`5xx` handling, hook retry and
+  duplicate prevention, accessible confirmations, audit references, and
+  refresh-after-success behavior
 
 ## When Extending
 1. Add or update API adapter behavior in `src/api/`.
@@ -225,3 +247,15 @@ Current coverage focuses on:
 6. Update [docs/memory.md](./docs/memory.md) when local conversation state changes.
 7. Update [docs/prompting.md](./docs/prompting.md) when input handling, output rendering, or chat copy changes.
 8. Add focused React Testing Library tests for user-visible behavior.
+
+## Authoritative safety-control UI
+
+The Admin Dashboard loads AI feature state and safe suspension fields through
+`adminApi`. Suspended users show their timestamp and a Reactivate action;
+disabled features show localized expiration, remaining time, and an Enable
+action. All reversals use accessible confirmations, validated non-optimistic
+responses, refresh-after-success, and audit references.
+
+Public voice, bird identification, and booking controls combine product flags
+with `GET /features/availability`. Temporary shutdowns keep useful controls
+visible but disabled with feature-specific text, and expiry triggers a refresh.

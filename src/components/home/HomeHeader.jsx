@@ -13,6 +13,7 @@ const EXPAND_SCROLL_Y = 24
 function HomeHeader({
   authActionLabel = 'Login',
   birdIdentificationEnabled = true,
+  birdIdentificationUnavailableMessage = '',
   billingError = null,
   cartCount = 0,
   isAuthenticated = false,
@@ -203,11 +204,15 @@ function HomeHeader({
           </a>
           {isAuthenticated && (
             <>
-              {birdIdentificationEnabled && (
-                <button type="button" className="home-header-link" onClick={handleBirdIdentificationAction}>
+              <button
+                type="button"
+                className="home-header-link"
+                onClick={handleBirdIdentificationAction}
+                disabled={!birdIdentificationEnabled}
+                title={birdIdentificationUnavailableMessage || undefined}
+              >
                   Identify Bird
-                </button>
-              )}
+              </button>
               <button type="button" className="home-header-link" onClick={handleMyToursAction}>
                 My Tours
               </button>
@@ -240,6 +245,11 @@ function HomeHeader({
       {billingError && !isAuthenticated && (
         <div className="home-header-alert" role="status">
           {billingError}
+        </div>
+      )}
+      {isAuthenticated && !birdIdentificationEnabled && birdIdentificationUnavailableMessage && (
+        <div className="home-header-alert" role="status">
+          {birdIdentificationUnavailableMessage}
         </div>
       )}
     </header>

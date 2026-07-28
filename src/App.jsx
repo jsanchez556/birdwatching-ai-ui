@@ -14,6 +14,7 @@ import useAuth from './hooks/useAuth'
 import useCart from './hooks/useCart'
 import useChat from './hooks/useChat'
 import useFeatureFlag from './hooks/useFeatureFlag'
+import useFeatureAvailability from './hooks/useFeatureAvailability'
 import AdminDashboard from './pages/AdminDashboard'
 import HomePage from './pages/HomePage'
 
@@ -180,7 +181,10 @@ function buildReservationChatEntry({
 }
 
 function ChatSurface({ auth, chatEntry = null }) {
-  const voiceEnabled = useFeatureFlag(FEATURE_FLAGS.VOICE_AI)
+  const voiceFlagEnabled = useFeatureFlag(FEATURE_FLAGS.VOICE_AI)
+  const { getFeature } = useFeatureAvailability()
+  const voiceAvailability = getFeature(FEATURE_FLAGS.VOICE_AI)
+  const voiceEnabled = voiceFlagEnabled && voiceAvailability.enabled
   const viewerRole = auth.user?.role || (auth.isVisitor ? 'visitor' : 'customer')
   const isReservationEntry = Boolean(chatEntry)
   const {
@@ -249,6 +253,14 @@ function ChatSurface({ auth, chatEntry = null }) {
             isRecording={isRecording}
             voiceStatus={voiceStatus}
             voiceEnabled={voiceEnabled}
+            voiceUnavailableMessage={!voiceAvailability.enabled
+              ? `${voiceAvailability.message}${voiceAvailability.disabledUntil
+                ? ` Re-enables at ${new Intl.DateTimeFormat(undefined, {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                }).format(new Date(voiceAvailability.disabledUntil))}.`
+                : ''}`
+              : ''}
           />
         </>
       )}
@@ -301,8 +313,13 @@ function HomeChatDrawer({ auth, chatEntry = null, onClose }) {
 }
 
 function App() {
-  const agentBookingEnabled = useFeatureFlag(FEATURE_FLAGS.AGENT_BOOKING)
-  const birdIdentificationEnabled = useFeatureFlag(FEATURE_FLAGS.MULTIMODAL_BIRD_IDENTIFICATION)
+  const agentBookingFlagEnabled = useFeatureFlag(FEATURE_FLAGS.AGENT_BOOKING)
+  const birdIdentificationFlagEnabled = useFeatureFlag(FEATURE_FLAGS.MULTIMODAL_BIRD_IDENTIFICATION)
+  const { getFeature } = useFeatureAvailability()
+  const bookingAvailability = getFeature(FEATURE_FLAGS.AGENT_BOOKING)
+  const birdAvailability = getFeature(FEATURE_FLAGS.MULTIMODAL_BIRD_IDENTIFICATION)
+  const agentBookingEnabled = agentBookingFlagEnabled && bookingAvailability.enabled
+  const birdIdentificationEnabled = birdIdentificationFlagEnabled && birdAvailability.enabled
   const [authMode, setAuthMode] = useState('login')
   const [activeView, setActiveView] = useState('home')
   const [addingTourIds, setAddingTourIds] = useState([])
@@ -649,6 +666,7 @@ function App() {
   if (showAdmin) {
     return (
       <AdminDashboard
+        currentUserId={auth.user?.id}
         getAccessToken={auth.getValidToken}
         onBack={() => setActiveView('home')}
       />
@@ -670,6 +688,8 @@ function App() {
         billingError={billingError}
         billingReturnStatus={billingReturnStatus}
         birdIdentificationEnabled={birdIdentificationEnabled}
+        birdIdentificationUnavailableMessage={!birdAvailability.enabled ? birdAvailability.message : ''}
+        bookingUnavailableMessage={!bookingAvailability.enabled ? bookingAvailability.message : ''}
         onAddTourToCart={handleAddTourToCart}
         onAuthAction={handleHomeAuthAction}
         onManageBilling={handleManageBilling}
@@ -711,6 +731,7 @@ function App() {
       {isCartDrawerOpen && auth.isAuthenticated && !auth.isVisitor && (
         <TourCartDrawer
           agentBookingEnabled={agentBookingEnabled}
+          bookingUnavailableMessage={!bookingAvailability.enabled ? bookingAvailability.message : ''}
           authUser={auth.user}
           cart={cartState.cart}
           error={cartState.error}

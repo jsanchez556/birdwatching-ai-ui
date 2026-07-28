@@ -20,3 +20,10 @@ fall back to current product behavior.
 
 The backend must enforce gated capabilities. Hiding a frontend control is not
 an authorization boundary.
+## Temporary backend overrides
+
+Frontend product flags are additionally constrained by the authoritative
+`GET /features/availability` state. A temporary backend override disables the
+voice, identification, or booking initiating control and supplies a safe
+feature-specific explanation. The UTC expiration is preserved internally and
+formatted in the user’s locale; the hook refreshes when it expires.
