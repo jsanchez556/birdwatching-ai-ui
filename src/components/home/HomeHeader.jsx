@@ -12,6 +12,7 @@ const EXPAND_SCROLL_Y = 24
 
 function HomeHeader({
   authActionLabel = 'Login',
+  birdIdentificationEnabled = true,
   billingError = null,
   cartCount = 0,
   isAuthenticated = false,
@@ -196,9 +197,11 @@ function HomeHeader({
           </a>
           {isAuthenticated && (
             <>
-              <button type="button" className="home-header-link" onClick={handleBirdIdentificationAction}>
-                Identify Bird
-              </button>
+              {birdIdentificationEnabled && (
+                <button type="button" className="home-header-link" onClick={handleBirdIdentificationAction}>
+                  Identify Bird
+                </button>
+              )}
               <button type="button" className="home-header-link" onClick={handleMyToursAction}>
                 My Tours
               </button>

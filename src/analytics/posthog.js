@@ -32,6 +32,18 @@ const posthogProvider = {
   track(event, properties) {
     posthog.capture(event, properties)
   },
+
+  getFeatureFlag(flag) {
+    return posthog.getFeatureFlag(flag)
+  },
+
+  isFeatureEnabled(flag) {
+    return posthog.isFeatureEnabled(flag)
+  },
+
+  onFeatureFlags(callback) {
+    return posthog.onFeatureFlags(callback)
+  },
 }
 
 export default posthogProvider

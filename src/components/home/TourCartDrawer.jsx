@@ -20,6 +20,7 @@ function getTourName(item) {
 }
 
 function TourCartDrawer({
+  agentBookingEnabled = true,
   authUser,
   cart,
   error,
@@ -52,6 +53,8 @@ function TourCartDrawer({
   }
 
   const handleReserveCart = () => {
+    if (!agentBookingEnabled) return
+
     setStatus(null)
 
     if (hasDuplicateDates) {
@@ -64,6 +67,8 @@ function TourCartDrawer({
   }
 
   const handleReserveItem = (item) => {
+    if (!agentBookingEnabled) return
+
     setStatus(null)
     onReserveItem?.(item)
   }
@@ -146,29 +151,33 @@ function TourCartDrawer({
                 <button type="button" className="cart-secondary-action" onClick={() => onRemoveItem(item.id)}>
                   Remove
                 </button>
-                <button
-                  type="button"
-                  className="cart-secondary-action"
-                  disabled={isLoading}
-                  onClick={() => handleReserveItem(item)}
-                >
-                  Reserve this tour
-                </button>
+                {agentBookingEnabled && (
+                  <button
+                    type="button"
+                    className="cart-secondary-action"
+                    disabled={isLoading}
+                    onClick={() => handleReserveItem(item)}
+                  >
+                    Reserve this tour
+                  </button>
+                )}
               </li>
             ))}
           </ul>
         )}
 
-        <footer className="cart-drawer-footer">
-          <button
-            type="button"
-            className="cart-primary-action"
-            disabled={isLoading || cart.items.length === 0}
-            onClick={handleReserveCart}
-          >
-            Reserve cart
-          </button>
-        </footer>
+        {agentBookingEnabled && (
+          <footer className="cart-drawer-footer">
+            <button
+              type="button"
+              className="cart-primary-action"
+              disabled={isLoading || cart.items.length === 0}
+              onClick={handleReserveCart}
+            >
+              Reserve cart
+            </button>
+          </footer>
+        )}
       </aside>
     </div>
   )

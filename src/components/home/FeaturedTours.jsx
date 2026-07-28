@@ -222,6 +222,7 @@ function groupToursByZone(tours) {
 }
 
 function TourCard({
+  agentBookingEnabled = true,
   isAdded = false,
   isAdding = false,
   isCartEnabled = false,
@@ -340,16 +341,18 @@ function TourCard({
             )}
             <span>{primaryActionLabel}</span>
           </button>
-          <button
-            type="button"
-            className="tour-card-action tour-reserve-action"
-            aria-label={isReserving ? `Preparing ${tourName} reservation` : `Reserve ${tourName}`}
-            disabled={isReserving}
-            onClick={() => onReserveTour?.(tour)}
-          >
-            <ReserveTourIcon />
-            <span>{isReserving ? 'Preparing...' : 'Reserve tour'}</span>
-          </button>
+          {agentBookingEnabled && (
+            <button
+              type="button"
+              className="tour-card-action tour-reserve-action"
+              aria-label={isReserving ? `Preparing ${tourName} reservation` : `Reserve ${tourName}`}
+              disabled={isReserving}
+              onClick={() => onReserveTour?.(tour)}
+            >
+              <ReserveTourIcon />
+              <span>{isReserving ? 'Preparing...' : 'Reserve tour'}</span>
+            </button>
+          )}
         </div>
       </div>
     </article>
@@ -357,6 +360,7 @@ function TourCard({
 }
 
 function FeaturedTours({
+  agentBookingEnabled = true,
   addedTourIds = [],
   addingTourIds = [],
   isCartEnabled = false,
@@ -513,6 +517,7 @@ function FeaturedTours({
                     onAddToCart={onAddToCart}
                     onRemoveFromCart={onRemoveFromCart}
                     onReserveTour={onReserveTour}
+                    agentBookingEnabled={agentBookingEnabled}
                     tour={tour}
                     onOpenBird={openBirdModal}
                     key={getTourKey(tour)}

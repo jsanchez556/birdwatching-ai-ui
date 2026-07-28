@@ -9,9 +9,11 @@ import TourCartDrawer from './components/home/TourCartDrawer'
 import { createCheckoutSession, createCustomerPortalSession } from './api/billingApi'
 import analytics from './analytics/analytics'
 import { ANALYTICS_EVENTS } from './analytics/events'
+import { FEATURE_FLAGS } from './featureFlags/flags'
 import useAuth from './hooks/useAuth'
 import useCart from './hooks/useCart'
 import useChat from './hooks/useChat'
+import useFeatureFlag from './hooks/useFeatureFlag'
 import HomePage from './pages/HomePage'
 
 function AppHeader({ action }) {
@@ -177,6 +179,7 @@ function buildReservationChatEntry({
 }
 
 function ChatSurface({ auth, chatEntry = null }) {
+  const voiceEnabled = useFeatureFlag(FEATURE_FLAGS.VOICE_AI)
   const viewerRole = auth.user?.role || (auth.isVisitor ? 'visitor' : 'customer')
   const isReservationEntry = Boolean(chatEntry)
   const {
@@ -244,6 +247,7 @@ function ChatSurface({ auth, chatEntry = null }) {
             isStreaming={isStreaming}
             isRecording={isRecording}
             voiceStatus={voiceStatus}
+            voiceEnabled={voiceEnabled}
           />
         </>
       )}
@@ -296,6 +300,8 @@ function HomeChatDrawer({ auth, chatEntry = null, onClose }) {
 }
 
 function App() {
+  const agentBookingEnabled = useFeatureFlag(FEATURE_FLAGS.AGENT_BOOKING)
+  const birdIdentificationEnabled = useFeatureFlag(FEATURE_FLAGS.MULTIMODAL_BIRD_IDENTIFICATION)
   const [authMode, setAuthMode] = useState('login')
   const [activeView, setActiveView] = useState('home')
   const [addingTourIds, setAddingTourIds] = useState([])
@@ -424,6 +430,10 @@ function App() {
   }
 
   const openBirdIdentification = () => {
+    if (!birdIdentificationEnabled) {
+      return
+    }
+
     if (!auth.isAuthenticated || auth.isVisitor) {
       openLogin()
       return
@@ -495,6 +505,10 @@ function App() {
   }
 
   const handleReserveTour = async (tour) => {
+    if (!agentBookingEnabled) {
+      return
+    }
+
     if (!auth.isAuthenticated || auth.isVisitor) {
       openLogin()
       return
@@ -525,6 +539,10 @@ function App() {
   }
 
   const handleReserveCartItems = (items) => {
+    if (!agentBookingEnabled) {
+      return
+    }
+
     if (!auth.isAuthenticated || auth.isVisitor) {
       openLogin()
       return
@@ -618,6 +636,7 @@ function App() {
   return (
     <>
       <HomePage
+        agentBookingEnabled={agentBookingEnabled}
         addedTourIds={addedTourIds}
         addingTourIds={addingTourIds}
         authActionLabel={authActionLabel}
@@ -628,6 +647,7 @@ function App() {
         isBillingLoading={isBillingLoading}
         billingError={billingError}
         billingReturnStatus={billingReturnStatus}
+        birdIdentificationEnabled={birdIdentificationEnabled}
         onAddTourToCart={handleAddTourToCart}
         onAuthAction={handleHomeAuthAction}
         onManageBilling={handleManageBilling}
@@ -667,6 +687,7 @@ function App() {
       )}
       {isCartDrawerOpen && auth.isAuthenticated && !auth.isVisitor && (
         <TourCartDrawer
+          agentBookingEnabled={agentBookingEnabled}
           authUser={auth.user}
           cart={cartState.cart}
           error={cartState.error}
@@ -679,7 +700,7 @@ function App() {
           onUpdateItem={cartState.updateItem}
         />
       )}
-      {isBirdIdentificationOpen && auth.isAuthenticated && !auth.isVisitor && (
+      {birdIdentificationEnabled && isBirdIdentificationOpen && auth.isAuthenticated && !auth.isVisitor && (
         <BirdIdentificationModal
           auth={auth}
           onClose={() => setIsBirdIdentificationOpen(false)}

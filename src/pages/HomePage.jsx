@@ -11,6 +11,7 @@ import TransportationSection from '../components/home/TransportationSection'
 import useHomeContent from '../hooks/useHomeContent'
 
 function HomePage({
+  agentBookingEnabled = true,
   addedTourIds = [],
   addingTourIds = [],
   authActionLabel,
@@ -18,6 +19,7 @@ function HomePage({
   cartItemsByTourId = {},
   billingError = null,
   billingReturnStatus = null,
+  birdIdentificationEnabled = true,
   isCartEnabled = false,
   isAuthenticated = false,
   isBillingLoading = false,
@@ -56,6 +58,7 @@ function HomePage({
       />
       <HomeHeader
         authActionLabel={authActionLabel}
+        birdIdentificationEnabled={birdIdentificationEnabled}
         billingError={billingError}
         cartCount={cartCount}
         isAuthenticated={isAuthenticated}
@@ -78,6 +81,7 @@ function HomePage({
         showLoginCta={!isAuthenticated}
       />
       <FeaturedTours
+        agentBookingEnabled={agentBookingEnabled}
         addedTourIds={addedTourIds}
         addingTourIds={addingTourIds}
         cartItemsByTourId={cartItemsByTourId}
