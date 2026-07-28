@@ -131,4 +131,58 @@ describe('frontend analytics abstraction', () => {
     expect(provider.track).not.toHaveBeenCalled()
     expect(provider.reset).not.toHaveBeenCalled()
   })
+
+  test('never propagates provider failures to application callers', () => {
+    const initializationFailure = createProvider()
+    initializationFailure.initialize.mockImplementation(() => {
+      throw new Error('provider initialization failed')
+    })
+    const unavailableAnalytics = createAnalytics({
+      provider: initializationFailure,
+      eventTarget: null,
+      getConfig: () => ({
+        enabled: true,
+        environment: 'development',
+        key: 'phc_test',
+        host: 'https://posthog.test',
+        service: 'birdwatching-ai-ui',
+      }),
+      hasConsent: () => true,
+    })
+
+    expect(() => unavailableAnalytics.initialize()).not.toThrow()
+    expect(() => unavailableAnalytics.identify('user-1', { plan: 'PRO' })).not.toThrow()
+    expect(() => unavailableAnalytics.track({ event: 'chat_started' })).not.toThrow()
+
+    const deliveryFailure = createProvider()
+    deliveryFailure.identify.mockImplementation(() => {
+      throw new Error('identify failed')
+    })
+    deliveryFailure.track.mockImplementation(() => {
+      throw new Error('capture failed')
+    })
+    deliveryFailure.reset.mockImplementation(() => {
+      throw new Error('reset failed')
+    })
+    const bestEffortAnalytics = createAnalytics({
+      provider: deliveryFailure,
+      eventTarget: null,
+      getConfig: () => ({
+        enabled: true,
+        environment: 'development',
+        key: 'phc_test',
+        host: 'https://posthog.test',
+        service: 'birdwatching-ai-ui',
+      }),
+      hasConsent: () => true,
+    })
+
+    expect(bestEffortAnalytics.initialize()).toBe(true)
+    expect(() => bestEffortAnalytics.identify('user-1', { plan: 'PRO' })).not.toThrow()
+    expect(() => bestEffortAnalytics.track({
+      event: 'chat_started',
+      properties: { source: 'homepage' },
+    })).not.toThrow()
+    expect(() => bestEffortAnalytics.reset()).not.toThrow()
+  })
 })

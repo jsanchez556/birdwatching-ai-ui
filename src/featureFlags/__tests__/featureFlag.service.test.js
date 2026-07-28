@@ -59,4 +59,20 @@ describe('frontend feature flag service', () => {
 
     expect(listener).toHaveBeenCalledTimes(1)
   })
+
+  test('keeps application defaults when analytics initialization fails', () => {
+    const provider = createProvider()
+    const service = createFeatureFlagService({
+      provider,
+      initializeAnalytics: () => {
+        throw new Error('analytics unavailable')
+      },
+      eventTarget: null,
+    })
+
+    expect(service.isEnabled(FEATURE_FLAGS.VOICE_AI)).toBe(true)
+    expect(service.getVariant(FEATURE_FLAGS.ADVANCED_RAG))
+      .toBe(RETRIEVAL_VARIANTS.CURRENT)
+    expect(provider.getFeatureFlag).not.toHaveBeenCalled()
+  })
 })
