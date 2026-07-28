@@ -2,9 +2,15 @@
 
 Back to [Project Context](../CONTEXT.md). See [Architecture](./architecture.md) for UI flow details.
 
-The frontend integrates with the Birdwatching AI API through `src/api/authApi.js`, `src/api/cartApi.js`, `src/api/chatApi.js`, `src/api/voiceChatApi.js`, `src/api/birdIdentificationApi.js`, `src/api/homeApi.js`, and `src/api/mediaApi.js`. Backend API implementation lives in the backend repository.
+The frontend integrates with the Birdwatching AI API through `src/api/adminApi.js`, `src/api/authApi.js`, `src/api/cartApi.js`, `src/api/chatApi.js`, `src/api/voiceChatApi.js`, `src/api/birdIdentificationApi.js`, `src/api/homeApi.js`, and `src/api/mediaApi.js`. Backend API implementation lives in the backend repository.
 
 The active UI currently calls:
+- `GET /admin/overview`
+- `GET /admin/subscriptions`
+- `GET /admin/ai-usage`
+- `GET /admin/ai-costs`
+- `GET /admin/queue-health`
+- `GET /admin/failures`
 - `POST /auth/signup`
 - `POST /auth/login`
 - `POST /auth/refresh`
@@ -74,7 +80,7 @@ import.meta.env.VITE_API_URL
 Behavior:
 - trailing slashes are removed
 - empty value means requests are relative to the current origin
-- local relative `/auth`, `/billing`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files` calls are proxied by Vite to `VITE_API_PROXY_TARGET`
+- local relative `/admin`, `/auth`, `/billing`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files` calls are proxied by Vite to `VITE_API_PROXY_TARGET`
 - production should set `VITE_API_URL` to the public backend URL
 
 ## Auth
@@ -158,6 +164,19 @@ Both profile endpoints require bearer auth and return:
   "meta": {}
 }
 ```
+
+## Admin operations
+
+Authenticated users with the server-issued `admin` role can open the operations
+dashboard from the account menu. The dashboard loads overview, AI usage, AI
+cost, subscription, queue-health, and sanitized failure data through
+`src/api/adminApi.js`. Requests include the current bearer token and validate the
+normalized `{ success, data, meta }` envelope before rendering.
+
+The reporting range selector sends ISO `startDate` and exclusive `endDate`
+parameters to overview, AI usage, and AI cost endpoints. Subscription and
+failure lists use bounded pagination. Admin responses are not persisted in
+browser storage.
 
 ## Billing
 `src/api/billingApi.js` starts provider-hosted checkout/payment for authenticated FREE users and opens provider-hosted billing management for authenticated PRO users with stored billing state. Stripe may be the backend's current provider, but UI components consume provider-neutral URLs.

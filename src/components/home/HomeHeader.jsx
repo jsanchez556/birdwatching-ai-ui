@@ -18,6 +18,7 @@ function HomeHeader({
   isAuthenticated = false,
   isBillingLoading = false,
   onAuthAction,
+  onOpenAdmin,
   onOpenCart,
   onOpenBirdIdentification,
   onOpenMyTours,
@@ -67,6 +68,11 @@ function HomeHeader({
   const handleCartAction = () => {
     closeMenu()
     onOpenCart?.()
+  }
+
+  const handleAdminAction = () => {
+    closeMenu()
+    onOpenAdmin?.()
   }
 
   const handleMyToursAction = () => {
@@ -221,6 +227,7 @@ function HomeHeader({
                 isBillingLoading={isBillingLoading}
                 onLogout={handleAuthAction}
                 onManageBilling={handleManageBilling}
+                onOpenAdmin={handleAdminAction}
                 onUpdateProfile={onUpdateProfile}
                 onUpdateProfileImage={onUpdateProfileImage}
                 onUpgradePlan={handleUpgradePlan}

@@ -27,6 +27,7 @@ function HomePage({
   onAuthAction,
   onOpenBirdIdentification,
   onOpenCart,
+  onOpenAdmin,
   onOpenMyTours,
   onLogin,
   onManageBilling,
@@ -66,6 +67,7 @@ function HomePage({
         onAuthAction={onAuthAction || onLogin}
         onOpenBirdIdentification={onOpenBirdIdentification}
         onOpenCart={onOpenCart}
+        onOpenAdmin={onOpenAdmin}
         onOpenMyTours={onOpenMyTours}
         onStartChat={onStartChat}
         onManageBilling={onManageBilling}

@@ -144,4 +144,46 @@ describe('HomeHeader cart and My Tours actions', () => {
 
     expect(onManageBilling).toHaveBeenCalledTimes(1)
   })
+
+  test('shows the admin dashboard action only to administrators', () => {
+    const onOpenAdmin = jest.fn()
+    const { rerender } = render(
+      <HomeHeader
+        isAuthenticated
+        onOpenAdmin={onOpenAdmin}
+        user={{
+          email: 'admin@example.com',
+          name: 'Operations Admin',
+          plan: 'PRO',
+          role: 'admin',
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', {
+      name: /manage account for operations admin, admin@example.com/i,
+    }))
+    fireEvent.click(screen.getByRole('button', { name: /admin dashboard/i }))
+
+    expect(onOpenAdmin).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <HomeHeader
+        isAuthenticated
+        onOpenAdmin={onOpenAdmin}
+        user={{
+          email: 'customer@example.com',
+          name: 'Customer',
+          plan: 'PRO',
+          role: 'customer',
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', {
+      name: /manage account for customer, customer@example.com/i,
+    }))
+
+    expect(screen.queryByRole('button', { name: /admin dashboard/i })).not.toBeInTheDocument()
+  })
 })

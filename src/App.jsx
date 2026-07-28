@@ -14,6 +14,7 @@ import useAuth from './hooks/useAuth'
 import useCart from './hooks/useCart'
 import useChat from './hooks/useChat'
 import useFeatureFlag from './hooks/useFeatureFlag'
+import AdminDashboard from './pages/AdminDashboard'
 import HomePage from './pages/HomePage'
 
 function AppHeader({ action }) {
@@ -328,6 +329,10 @@ function App() {
   })
 
   const showChat = activeView === 'chat' && (auth.isAuthenticated || auth.isVisitor)
+  const showAdmin = activeView === 'admin'
+    && auth.isAuthenticated
+    && !auth.isVisitor
+    && auth.user?.role === 'admin'
   const addedTourIds = cartState.cart.items.map((item) => item.tourId)
   const cartItemsByTourId = cartState.cart.items.reduce((itemsByTourId, item) => ({
     ...itemsByTourId,
@@ -440,6 +445,14 @@ function App() {
     }
 
     setIsBirdIdentificationOpen(true)
+  }
+
+  const openAdminDashboard = () => {
+    if (!auth.isAuthenticated || auth.isVisitor || auth.user?.role !== 'admin') {
+      return
+    }
+
+    setActiveView('admin')
   }
 
   const handleUpgradePlan = async () => {
@@ -633,6 +646,15 @@ function App() {
     return <AuthenticatedChat auth={auth} onHome={() => setActiveView('home')} />
   }
 
+  if (showAdmin) {
+    return (
+      <AdminDashboard
+        getAccessToken={auth.getValidToken}
+        onBack={() => setActiveView('home')}
+      />
+    )
+  }
+
   return (
     <>
       <HomePage
@@ -654,6 +676,7 @@ function App() {
         onDismissBillingReturn={() => setBillingReturnStatus(null)}
         onOpenBirdIdentification={openBirdIdentification}
         onOpenCart={openCart}
+        onOpenAdmin={openAdminDashboard}
         onOpenMyTours={openMyTours}
         onUpdateProfile={auth.updateProfile}
         onUpdateProfileImage={auth.updateProfileImage}

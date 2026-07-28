@@ -55,6 +55,7 @@ function AccountMenu({
   isBillingLoading = false,
   onLogout,
   onManageBilling,
+  onOpenAdmin,
   onUpdateProfile,
   onUpdateProfileImage,
   onUpgradePlan,
@@ -162,6 +163,11 @@ function AccountMenu({
 
   const handleManageBilling = () => {
     onManageBilling?.()
+  }
+
+  const handleOpenAdmin = () => {
+    setIsOpen(false)
+    onOpenAdmin?.()
   }
 
   const handleChooseImage = () => {
@@ -307,6 +313,11 @@ function AccountMenu({
           )}
 
           <div className="account-popover-actions">
+            {user?.role === 'admin' && (
+              <button type="button" className="account-secondary-action" onClick={handleOpenAdmin}>
+                Admin dashboard
+              </button>
+            )}
             <button type="button" className="account-secondary-action" onClick={onLogout}>
               Logout
             </button>
