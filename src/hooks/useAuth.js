@@ -1,9 +1,12 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import analytics from '../analytics/analytics'
 import {
   login as loginRequest,
   logoutSession,
   refreshSession,
   signup as signupRequest,
+  updateProfile as updateProfileRequest,
+  updateProfileImage as updateProfileImageRequest,
 } from '../api/authApi'
 import { AUTH_STORAGE_KEY, readJsonStorage, removeStorageItem, writeJsonStorage } from '../utils/storage'
 
@@ -12,6 +15,7 @@ const VISITOR_USER = {
   email: null,
   name: 'Visitor',
   role: 'visitor',
+  plan: null,
 }
 const TOKEN_REFRESH_BUFFER_MS = 60 * 1000
 const SESSION_EXPIRED_MESSAGE = 'Your session expired. Please log in again.'
@@ -59,6 +63,8 @@ function readStoredAuthState() {
         email: parsed.user.email,
         name: parsed.user.name || null,
         role: parsed.user.role || 'customer',
+        plan: parsed.user.plan || 'FREE',
+        imageUrl: parsed.user.imageUrl || null,
       },
     }
   }
@@ -68,6 +74,10 @@ function readStoredAuthState() {
 
 function persistAuthState(authState) {
   writeJsonStorage(AUTH_STORAGE_KEY, authState)
+}
+
+function currentStoredSessionFallback(fallback) {
+  return readJsonStorage(AUTH_STORAGE_KEY) || fallback
 }
 
 function clearAuthState() {
@@ -84,6 +94,15 @@ export default function useAuth() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
 
+  useEffect(() => {
+    if (user?.id && user.role !== 'visitor') {
+      analytics.identify(user.id, {
+        role: user.role || 'customer',
+        plan: user.plan || 'FREE',
+      })
+    }
+  }, [user?.id, user?.plan, user?.role])
+
   const applyAuthResult = useCallback((result) => {
     setUser(result.user)
     setToken(result.token)
@@ -93,7 +112,30 @@ export default function useAuth() {
     persistAuthState(result)
   }, [])
 
+  const applyUserUpdate = useCallback((updatedUser) => {
+    setUser((currentUser) => {
+      const nextUser = {
+        ...(currentUser || {}),
+        ...updatedUser,
+      }
+      const storedSession = currentStoredSessionFallback({
+        token,
+        refreshToken,
+        accessTokenExpiresAt,
+        refreshTokenExpiresAt,
+      })
+
+      persistAuthState({
+        ...storedSession,
+        user: nextUser,
+      })
+
+      return nextUser
+    })
+  }, [accessTokenExpiresAt, refreshToken, refreshTokenExpiresAt, token])
+
   const clearSession = useCallback((message = null) => {
+    analytics.reset()
     setUser(null)
     setToken(null)
     setRefreshToken(null)
@@ -180,6 +222,64 @@ export default function useAuth() {
     }
   }, [accessTokenExpiresAt, applyAuthResult, clearSession, refreshToken, token, user?.role])
 
+  const refreshCurrentUser = useCallback(async () => {
+    if (user?.role === 'visitor') {
+      return null
+    }
+
+    if (!refreshToken) {
+      clearSession(SESSION_EXPIRED_MESSAGE)
+      throw new Error(SESSION_EXPIRED_MESSAGE)
+    }
+
+    try {
+      const result = await refreshSession(refreshToken)
+      applyAuthResult(result)
+      return result.user
+    } catch {
+      clearSession(SESSION_EXPIRED_MESSAGE)
+      throw new Error(SESSION_EXPIRED_MESSAGE)
+    }
+  }, [applyAuthResult, clearSession, refreshToken, user?.role])
+
+  const updateProfile = useCallback(async ({ name }) => {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const result = await updateProfileRequest({
+        token: await getValidToken(),
+        name,
+      })
+      applyUserUpdate(result.user)
+      return result
+    } catch (requestError) {
+      setError(requestError.message)
+      throw requestError
+    } finally {
+      setIsLoading(false)
+    }
+  }, [applyUserUpdate, getValidToken])
+
+  const updateProfileImage = useCallback(async ({ file }) => {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const result = await updateProfileImageRequest({
+        token: await getValidToken(),
+        file,
+      })
+      applyUserUpdate(result.user)
+      return result
+    } catch (requestError) {
+      setError(requestError.message)
+      throw requestError
+    } finally {
+      setIsLoading(false)
+    }
+  }, [applyUserUpdate, getValidToken])
+
   return {
     user,
     token,
@@ -194,6 +294,9 @@ export default function useAuth() {
     login,
     enterAsVisitor,
     getValidToken,
+    refreshCurrentUser,
+    updateProfile,
+    updateProfileImage,
     logout,
   }
 }

@@ -1,4 +1,5 @@
 import BirdHighlights from '../components/home/BirdHighlights'
+import BillingReturnNotice from '../components/home/BillingReturnNotice'
 import ChatbotCTA from '../components/home/ChatbotCTA'
 import CookieConsent from '../components/home/CookieConsent'
 import FeaturedTours from '../components/home/FeaturedTours'
@@ -10,24 +11,38 @@ import TransportationSection from '../components/home/TransportationSection'
 import useHomeContent from '../hooks/useHomeContent'
 
 function HomePage({
+  agentBookingEnabled = true,
   addedTourIds = [],
   addingTourIds = [],
   authActionLabel,
   cartCount = 0,
   cartItemsByTourId = {},
+  billingError = null,
+  billingReturnStatus = null,
+  birdIdentificationEnabled = true,
+  birdIdentificationUnavailableMessage = '',
+  bookingUnavailableMessage = '',
   isCartEnabled = false,
   isAuthenticated = false,
+  isBillingLoading = false,
   onAddTourToCart,
   onAuthAction,
   onOpenBirdIdentification,
   onOpenCart,
+  onOpenAdmin,
   onOpenMyTours,
   onLogin,
+  onManageBilling,
+  onDismissBillingReturn,
   onRemoveTourFromCart,
+  onUpdateProfile,
+  onUpdateProfileImage,
+  onUpgradePlan,
   removingTourIds = [],
   onReserveTour,
   reservingTourIds = [],
   onStartChat,
+  user,
 }) {
   const {
     tours,
@@ -40,15 +55,29 @@ function HomePage({
 
   return (
     <main id="home" className="home-page">
+      <BillingReturnNotice
+        status={billingReturnStatus}
+        onDismiss={onDismissBillingReturn}
+      />
       <HomeHeader
         authActionLabel={authActionLabel}
+        birdIdentificationEnabled={birdIdentificationEnabled}
+        birdIdentificationUnavailableMessage={birdIdentificationUnavailableMessage}
+        billingError={billingError}
         cartCount={cartCount}
         isAuthenticated={isAuthenticated}
+        isBillingLoading={isBillingLoading}
         onAuthAction={onAuthAction || onLogin}
         onOpenBirdIdentification={onOpenBirdIdentification}
         onOpenCart={onOpenCart}
+        onOpenAdmin={onOpenAdmin}
         onOpenMyTours={onOpenMyTours}
         onStartChat={onStartChat}
+        onManageBilling={onManageBilling}
+        onUpdateProfile={onUpdateProfile}
+        onUpdateProfileImage={onUpdateProfileImage}
+        onUpgradePlan={onUpgradePlan}
+        user={user}
       />
       <HeroSection
         heroVideo={hero?.heroVideo}
@@ -57,6 +86,8 @@ function HomePage({
         showLoginCta={!isAuthenticated}
       />
       <FeaturedTours
+        agentBookingEnabled={agentBookingEnabled}
+        bookingUnavailableMessage={bookingUnavailableMessage}
         addedTourIds={addedTourIds}
         addingTourIds={addingTourIds}
         cartItemsByTourId={cartItemsByTourId}

@@ -9,6 +9,7 @@ This repository is a single React/Vite frontend for Costa Rica birdwatching assi
 - styled reservation confirmation cards for confirmed booking responses
 - progressive assistant streaming with typing/loading state and stop-generation support
 - email/password authentication with local JWT session persistence
+- authenticated display-name and profile-image updates from the account menu
 - premium homepage entry point for tours, bird highlights, transportation add-ons, chat, login, and cookie consent
 - local chat state persistence with `localStorage`
 - cached conversation messages and customer context for fast reloads
@@ -16,10 +17,12 @@ This repository is a single React/Vite frontend for Costa Rica birdwatching assi
 - backend hydration through `GET /chat/:conversationId`
 - backend streaming chat requests through `POST /chat`
 - browser voice chat through `POST /voice-chat`, with recorded audio converted to WAV before upload
-- authenticated bird identification through `POST /birds/identify`, supporting pasted image URLs, photo uploads, mobile camera capture, and the backend's conservative `identified | uncertain | unknown` response states
+- authenticated bird identification through `POST /birds/identify`, supporting pasted image URLs, photo uploads, async job polling through `GET /jobs/:id`, and the backend's conservative `identified | uncertain | unknown` response states
+- authenticated billing checkout through `POST /billing/checkout`, billing management through `POST /billing/portal`, and optional usage display data through `GET /billing/usage`
 - homepage content through `GET /homepage/hero`, `GET /tours`, `GET /birds/highlights`, and `GET /addons/transportation`
 - bird profile media resolution through CloudFront or `GET /files/:folderName/:filename` when RAG metadata contains relative media paths
 - backend-generated tour discovery, pricing, discounts, and reservation confirmations through assistant responses
+- provider-agnostic billing upgrades and hosted billing management through authenticated backend billing endpoints, with Stripe currently used by the backend as the first provider adapter
 - Railway-oriented static deployment with environment-driven API configuration
 
 ## Source Of Truth Map
@@ -30,6 +33,8 @@ This repository is a single React/Vite frontend for Costa Rica birdwatching assi
 - UI copy and prompt-adjacent guidance: [docs/prompting.md](./docs/prompting.md)
 - Conversation state behavior: [docs/memory.md](./docs/memory.md)
 - Deployment and environment: [docs/deployment.md](./docs/deployment.md)
+- Product analytics and event ownership: [docs/analytics.md](./docs/analytics.md)
+- Product feature flags and rollouts: [docs/feature-flags.md](./docs/feature-flags.md)
 - Frontend implementation rules: [docs/frontend-guidelines.md](./docs/frontend-guidelines.md)
 - Historical AI prompts: [docs/development_prompts/README.md](./docs/development_prompts/README.md)
 
@@ -40,13 +45,33 @@ The app uses a shell-component-hook-API split:
 - `src/pages/HomePage.jsx` composes the premium homepage entry point.
 - `src/components/*` owns presentational chat UI.
 - `src/components/home/*` owns presentational homepage sections.
-- `src/hooks/useAuth.js` owns auth state, token persistence, login, signup, and logout.
+- `src/hooks/useAuth.js` owns auth state, token persistence, login, signup, logout, and profile updates.
 - `src/hooks/useChat.js` owns conversation state, local persistence, loading, and errors.
+- The admin Operations Dashboard uses three locally selected sections:
+  AI Operations, Commercial administration, and Emergency controls.
+  AI Operations is the default and presents compact Users, MRR, AI Cost, and
+  Errors KPIs followed by AI Usage, AI Quality, Queues, and Recent Failures.
+  `useAdminDashboard` loads only the active section, keeps independent
+  session-only caches and request states, and never persists admin responses.
+  The responsive section menu remains local state and does not add routing.
+- AI Operations is range-dependent. A reporting-range change invalidates and
+  reloads it when active; Commercial administration and Emergency Controls
+  remain cached. Refresh and retry clear and reload only affected sections, so
+  a failure cannot clear another section’s successful data.
+- Safe admin mutations stay in their relevant sections: retained failed BullMQ
+  jobs in Recent Failures, eligible users in Commercial administration, and AI
+  feature controls in Emergency controls. `adminApi.js` strictly validates every
+  operation envelope and payload, `useAdminOperations` owns per-target pending,
+  success, safe error, duplicate prevention, and targeted refresh behavior, and
+  `AdminOperationDialog` owns confirmation, keyboard/focus, reason/duration,
+  and audit-reference presentation.
 - `src/hooks/useHomeContent.js` owns homepage content loading state.
-- `src/api/authApi.js` owns auth HTTP calls and response shape validation.
+- `src/api/authApi.js` owns auth/profile HTTP calls and response shape validation.
+- `src/api/billingApi.js` owns provider-neutral checkout/payment, billing management, and billing usage calls. It validates `paymentUrl` and `managementUrl` rather than provider-specific checkout or portal field names.
+- `src/api/cartApi.js` owns authenticated cart reservation HTTP calls.
 - `src/api/chatApi.js` owns backend HTTP calls and response shape validation.
 - `src/api/voiceChatApi.js` owns raw audio upload calls to `POST /voice-chat` and resolves returned audio response URLs.
-- `src/api/birdIdentificationApi.js` owns authenticated bird identification URL and raw image upload calls to `POST /birds/identify`, normalizes the `{ success, data, meta }` envelope, and should preserve optional bird-identification fields defensively.
+- `src/api/birdIdentificationApi.js` owns authenticated bird identification URL and raw image upload calls to `POST /birds/identify`, job polling through `GET /jobs/:id`, normalizes the `{ success, data, meta }` envelope, and should preserve optional bird-identification fields defensively.
 - `src/api/homeApi.js` owns homepage HTTP calls and response shape validation.
 - `src/api/mediaApi.js` owns bird media URL resolution through CloudFront when configured, with backend media endpoint fallback.
 - `src/index.css` owns global tokens, layout, responsive behavior, and dark mode.
@@ -59,7 +84,7 @@ Send chat message:
 ChatInput submit
   -> App.sendMessage from useChat
   -> optimistic user message append plus in-progress assistant message
-  -> chatApi.streamChatMessage with bearer token
+  -> chatApi.streamChatMessage with optional bearer token
   -> POST /chat on the backend
   -> parse SSE start/chunk/replace/done/error events
   -> buffer chunks and reveal assistant text progressively
@@ -71,6 +96,17 @@ ChatInput submit
   -> resolve relative bird media paths through CloudFront or GET /files/:folderName/:filename before using them in image or audio elements
   -> ignore optional sources/tool metadata until a UI surface exists
   -> cache messages in localStorage
+```
+
+Billing checkout and management:
+```text
+Account menu upgrade/manage action
+  -> App.handleUpgrade or App.handleManageBilling
+  -> billingApi.createCheckoutSession or createCustomerPortalSession with bearer token
+  -> POST /billing/checkout or POST /billing/portal on the backend
+  -> backend selects the requested provider or BILLING_DEFAULT_PROVIDER
+  -> backend returns provider-neutral data.paymentUrl or data.managementUrl
+  -> UI redirects to the hosted provider URL without storing provider customer IDs, subscription IDs, price IDs, or secrets
 ```
 
 Send voice chat message:
@@ -101,18 +137,16 @@ useAuth restores birdwatchingAI.authState
 
 Local development API routing:
 ```text
-Browser fetch('/auth/*', '/cart/*', '/chat', '/homepage/*', '/tours', '/birds/*', or '/addons/*')
+Browser fetch('/auth/*', '/billing/*', '/cart/*', '/chat', '/voice-chat', '/homepage/*', '/tours', '/birds/*', '/jobs/*', '/addons/*', or '/files/*')
   -> Vite dev proxy
-  -> VITE_API_PROXY_TARGET
+  -> VITE_API_URL, VITE_API_PROXY_TARGET, or http://localhost:3000
   -> Birdwatching AI API
 ```
 
-Voice chat local development:
+Production API routing:
 ```text
-Browser fetch('/voice-chat')
-  -> Vite dev proxy
-  -> VITE_API_PROXY_TARGET
-  -> Birdwatching AI API
+Browser fetch(`${VITE_API_URL}/auth/*`, `${VITE_API_URL}/billing/*`, `${VITE_API_URL}/cart/*`, `${VITE_API_URL}/chat`, `${VITE_API_URL}/voice-chat`, `${VITE_API_URL}/birds/*`, `${VITE_API_URL}/jobs/*`, `${VITE_API_URL}/files/*`, or homepage content endpoints)
+  -> public Birdwatching AI API
 ```
 
 Bird identification:
@@ -122,7 +156,9 @@ Authenticated HomeHeader Identify Bird action
   -> useBirdIdentification
   -> birdIdentificationApi.identifyBirdByUrl or identifyBirdByFile
   -> POST /birds/identify with bearer token
-  -> backend validates one image input, stores raw uploads when needed, extracts rich visual evidence, generates candidates, verifies/reranks them with bird-profile RAG, and returns normalized JSON
+  -> backend validates one image input, stores raw uploads when needed, and returns either a queued job or a completed normalized JSON result
+  -> for queued jobs, useBirdIdentification polls GET /jobs/:id until completed, failed, or not_found
+  -> completed jobs render the final rich visual evidence, candidates, bird-profile RAG verification/reranking, and normalized response
   -> modal renders status, a best-match comparison with submitted-image clarity overlay plus optional reference-image overlay, candidate confidence/reasoning/evidence, uncertainty notes, and optional candidate images inline
 ```
 
@@ -135,12 +171,6 @@ Browser fetch('/files/:folderName/:filename')
   -> JSON envelope with data.url media URL
 ```
 
-Production API routing:
-```text
-Browser fetch(`${VITE_API_URL}/auth/*`, `${VITE_API_URL}/cart/*`, `${VITE_API_URL}/chat`, `${VITE_API_URL}/voice-chat`, or homepage content endpoints)
-  -> public Birdwatching AI API
-```
-
 ## Important Implementation Facts
 - ESM is enabled through `"type": "module"` in `package.json`.
 - The app has one screen and currently no React Router dependency.
@@ -150,10 +180,11 @@ Browser fetch(`${VITE_API_URL}/auth/*`, `${VITE_API_URL}/cart/*`, `${VITE_API_UR
 - `useAuth.getValidToken` refreshes expiring access tokens before authenticated chat calls and clears local auth state when refresh fails.
 - Authenticated chat state is stored under `birdwatchingAI.chatState.<userId>` so user switching cannot reuse another user's local transcript.
 - `VITE_API_URL` is trimmed of trailing slash before request URLs are built.
-- Empty `VITE_API_URL` intentionally produces relative `/auth`, `/chat`, and homepage content URLs for local proxying.
-- The current dev proxy covers `/auth`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/addons`, and `/files`.
-- `VITE_API_PROXY_TARGET` should point to the local or remote backend during `npm run dev`.
+- Empty `VITE_API_URL` intentionally produces relative `/auth`, `/billing`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files` URLs for local proxying.
+- The current dev proxy covers `/auth`, `/billing`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files`.
+- `vite.config.js` chooses the proxy target from `VITE_API_URL`, then `VITE_API_PROXY_TARGET`, then `http://localhost:3000`.
 - `CustomerContextForm` collects `customerName`, `customerEmail`, `itineraryStartDate`, and `itineraryEndDate` before the authenticated chat transcript is shown. Visitor mode skips customer context and is limited by the backend to bird questions only.
+- The customer context is frontend intake only. The backend remains authoritative for authenticated identity, durable conversations, reservations, billing records, usage tracking, quotas, RAG, tours, jobs, and media delivery.
 - `useChat` creates a client conversation ID before the first backend response.
 - The backend may return a different `conversationId`; the UI persists the returned ID.
 - `streamChatMessage` sends `customerContext` and sanitized recent assistant metadata as `conversationContext.recentAssistantMetadata` so the backend can continue guided booking flows. Backend ownership and authenticated identity remain authoritative.
@@ -163,7 +194,7 @@ Browser fetch(`${VITE_API_URL}/auth/*`, `${VITE_API_URL}/cart/*`, `${VITE_API_UR
 - The backend may return RAG `sources`; the current UI accepts the field but does not render it.
 - The backend may return RAG bird profiles as `done.meta.birdMatches`; the UI stores those as assistant-message metadata and renders a compact carousel plus modal details.
 - Bird media values in `meta.birdMatches[].media` may be absolute URLs or relative object keys such as `/photos/123_medium.jpg`, `songs/123.mp3`, or `sonograms/123_grey-small.png`. Relative values are resolved by `src/api/mediaApi.js` through `VITE_CLOUDFRONT_BASE_URL` when configured, or through `GET /files/:folderName/:filename`; components must not assume those paths are directly browser-accessible.
-- Bird identification responses from `POST /birds/identify` now include `status`, `bestMatch`, `candidates`, rich `imageAnalysis`, compatibility `imageObservations`, `summary`, and `notes` when available. UI code uses image-analysis confidence for the submitted-image clarity overlay in the best-match comparison, overlays best-match reference media when available, falls back to `imageObservations.confidence`, and renders missing optional fields defensively.
+- Bird identification responses from `POST /birds/identify` may immediately include `{ jobId, status: "queued" }`. The hook stores the job ID in memory only, shows queued/processing state, polls `GET /jobs/:id`, renders completed `result`, and shows safe failed/not-found messages. Completed bird identification results include `status`, `bestMatch`, `candidates`, rich `imageAnalysis`, compatibility `imageObservations`, `summary`, and `notes` when available. UI code uses image-analysis confidence as visual evidence in the best-match comparison, overlays best-match reference media when available, falls back to `imageObservations.confidence`, and renders missing optional fields defensively.
 - Bird identification `status` values have product meaning: `identified` can emphasize `bestMatch`, `uncertain` should preserve multiple plausible candidates, and `unknown` should explain that the image evidence is insufficient instead of implying failure. Candidate cards may include `commonName`, legacy `species`, `scientificName`, `confidence`, `reasoning`, `visualEvidence`, `ragSupport` rendered as supporting details, `contradictions`, `missingEvidence`, inline square media, and profile metadata.
 - Bird identification debug details are not part of the normal UI contract. The backend can expose admin-only `meta.debug` with internal analysis/candidate/profile details when explicitly requested, but the frontend should not request or render it in the standard user flow.
 - Tour listing, recommendation, selection, availability, pricing, discounts, and reservations happen inside the backend chat flow and are summarized in the final streamed assistant response. Tour metadata can include graph-backed `location`, `node`, `subnode`, and `zone` fields.
@@ -175,7 +206,12 @@ Browser fetch(`${VITE_API_URL}/auth/*`, `${VITE_API_URL}/cart/*`, `${VITE_API_UR
 - `BirdMediaCard` and bird carousel thumbnails use `useResolvedMediaUrl` so relative RAG media is exchanged for renderable media URLs before rendering.
 - The UI does not currently call a standalone recommendations endpoint; tour recommendations are handled through the backend chat/tool flow.
 - The homepage calls public, cache-friendly content endpoints for hero media, tours, bird highlights, and transportation instead of using the streaming chat endpoint for static homepage sections.
-- Authenticated chat requests, conversation hydration, and bird identification requests include `Authorization: Bearer <token>`; visitor chat requests omit the token and send `role: "visitor"`.
+- Public browser routes used by this app are auth signup/login/refresh/logout, `POST /chat` for visitor chat, `POST /voice-chat` for visitor voice chat, homepage content endpoints, tour/add-on listing endpoints, bird highlights/profile media, and `GET /files/:folderName/:filename`.
+- Authenticated browser routes include `PATCH /auth/profile`, `POST /auth/profile-image`, `POST /billing/checkout`, `POST /billing/portal`, `GET /billing/usage`, cart reservation endpoints, `GET /chat/latest`, `GET /chat/:conversationId`, `POST /birds/identify`, and `GET /jobs/:id`.
+- Authenticated chat, voice chat, conversation hydration, cart, billing, profile, and bird identification requests include `Authorization: Bearer <token>`; visitor chat and voice chat requests omit the token and send `role` or `X-Role` as `visitor`.
+- Authenticated profile and billing requests include `Authorization: Bearer <token>`; the account menu updates safe user profile state locally and redirects to provider-hosted `paymentUrl` or `managementUrl` values returned by the backend.
+- Billing is provider-agnostic at the UI boundary. The frontend may pass an optional provider or plan when explicitly surfaced by product requirements, but it must not hard-code Stripe object names or accept provider customer/subscription identifiers from users.
+- Profile image previews may use selected file data in memory only; persisted auth state stores only the backend-returned `imageUrl`.
 - Message cache failures are swallowed so chat still works when storage is unavailable.
 - Request failures append a user-friendly assistant error message and also expose the backend/client error in the alert.
 - Chat scroll position is pushed to the newest message with `useLayoutEffect`.
@@ -197,6 +233,10 @@ Current coverage focuses on:
 - authenticated customer context prefill and locked email behavior
 - homepage entry flow and cookie consent persistence
 - `useChat` persistence, streaming, metadata forwarding, and cancellation behavior
+- admin-operation adapter paths/headers/bodies, strict payload validation, safe
+  `401`/`403`/`404`/`409`/`422`/network/`5xx` handling, hook retry and
+  duplicate prevention, accessible confirmations, audit references, and
+  refresh-after-success behavior
 
 ## When Extending
 1. Add or update API adapter behavior in `src/api/`.
@@ -207,3 +247,15 @@ Current coverage focuses on:
 6. Update [docs/memory.md](./docs/memory.md) when local conversation state changes.
 7. Update [docs/prompting.md](./docs/prompting.md) when input handling, output rendering, or chat copy changes.
 8. Add focused React Testing Library tests for user-visible behavior.
+
+## Authoritative safety-control UI
+
+The Admin Dashboard loads AI feature state and safe suspension fields through
+`adminApi`. Suspended users show their timestamp and a Reactivate action;
+disabled features show localized expiration, remaining time, and an Enable
+action. All reversals use accessible confirmations, validated non-optimistic
+responses, refresh-after-success, and audit references.
+
+Public voice, bird identification, and booking controls combine product flags
+with `GET /features/availability`. Temporary shutdowns keep useful controls
+visible but disabled with feature-specific text, and expiry triggers a refresh.

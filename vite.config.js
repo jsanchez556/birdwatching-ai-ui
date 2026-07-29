@@ -28,7 +28,15 @@ export default defineConfig(({ mode }) => {
           target: proxyTarget,
           changeOrigin: true
         },
+        '/admin': {
+          target: proxyTarget,
+          changeOrigin: true
+        },
         '/cart': {
+          target: proxyTarget,
+          changeOrigin: true
+        },
+        '/billing': {
           target: proxyTarget,
           changeOrigin: true
         },
@@ -49,6 +57,10 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true
         },
         '/birds': {
+          target: proxyTarget,
+          changeOrigin: true
+        },
+        '/jobs': {
           target: proxyTarget,
           changeOrigin: true
         },

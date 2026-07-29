@@ -30,6 +30,12 @@ jest.mock('../hooks/useResolvedMediaUrl', () => {
     })),
   }
 })
+jest.mock('../analytics/analytics', () => ({
+  __esModule: true,
+  default: {
+    track: jest.fn(),
+  },
+}))
 
 const App = require('../App').default
 const useAuth = require('../hooks/useAuth').default
@@ -37,11 +43,13 @@ const useChat = require('../hooks/useChat').default
 const useCart = require('../hooks/useCart').default
 const useHomeContent = require('../hooks/useHomeContent').default
 const useResolvedMediaUrl = require('../hooks/useResolvedMediaUrl').default
+const analytics = require('../analytics/analytics').default
 
 describe('App authentication flow', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     window.localStorage.clear()
+    window.history.replaceState({}, '', '/')
     useHomeContent.mockReturnValue({
       hero: null,
       tours: [],
@@ -99,6 +107,116 @@ describe('App authentication flow', () => {
     expect(useResolvedMediaUrl).toHaveBeenCalledWith('resources/bwapp.png')
     expect(screen.queryByRole('heading', { name: /welcome back/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/Plan your birding chat/i)).not.toBeInTheDocument()
+  })
+
+  test('refreshes authenticated user state after a successful billing return', async () => {
+    const refreshCurrentUser = jest.fn().mockResolvedValue({
+      id: 'user-1',
+      email: 'ana@example.com',
+      plan: 'PRO',
+    })
+    window.history.pushState({}, '', '/?billing=success')
+    useAuth.mockReturnValue({
+      isAuthenticated: true,
+      isVisitor: false,
+      isLoading: false,
+      error: null,
+      user: {
+        id: 'user-1',
+        email: 'ana@example.com',
+        name: 'Ana',
+        plan: 'FREE',
+      },
+      getValidToken: jest.fn(),
+      refreshCurrentUser,
+      logout: jest.fn(),
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(refreshCurrentUser).toHaveBeenCalledTimes(1)
+    })
+
+    expect(screen.getByText(/Subscription confirmed/i)).toBeInTheDocument()
+    expect(window.location.search).toBe('')
+  })
+
+  test('keeps billing actions enabled while the plan refresh completes', async () => {
+    let resolveRefresh
+    const refreshCurrentUser = jest.fn(() => new Promise((resolve) => {
+      resolveRefresh = resolve
+    }))
+    const initialAuth = {
+      isAuthenticated: true,
+      isVisitor: false,
+      isLoading: false,
+      error: null,
+      user: {
+        id: 'user-1',
+        email: 'ana@example.com',
+        name: 'Ana',
+        plan: 'FREE',
+      },
+      getValidToken: jest.fn(),
+      refreshCurrentUser,
+      logout: jest.fn(),
+    }
+    window.history.pushState({}, '', '/?billing=success')
+    useAuth.mockReturnValue(initialAuth)
+
+    const { rerender } = render(<App />)
+
+    await waitFor(() => {
+      expect(refreshCurrentUser).toHaveBeenCalledTimes(1)
+    })
+
+    fireEvent.click(screen.getByRole('button', {
+      name: /manage account for ana, ana@example.com/i,
+    }))
+    expect(screen.getByRole('button', { name: /upgrade to pro/i })).toBeEnabled()
+
+    useAuth.mockReturnValue({
+      ...initialAuth,
+      refreshCurrentUser: jest.fn(),
+    })
+    rerender(<App />)
+
+    await act(async () => {
+      resolveRefresh(initialAuth.user)
+    })
+
+    expect(screen.getByRole('button', { name: /upgrade to pro/i })).toBeEnabled()
+  })
+
+  test('shows a non-error notice after cancelled checkout without refreshing the user', () => {
+    const refreshCurrentUser = jest.fn()
+    window.history.pushState({}, '', '/?billing=cancelled')
+    useAuth.mockReturnValue({
+      isAuthenticated: true,
+      isVisitor: false,
+      isLoading: false,
+      error: null,
+      user: {
+        id: 'user-1',
+        email: 'ana@example.com',
+        name: 'Ana',
+        plan: 'FREE',
+      },
+      getValidToken: jest.fn(),
+      refreshCurrentUser,
+      logout: jest.fn(),
+    })
+
+    render(<App />)
+
+    expect(screen.getByText(/Checkout cancelled/i)).toBeInTheDocument()
+    expect(screen.getByText(/No changes were made/i)).toBeInTheDocument()
+    expect(refreshCurrentUser).not.toHaveBeenCalled()
+    expect(window.location.search).toBe('')
+
+    fireEvent.click(screen.getByRole('button', { name: /dismiss billing notification/i }))
+    expect(screen.queryByText(/Checkout cancelled/i)).not.toBeInTheDocument()
   })
 
   test('renders homepage hero video when content provides one', () => {
@@ -352,10 +470,15 @@ describe('App authentication flow', () => {
 
     render(<App />)
 
-    expect(screen.getByRole('button', { name: /^Logout$/i })).toBeInTheDocument()
+    const accountButton = screen.getByRole('button', {
+      name: /manage account for ana gomez, ana@example.com/i,
+    })
+
+    expect(accountButton).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Login$/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/Log in to save your itinerary/i)).not.toBeInTheDocument()
 
+    fireEvent.click(accountButton)
     fireEvent.click(screen.getByRole('button', { name: /^Logout$/i }))
 
     expect(logout).toHaveBeenCalledTimes(1)
@@ -912,5 +1035,13 @@ describe('App authentication flow', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Start Birdwatching Chat/i })[0])
 
     expect(enterAsVisitor).toHaveBeenCalledTimes(1)
+    expect(analytics.track).toHaveBeenCalledWith({
+      event: 'chat_started',
+      properties: {
+        plan: 'VISITOR',
+        source: 'homepage',
+        userType: 'visitor',
+      },
+    })
   })
 })

@@ -2,6 +2,7 @@ import {
   apiUrl,
   authHeaders,
   API_FALLBACK_ERROR_MESSAGE,
+  API_QUOTA_ERROR_MESSAGE,
   getApiErrorMessage,
   isObject,
   JSON_HEADERS,
@@ -165,6 +166,10 @@ export async function streamChatMessage({
     }
 
     if (event === 'error') {
+      if (data.code === 'QUOTA_EXCEEDED' && !data.message) {
+        throw new Error(API_QUOTA_ERROR_MESSAGE)
+      }
+
       throw new Error(data.message || 'Failed to stream response')
     }
   })

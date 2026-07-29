@@ -2,13 +2,31 @@
 
 Back to [Project Context](../CONTEXT.md). See [Architecture](./architecture.md) for UI flow details.
 
-The frontend integrates with the Birdwatching AI API through `src/api/authApi.js`, `src/api/cartApi.js`, `src/api/chatApi.js`, `src/api/voiceChatApi.js`, `src/api/birdIdentificationApi.js`, `src/api/homeApi.js`, and `src/api/mediaApi.js`. Backend API implementation lives in the backend repository.
+The frontend integrates with the Birdwatching AI API through `src/api/adminApi.js`, `src/api/authApi.js`, `src/api/cartApi.js`, `src/api/chatApi.js`, `src/api/voiceChatApi.js`, `src/api/birdIdentificationApi.js`, `src/api/homeApi.js`, and `src/api/mediaApi.js`. Backend API implementation lives in the backend repository.
 
 The active UI currently calls:
+- `GET /admin/overview`
+- `GET /admin/subscriptions`
+- `GET /admin/ai-usage`
+- `GET /admin/ai-costs`
+- `GET /admin/ai-quality`
+- `GET /admin/users`
+- `GET /admin/failures`
+- `POST /admin/jobs/:jobId/retry`
+- `POST /admin/users/:userId/suspend`
+- `POST /admin/ai-features/:feature/disable`
+- `GET /admin/queue-health`
+- `GET /admin/failures`
+- `GET /admin/errors`
 - `POST /auth/signup`
 - `POST /auth/login`
 - `POST /auth/refresh`
 - `POST /auth/logout`
+- `PATCH /auth/profile`
+- `POST /auth/profile-image`
+- `POST /billing/checkout`
+- `POST /billing/portal`
+- `GET /billing/usage`
 - `GET /cart`
 - `POST /cart/items`
 - `PATCH /cart/items/:itemId`
@@ -18,6 +36,7 @@ The active UI currently calls:
 - `POST /chat`
 - `POST /voice-chat`
 - `POST /birds/identify`
+- `GET /jobs/:id`
 - `GET /chat/latest`
 - `GET /chat/:conversationId`
 - `GET /homepage/hero`
@@ -44,13 +63,20 @@ Errors are expected to use:
 ```json
 {
   "success": false,
+  "data": null,
   "error": {
     "code": "VALIDATION_ERROR",
     "message": "Invalid chat payload",
     "details": []
+  },
+  "meta": {
+    "message": "Invalid chat payload"
   }
 }
 ```
+
+Quota errors use code `QUOTA_EXCEEDED`. The API adapters surface the backend
+message when present and fall back to a friendly daily-limit message.
 
 ## API Base URL
 The API adapters read:
@@ -61,7 +87,7 @@ import.meta.env.VITE_API_URL
 Behavior:
 - trailing slashes are removed
 - empty value means requests are relative to the current origin
-- local relative `/auth`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/addons`, and `/files` calls are proxied by Vite to `VITE_API_PROXY_TARGET`
+- local relative `/admin`, `/auth`, `/billing`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files` calls are proxied by Vite to `VITE_API_PROXY_TARGET`
 - production should set `VITE_API_URL` to the public backend URL
 
 ## Auth
@@ -97,7 +123,9 @@ Both endpoints are expected to return:
       "id": "user-1",
       "email": "ana@example.com",
       "name": "Ana Rivera",
-      "role": "customer"
+      "role": "customer",
+      "plan": "FREE",
+      "imageUrl": "/files/user-profile-images/user-1.png"
     }
   },
   "meta": {}
@@ -114,6 +142,168 @@ Frontend behavior:
 - stores a safe visitor marker when the user enters visitor mode without credentials
 - clears auth storage on logout
 - uses the safe auth user profile to prefill customer context
+- updates display name through `PATCH /auth/profile`
+- uploads JPEG, PNG, or WebP profile images up to 5 MB through `POST /auth/profile-image`
+- stores only the returned safe profile image URL in auth state, never selected image bytes or data URLs
+
+`PATCH /auth/profile` sends:
+```json
+{
+  "name": "Ana Rivera"
+}
+```
+
+`POST /auth/profile-image` sends raw image bytes with `Content-Type: image/jpeg`, `image/png`, or `image/webp`.
+Both profile endpoints require bearer auth and return:
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "user-1",
+      "email": "ana@example.com",
+      "name": "Ana Rivera",
+      "role": "customer",
+      "plan": "FREE",
+      "imageUrl": "/files/user-profile-images/user-1.png"
+    }
+  },
+  "meta": {}
+}
+```
+
+## Admin operations
+
+Authenticated users with the server-issued `admin` role can open the operations
+dashboard from the account menu. `src/api/adminApi.js` exposes explicit
+section-to-loader mappings. The default AI Operations section requests overview,
+usage, costs, quality, queue health, failures, and sanitized errors. It does not
+request subscriptions, users, or feature controls. Commercial administration
+requests subscriptions and safe users; Emergency Controls requests feature
+state. Every response validates the normalized
+`{ success, data, meta }` envelope before entering a section cache.
+
+The reporting range selector sends ISO `startDate` and exclusive `endDate`
+parameters to the range-dependent AI Operations request. Commercial
+administration and Emergency Controls are range-independent. Subscription and failure lists use
+bounded pagination. Admin responses are cached only for the mounted dashboard
+session and are not persisted. AI cost analytics show requests, tokens, estimated cost, and
+average cost per request, with switchable feature, model, subscription plan,
+and user breakdowns from `GET /admin/ai-costs`. `GET /admin/queue-health`
+returns live BullMQ `waiting`, `active`, `completed`, `failed`, and `delayed`
+counts for bird identification, embeddings, and document ingestion. The queue
+panel labels `active` work as “Running”. A failed section refresh clears only
+that section so stale data is not presented as current.
+
+`GET /admin/errors` supplies the Operational errors section using
+`{ success, data: { errors }, meta }`. The adapter validates all seven
+normalized types, timestamps, safe user references, statuses, and trace fields.
+It accepts only HTTPS trace links on the explicit LangSmith hostname allowlist;
+an unsafe link is normalized to `null`. Presentational components never derive
+a LangSmith URL from `traceId`.
+
+The dashboard loads the first 25 errors for the selected reporting range,
+newest-first as returned by the API. A refresh failure clears the AI Operations
+section before showing its retry state without affecting secondary caches.
+The legacy `/admin/failures` adapter
+now supplies only retained failed-job targets for the retry controls; its safe
+records contain no job payloads or raw exception details.
+
+`GET /admin/ai-quality` must return UTC `range` and `previousRange` objects plus
+exactly four metrics: `groundingScore`, `answerRelevance`,
+`retrievalQuality`, and `toolSuccessRate`. Each metric contains nullable
+`current`, `previous`, and `delta` values on a `0–1` scale plus non-negative
+integer sample sizes for both periods. The adapter rejects malformed
+timestamps, non-UTC ranges, missing metrics, inconsistent null/sample-size
+combinations, non-finite values, and a previous range that does not end at the
+current range start.
+
+The UI formats values as percentages and deltas as percentage points. A null
+current value renders `No evaluation data`; it is never displayed as `0%`.
+AI-quality data is part of the AI Operations cache; a failed refresh clears
+that active section without clearing Commercial or Emergency Controls.
+
+### Safe admin mutation requests
+
+All operation requests use `POST`, include the current bearer token and JSON
+content type, and require a valid normalized envelope with an object `meta`.
+The adapter validates exact operation-specific success fields. Extra job
+payload, user, provider, or secret-bearing fields make the response invalid and
+prevent any UI success state.
+
+- `POST /admin/jobs/:jobId/retry` sends `{}` and is offered only for
+  `background_job` records whose status is `failed`. Success requires the same
+  job ID, a known job type, queue name, `status: "queued"`, and an audit ID.
+- `POST /admin/users/:userId/suspend` sends one selected `reasonCode`:
+  `abuse`, `spam`, `security`, or `policy_violation`. The UI never offers the
+  action for an administrator or the current admin and never collects
+  free-form allegations or evidence.
+- `POST /admin/ai-features/:feature/disable` sends an integer
+  `durationMinutes` from `1` through `1440`. Supported features are `voice_ai`,
+  `multimodal_bird_identification`, and `agent_booking`. Presets cover 15
+  minutes, 1 hour, 4 hours, and 24 hours; a bounded custom value is also
+  available. The returned UTC `disabledUntil` remains in the `dateTime`
+  attribute and is displayed in the user’s locale.
+
+Every operation opens a named modal confirmation showing the exact target and
+expected impact. The dialog supports Cancel, Escape, initial focus, return
+focus, live pending/error/success announcements, and a specific action label.
+Visible state changes only after a validated success. The success message
+includes the audit ID as a support reference.
+
+Operation errors never render backend messages. `401` and `403` disable further
+submission in the dialog; `404`, `409`, and `422` receive action-specific safe
+explanations; network, timeout, invalid-success, and `5xx` failures offer manual
+retry. A failed operation does not change the target’s displayed state.
+
+## Billing
+`src/api/billingApi.js` starts provider-hosted checkout/payment for authenticated FREE users and opens provider-hosted billing management for authenticated PRO users with stored billing state. Stripe may be the backend's current provider, but UI components consume provider-neutral URLs.
+
+`POST /billing/checkout` sends an empty JSON body by default, or optional provider/plan fields, with bearer auth and expects:
+
+```json
+{
+  "success": true,
+  "data": {
+    "provider": "stripe",
+    "plan": "PRO",
+    "paymentUrl": "https://checkout.stripe.com/c/pay/cs_test_..."
+  },
+  "meta": {}
+}
+```
+
+The frontend redirects the browser to `paymentUrl`.
+
+`POST /billing/portal` sends an empty JSON body by default, or an optional provider field, with bearer auth and expects:
+
+```json
+{
+  "success": true,
+  "data": {
+    "provider": "stripe",
+    "managementUrl": "https://billing.stripe.com/p/session/..."
+  },
+  "meta": {}
+}
+```
+
+The frontend redirects the browser to `managementUrl` so subscription
+cancellation, payment method updates, and invoices stay inside the provider's
+hosted billing surface.
+
+`GET /billing/usage` returns:
+
+```json
+{
+  "success": true,
+  "data": {
+    "monthlyCost": 4.28,
+    "monthlyRequests": 142
+  },
+  "meta": {}
+}
+```
 
 ## `POST /birds/identify`
 Used by `identifyBirdByUrl({ imageUrl, token })` and `identifyBirdByFile({ file, token })` in `src/api/birdIdentificationApi.js`.
@@ -127,7 +317,7 @@ URL request:
 }
 ```
 
-File or mobile camera request:
+Raw photo upload request:
 ```http
 POST /birds/identify
 Authorization: Bearer jwt
@@ -137,7 +327,57 @@ X-Filename: bird.jpg
 <raw image bytes>
 ```
 
-Expected success data:
+The frontend accepts JPEG, PNG, WebP, and GIF uploads up to 10 MB for this endpoint. Unsupported iPhone HEIC/HEIF files, empty files, and oversized files are rejected in the bird identification hook before the raw upload request is sent. When Safari omits image MIME metadata, the upload adapter infers the backend `Content-Type` from supported file extensions.
+
+Expected queued data:
+```json
+{
+  "jobId": "abc123",
+  "status": "queued"
+}
+```
+
+The frontend treats queued bird identification responses as background jobs and polls:
+
+```http
+GET /jobs/:id
+Authorization: Bearer jwt
+```
+
+Queued or active job data:
+```json
+{
+  "jobId": "abc123",
+  "status": "active"
+}
+```
+
+Completed job data:
+```json
+{
+  "jobId": "abc123",
+  "status": "completed",
+  "result": {
+    "status": "uncertain",
+    "bestMatch": {
+      "commonName": "Resplendent Quetzal"
+    }
+  }
+}
+```
+
+Failed job data:
+```json
+{
+  "jobId": "abc123",
+  "status": "failed",
+  "error": {
+    "message": "Bird identification failed. Please try again."
+  }
+}
+```
+
+Completed `result` data follows the existing bird identification shape:
 ```json
 {
   "status": "uncertain",
@@ -189,6 +429,10 @@ Expected success data:
 
 Frontend behavior:
 - validates the normalized response envelope at the adapter boundary
+- stores background job IDs only in modal hook state
+- polls `GET /jobs/:id` for queued, active, or processing responses
+- renders completed job results under the same bird identification result UI
+- renders safe user-facing messages for failed or missing jobs
 - preserves optional `status`, `bestMatch`, `imageAnalysis`, `imageObservations`, `candidates`, `notes`, and `meta` fields defensively
 - sends bearer auth through `getValidToken`
 - supports pasted HTTP(S) image URLs
@@ -309,7 +553,7 @@ Backend behavior relevant to UI:
 - associates authenticated conversations and reservations with the logged-in user and rejects cross-user conversation access
 - treats authenticated identity as authoritative over frontend-provided customer email
 - loads recent conversation history from PostgreSQL
-- may retrieve RAG sources from PostgreSQL pgvector knowledge chunks ingested from backend `src/db/ingestion/data`
+- may retrieve RAG sources from PostgreSQL pgvector knowledge chunks ingested from backend `src/ingestion/data`
 - may use OpenAI tool calls for tour search/recommendation, availability checks, transportation estimates, pricing, discounts, and reservations
 - when tour listing or recommendation tools return tours, the assistant response should stay short, for example `I found 2 tours that match your preferences.`, while tour details are provided in `meta.tours`
 - tour records in chat metadata may include `location`, `node`, `subnode`, and `zone`; `location` is a display label derived from the node graph, while `node`, `subnode`, and `zone` are the structured location fields
@@ -411,7 +655,7 @@ Tour and reservation notes:
 - Available backend tools are `searchTours`, `calculateTransportation`, `checkAvailability`, `calculatePricing`, and `createReservation`.
 - Tour listing and recommendation details are returned in `meta.tours` when available.
 - Tour listing, selection, and reservation metadata can include `location`, `node`, `subnode`, and `zone`. The frontend treats these as display metadata and does not infer booking logic from them.
-- Tour selection can use a `tourId` or clear/partial `tourName`; the backend resolves matching names before validating availability.
+- Tour selection can use a `tourId` or a backend-supported tour name/location value; the backend owns matching, ambiguity handling, and availability validation.
 - The backend may return `meta.uiAction` or `meta.uiActions` for guided controls. Supported UI action types include `choice`, `tour_selection`, `date_picker`, `participant_count`, `transportation_selection`, and `reservation_confirmation`.
 - The backend may return `meta.uiAction.type === "participant_count"` with `min`, `max`, and numeric `options`; the UI renders this as a select control and sends the selected number back as the next chat message.
 - After participant count is selected, the backend may include `meta.participants`; the UI preserves it in chat-level `conversationMeta` so later backend turns can reuse it.
@@ -554,3 +798,14 @@ The adapter requires `data.bird` to be an object and treats `404` as a normal mi
 - Do not invent backend fields in UI code. If the UI needs sources, discounts, additional reservation details, or tour metadata, first confirm the backend contract and update this file.
 - Keep backend CORS allowlists aligned with deployed frontend origins.
 - Do not expose backend secrets through `VITE_` variables.
+## Feature availability and admin reversals
+
+`GET /features/availability` returns strict state for `voice_ai`,
+`multimodal_bird_identification`, and `agent_booking`. Disabled entries require
+an ISO UTC expiration. Malformed envelopes never update UI state.
+
+Admin data also loads `GET /admin/ai-features` and suspension state from
+`GET /admin/users`. Reversal requests are
+`POST /admin/ai-features/:feature/enable` and
+`POST /admin/users/:userId/unsuspend`, both with `{}` bodies and the admin
+bearer header. Responses are operation-specifically validated before refresh.

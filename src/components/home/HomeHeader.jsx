@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import AccountMenu from './AccountMenu'
 
 const brandMark =
   'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 80 80%22%3E%3Crect width=%2280%22 height=%2280%22 rx=%2216%22 fill=%22%2328734d%22/%3E%3Cpath d=%22M18 50c14-24 30-30 48-22-15 4-25 14-30 30-5-5-11-7-18-8Z%22 fill=%22%23fff%22/%3E%3Ccircle cx=%2256%22 cy=%2228%22 r=%224%22 fill=%22%23f2c84b%22/%3E%3C/svg%3E'
@@ -11,12 +12,22 @@ const EXPAND_SCROLL_Y = 24
 
 function HomeHeader({
   authActionLabel = 'Login',
+  birdIdentificationEnabled = true,
+  birdIdentificationUnavailableMessage = '',
+  billingError = null,
   cartCount = 0,
   isAuthenticated = false,
+  isBillingLoading = false,
   onAuthAction,
+  onOpenAdmin,
   onOpenCart,
   onOpenBirdIdentification,
   onOpenMyTours,
+  onManageBilling,
+  onUpdateProfile,
+  onUpdateProfileImage,
+  onUpgradePlan,
+  user,
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -60,14 +71,29 @@ function HomeHeader({
     onOpenCart?.()
   }
 
+  const handleAdminAction = () => {
+    closeMenu()
+    onOpenAdmin?.()
+  }
+
   const handleMyToursAction = () => {
     closeMenu()
     onOpenMyTours?.()
   }
 
+  const handleManageBilling = () => {
+    closeMenu()
+    onManageBilling?.()
+  }
+
   const handleBirdIdentificationAction = () => {
     closeMenu()
     onOpenBirdIdentification?.()
+  }
+
+  const handleUpgradePlan = () => {
+    closeMenu()
+    onUpgradePlan?.()
   }
 
   const handleExploreClick = () => {
@@ -163,9 +189,11 @@ function HomeHeader({
               Home
             </a>
           )}
-          <button type="button" className="home-header-link" onClick={handleAuthAction}>
-            {authActionLabel}
-          </button>
+          {!isAuthenticated && (
+            <button type="button" className="home-header-link" onClick={handleAuthAction}>
+              {authActionLabel}
+            </button>
+          )}
           <a
             className={activeItem === 'explore' ? 'home-header-link is-active' : 'home-header-link'}
             href="#featured-tours"
@@ -176,8 +204,14 @@ function HomeHeader({
           </a>
           {isAuthenticated && (
             <>
-              <button type="button" className="home-header-link" onClick={handleBirdIdentificationAction}>
-                Identify Bird
+              <button
+                type="button"
+                className="home-header-link"
+                onClick={handleBirdIdentificationAction}
+                disabled={!birdIdentificationEnabled}
+                title={birdIdentificationUnavailableMessage || undefined}
+              >
+                  Identify Bird
               </button>
               <button type="button" className="home-header-link" onClick={handleMyToursAction}>
                 My Tours
@@ -193,10 +227,31 @@ function HomeHeader({
                 </span>
                 <span className="home-header-cart-count">{cartCount}</span>
               </button>
+              <AccountMenu
+                billingError={billingError}
+                isBillingLoading={isBillingLoading}
+                onLogout={handleAuthAction}
+                onManageBilling={handleManageBilling}
+                onOpenAdmin={handleAdminAction}
+                onUpdateProfile={onUpdateProfile}
+                onUpdateProfileImage={onUpdateProfileImage}
+                onUpgradePlan={handleUpgradePlan}
+                user={user}
+              />
             </>
           )}
         </nav>
       </div>
+      {billingError && !isAuthenticated && (
+        <div className="home-header-alert" role="status">
+          {billingError}
+        </div>
+      )}
+      {isAuthenticated && !birdIdentificationEnabled && birdIdentificationUnavailableMessage && (
+        <div className="home-header-alert" role="status">
+          {birdIdentificationUnavailableMessage}
+        </div>
+      )}
     </header>
   )
 }

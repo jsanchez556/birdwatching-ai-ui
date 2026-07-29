@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import useBirdIdentification from '../hooks/useBirdIdentification'
 import { useResolvedMedia } from '../hooks/useResolvedMediaUrl'
 
+const IMAGE_URL_PLACEHOLDER = 'https://example.com/bird.jpg'
+
 function formatConfidence(value) {
   const confidence = Number(value)
 
@@ -193,23 +195,51 @@ function EvidenceList({ items, label, title, tone = '' }) {
   )
 }
 
-function StatusBanner({ result }) {
-  const statusText = formatStatus(result?.status)
+function StatusBanner({ result, job, isLoading }) {
+  let banner = null
 
-  if (!statusText) {
+  if (result) {
+    const statusText = formatStatus(result.status)
+
+    if (statusText) {
+      banner = {
+        text: statusText,
+        description: result.status === 'identified'
+          ? 'This looks like a likely match based on the visible field marks.'
+          : result.status === 'uncertain'
+            ? 'The image is not definitive, but these birds are plausible matches.'
+            : 'The image does not show enough detail for a reliable identification.',
+      }
+    }
+  } else if (job?.jobId || isLoading) {
+    const status = job?.status || 'queued'
+    const text = status === 'active' || status === 'processing'
+      ? 'Processing image'
+      : status === 'completed'
+        ? 'Identification ready'
+        : status === 'delayed'
+          ? 'Identification delayed'
+          : 'Queued for identification'
+    const description = status === 'completed'
+      ? 'Results are ready below.'
+      : status === 'delayed'
+        ? 'Identification is taking a little longer than usual. Please try again shortly.'
+        : 'This can take a moment while the image is analyzed.'
+
+    banner = {
+      text,
+      description,
+    }
+  }
+
+  if (!banner) {
     return null
   }
 
-  const description = result.status === 'identified'
-    ? 'This looks like a likely match based on the visible field marks.'
-    : result.status === 'uncertain'
-      ? 'The image is not definitive, but these birds are plausible matches.'
-      : 'The image does not show enough detail for a reliable identification.'
-
   return (
-    <div className={`bird-id-status bird-id-status-${result.status}`} role="status">
-      <span>{statusText}</span>
-      <p>{description}</p>
+    <div className="bird-id-status" role="status" aria-live="polite">
+      <span>{banner.text}</span>
+      <p>{banner.description}</p>
     </div>
   )
 }
@@ -283,6 +313,7 @@ function BirdIdentificationModal({ auth, onClose }) {
   const previewObjectUrlRef = useRef('')
   const {
     result,
+    job,
     error,
     isLoading,
     identify,
@@ -295,6 +326,7 @@ function BirdIdentificationModal({ auth, onClose }) {
   const likelyCandidates = candidates.filter((candidate) => !isSameCandidate(candidate, result?.bestMatch))
   const notes = normalizeList(result?.notes)
   const clarity = imageClarity(result)
+  const imageInputPlaceholder = file ? `Selected: ${file.name}` : IMAGE_URL_PLACEHOLDER
 
   const revokePreviewObjectUrl = () => {
     if (previewObjectUrlRef.current && typeof URL.revokeObjectURL === 'function') {
@@ -399,19 +431,16 @@ function BirdIdentificationModal({ auth, onClose }) {
         </header>
 
         <form className="bird-id-form" onSubmit={handleSubmit}>
-          <label htmlFor="bird-id-url">Image URL</label>
-          <div className="bird-id-url-row">
+          <div className="bird-id-input-group">
+            <label htmlFor="bird-id-url">Image URL or photo upload</label>
             <input
               id="bird-id-url"
               type="url"
               value={imageUrl}
-              placeholder="https://example.com/bird.jpg"
+              placeholder={imageInputPlaceholder}
               onChange={handleUrlChange}
               disabled={isLoading}
             />
-            <button type="submit" disabled={isLoading}>
-              {isLoading ? 'Identifying...' : 'Identify'}
-            </button>
           </div>
 
           <div className="bird-id-file-actions">
@@ -424,32 +453,21 @@ function BirdIdentificationModal({ auth, onClose }) {
                 disabled={isLoading}
               />
             </label>
-            <label className="bird-id-file-control bird-id-camera-control">
-              <span>Take Photo</span>
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleFileChange}
-                disabled={isLoading}
-              />
-            </label>
             <button type="button" className="bird-id-secondary-action" onClick={handleClear} disabled={isLoading}>
               Clear
             </button>
+            <button type="submit" className="bird-id-primary-action" disabled={isLoading}>
+              {isLoading ? 'Identifying...' : 'Identify'}
+            </button>
           </div>
 
-          {file && (
-            <p className="bird-id-selected-file" role="status">
-              Selected: {file.name}
-            </p>
-          )}
           {error && <div className="bird-id-alert" role="alert">{error}</div>}
         </form>
 
+        <StatusBanner job={job} isLoading={isLoading} result={result} />
+
         {result && (
           <div className="bird-id-results">
-            <StatusBanner result={result} />
             <BestMatch bestMatch={result.bestMatch} previewImageUrl={previewImageUrl} clarity={clarity} />
 
             {likelyCandidates.length > 0 && (

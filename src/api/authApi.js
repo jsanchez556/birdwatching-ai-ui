@@ -1,9 +1,23 @@
 import {
   apiUrl,
+  authHeaders,
   getApiErrorMessage,
+  isObject,
   JSON_HEADERS,
   parseJsonResponse,
+  validateEnvelope,
 } from './http'
+
+function normalizeSafeUser(user) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name || null,
+    role: user.role || 'customer',
+    plan: user.plan || 'FREE',
+    imageUrl: user.imageUrl || user.profileImageUrl || user.avatarUrl || null,
+  }
+}
 
 async function parseAuthResponse(response, fallbackMessage) {
   const data = await parseJsonResponse(response)
@@ -28,12 +42,29 @@ async function parseAuthResponse(response, fallbackMessage) {
     accessTokenExpiresAt: data.data.accessTokenExpiresAt || null,
     refreshToken: data.data.refreshToken,
     refreshTokenExpiresAt: data.data.refreshTokenExpiresAt || null,
-    user: {
-      id: data.data.user.id,
-      email: data.data.user.email,
-      name: data.data.user.name || null,
-      role: data.data.user.role || 'customer',
-    },
+    user: normalizeSafeUser(data.data.user),
+  }
+}
+
+async function parseProfileResponse(response, fallbackMessage) {
+  const data = await parseJsonResponse(response)
+
+  if (!response.ok) {
+    throw new Error(getApiErrorMessage(data, fallbackMessage))
+  }
+
+  if (
+    !validateEnvelope(data)
+    || data.success !== true
+    || !isObject(data.data)
+    || !isObject(data.data.user)
+    || typeof data.data.user.email !== 'string'
+  ) {
+    throw new Error('Unexpected profile response format')
+  }
+
+  return {
+    user: normalizeSafeUser(data.data.user),
   }
 }
 
@@ -83,4 +114,31 @@ export async function logoutSession(refreshToken) {
   }
 
   await parseJsonResponse(response)
+}
+
+export async function updateProfile({ token, name }) {
+  const response = await fetch(apiUrl('/auth/profile'), {
+    method: 'PATCH',
+    headers: {
+      ...JSON_HEADERS,
+      ...authHeaders(token),
+    },
+    body: JSON.stringify({ name }),
+  })
+
+  return parseProfileResponse(response, 'Unable to update your profile')
+}
+
+export async function updateProfileImage({ token, file }) {
+  const response = await fetch(apiUrl('/auth/profile-image'), {
+    method: 'POST',
+    headers: {
+      ...authHeaders(token),
+      'Content-Type': file.type,
+      'X-Filename': file.name,
+    },
+    body: file,
+  })
+
+  return parseProfileResponse(response, 'Unable to update your profile image')
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import ChatInput from './components/ChatInput'
 import ChatMessages from './components/ChatMessages'
 import CustomerContextForm from './components/CustomerContextForm'
@@ -6,9 +6,16 @@ import BirdIdentificationModal from './components/BirdIdentificationModal'
 import LoginModal from './components/home/LoginModal'
 import MyToursDrawer from './components/home/MyToursDrawer'
 import TourCartDrawer from './components/home/TourCartDrawer'
+import { createCheckoutSession, createCustomerPortalSession } from './api/billingApi'
+import analytics from './analytics/analytics'
+import { ANALYTICS_EVENTS } from './analytics/events'
+import { FEATURE_FLAGS } from './featureFlags/flags'
 import useAuth from './hooks/useAuth'
 import useCart from './hooks/useCart'
 import useChat from './hooks/useChat'
+import useFeatureFlag from './hooks/useFeatureFlag'
+import useFeatureAvailability from './hooks/useFeatureAvailability'
+import AdminDashboard from './pages/AdminDashboard'
 import HomePage from './pages/HomePage'
 
 function AppHeader({ action }) {
@@ -58,6 +65,17 @@ function compactObject(value) {
   return Object.fromEntries(
     Object.entries(value).filter(([, item]) => item !== undefined && item !== null && item !== '')
   )
+}
+
+function trackChatStarted({ plan, source, userType }) {
+  analytics.track({
+    event: ANALYTICS_EVENTS.CHAT_STARTED,
+    properties: {
+      plan,
+      source,
+      userType,
+    },
+  })
 }
 
 function summarizeTour(tour) {
@@ -163,6 +181,10 @@ function buildReservationChatEntry({
 }
 
 function ChatSurface({ auth, chatEntry = null }) {
+  const voiceFlagEnabled = useFeatureFlag(FEATURE_FLAGS.VOICE_AI)
+  const { getFeature } = useFeatureAvailability()
+  const voiceAvailability = getFeature(FEATURE_FLAGS.VOICE_AI)
+  const voiceEnabled = voiceFlagEnabled && voiceAvailability.enabled
   const viewerRole = auth.user?.role || (auth.isVisitor ? 'visitor' : 'customer')
   const isReservationEntry = Boolean(chatEntry)
   const {
@@ -230,6 +252,15 @@ function ChatSurface({ auth, chatEntry = null }) {
             isStreaming={isStreaming}
             isRecording={isRecording}
             voiceStatus={voiceStatus}
+            voiceEnabled={voiceEnabled}
+            voiceUnavailableMessage={!voiceAvailability.enabled
+              ? `${voiceAvailability.message}${voiceAvailability.disabledUntil
+                ? ` Re-enables at ${new Intl.DateTimeFormat(undefined, {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                }).format(new Date(voiceAvailability.disabledUntil))}.`
+                : ''}`
+              : ''}
           />
         </>
       )}
@@ -282,6 +313,13 @@ function HomeChatDrawer({ auth, chatEntry = null, onClose }) {
 }
 
 function App() {
+  const agentBookingFlagEnabled = useFeatureFlag(FEATURE_FLAGS.AGENT_BOOKING)
+  const birdIdentificationFlagEnabled = useFeatureFlag(FEATURE_FLAGS.MULTIMODAL_BIRD_IDENTIFICATION)
+  const { getFeature } = useFeatureAvailability()
+  const bookingAvailability = getFeature(FEATURE_FLAGS.AGENT_BOOKING)
+  const birdAvailability = getFeature(FEATURE_FLAGS.MULTIMODAL_BIRD_IDENTIFICATION)
+  const agentBookingEnabled = agentBookingFlagEnabled && bookingAvailability.enabled
+  const birdIdentificationEnabled = birdIdentificationFlagEnabled && birdAvailability.enabled
   const [authMode, setAuthMode] = useState('login')
   const [activeView, setActiveView] = useState('home')
   const [addingTourIds, setAddingTourIds] = useState([])
@@ -293,6 +331,14 @@ function App() {
   const [isMyToursOpen, setIsMyToursOpen] = useState(false)
   const [removingTourIds, setRemovingTourIds] = useState([])
   const [reservingTourIds, setReservingTourIds] = useState([])
+  const [billingError, setBillingError] = useState(null)
+  const [billingReturnStatus, setBillingReturnStatus] = useState(() => {
+    const status = new URLSearchParams(window.location.search).get('billing')
+    return status === 'success' || status === 'cancelled' ? status : null
+  })
+  const [isBillingLoading, setIsBillingLoading] = useState(false)
+  const hasHandledBillingSuccess = useRef(false)
+  const isAppMounted = useRef(true)
   const auth = useAuth()
   const cartState = useCart({
     isAuthenticated: auth.isAuthenticated && !auth.isVisitor,
@@ -300,6 +346,10 @@ function App() {
   })
 
   const showChat = activeView === 'chat' && (auth.isAuthenticated || auth.isVisitor)
+  const showAdmin = activeView === 'admin'
+    && auth.isAuthenticated
+    && !auth.isVisitor
+    && auth.user?.role === 'admin'
   const addedTourIds = cartState.cart.items.map((item) => item.tourId)
   const cartItemsByTourId = cartState.cart.items.reduce((itemsByTourId, item) => ({
     ...itemsByTourId,
@@ -318,6 +368,42 @@ function App() {
     })
   }
 
+  useEffect(() => () => {
+    isAppMounted.current = false
+  }, [])
+
+  useEffect(() => {
+    const billingStatus = new URLSearchParams(window.location.search).get('billing')
+
+    if (billingStatus === 'success' || billingStatus === 'cancelled') {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('billing')
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+    }
+
+    if (
+      billingStatus !== 'success'
+      || hasHandledBillingSuccess.current
+      || !auth.isAuthenticated
+      || auth.isVisitor
+      || typeof auth.refreshCurrentUser !== 'function'
+    ) {
+      return undefined
+    }
+
+    hasHandledBillingSuccess.current = true
+
+    setBillingError(null)
+    auth.refreshCurrentUser()
+      .catch((error) => {
+        if (isAppMounted.current) {
+          setBillingError(error.message || 'Unable to refresh your plan. Please reload the page.')
+        }
+      })
+
+    return undefined
+  }, [auth.isAuthenticated, auth.isVisitor, auth.refreshCurrentUser])
+
   const startChat = () => {
     if (!auth.isAuthenticated && !auth.isVisitor) {
       auth.enterAsVisitor()
@@ -325,6 +411,11 @@ function App() {
 
     setChatEntry(null)
     setIsChatDrawerOpen(true)
+    trackChatStarted({
+      plan: auth.user?.plan || (auth.isAuthenticated ? 'FREE' : 'VISITOR'),
+      source: 'homepage',
+      userType: auth.isAuthenticated ? 'authenticated' : 'visitor',
+    })
   }
 
   const openLogin = () => {
@@ -361,12 +452,67 @@ function App() {
   }
 
   const openBirdIdentification = () => {
+    if (!birdIdentificationEnabled) {
+      return
+    }
+
     if (!auth.isAuthenticated || auth.isVisitor) {
       openLogin()
       return
     }
 
     setIsBirdIdentificationOpen(true)
+  }
+
+  const openAdminDashboard = () => {
+    if (!auth.isAuthenticated || auth.isVisitor || auth.user?.role !== 'admin') {
+      return
+    }
+
+    setActiveView('admin')
+  }
+
+  const handleUpgradePlan = async () => {
+    if (!auth.isAuthenticated || auth.isVisitor) {
+      openLogin()
+      return
+    }
+
+    setBillingError(null)
+    setIsBillingLoading(true)
+
+    try {
+      const result = await createCheckoutSession({
+        token: await auth.getValidToken(),
+        plan: 'PRO',
+      })
+      window.location.assign(result.paymentUrl)
+    } catch (error) {
+      setBillingError(error.message || 'Unable to start checkout. Please try again.')
+    } finally {
+      setIsBillingLoading(false)
+    }
+  }
+
+  const handleManageBilling = async () => {
+    if (!auth.isAuthenticated || auth.isVisitor) {
+      openLogin()
+      return
+    }
+
+    setBillingError(null)
+    setIsBillingLoading(true)
+
+    try {
+      const result = await createCustomerPortalSession({
+        token: await auth.getValidToken(),
+      })
+      window.location.assign(result.managementUrl)
+    } catch (error) {
+      setBillingError(error.message || 'Unable to open billing portal. Please try again.')
+    } finally {
+      setIsBillingLoading(false)
+    }
   }
 
   const handleAddTourToCart = async (tour) => {
@@ -389,6 +535,10 @@ function App() {
   }
 
   const handleReserveTour = async (tour) => {
+    if (!agentBookingEnabled) {
+      return
+    }
+
     if (!auth.isAuthenticated || auth.isVisitor) {
       openLogin()
       return
@@ -406,6 +556,11 @@ function App() {
       }))
       setIsCartDrawerOpen(false)
       setIsChatDrawerOpen(true)
+      trackChatStarted({
+        plan: auth.user?.plan || 'FREE',
+        source: 'featured_tour',
+        userType: 'authenticated',
+      })
     } catch {
       setIsChatDrawerOpen(true)
     } finally {
@@ -414,6 +569,10 @@ function App() {
   }
 
   const handleReserveCartItems = (items) => {
+    if (!agentBookingEnabled) {
+      return
+    }
+
     if (!auth.isAuthenticated || auth.isVisitor) {
       openLogin()
       return
@@ -433,6 +592,11 @@ function App() {
     }))
     setIsCartDrawerOpen(false)
     setIsChatDrawerOpen(true)
+    trackChatStarted({
+      plan: auth.user?.plan || 'FREE',
+      source: 'tour_cart',
+      userType: 'authenticated',
+    })
   }
 
   const handleRemoveTourFromCart = async (tour) => {
@@ -484,6 +648,11 @@ function App() {
     auth.enterAsVisitor()
     setIsLoginModalOpen(false)
     setIsChatDrawerOpen(true)
+    trackChatStarted({
+      plan: 'VISITOR',
+      source: 'login_modal',
+      userType: 'visitor',
+    })
   }
 
   const authActionLabel = auth.isAuthenticated
@@ -494,9 +663,20 @@ function App() {
     return <AuthenticatedChat auth={auth} onHome={() => setActiveView('home')} />
   }
 
+  if (showAdmin) {
+    return (
+      <AdminDashboard
+        currentUserId={auth.user?.id}
+        getAccessToken={auth.getValidToken}
+        onBack={() => setActiveView('home')}
+      />
+    )
+  }
+
   return (
     <>
       <HomePage
+        agentBookingEnabled={agentBookingEnabled}
         addedTourIds={addedTourIds}
         addingTourIds={addingTourIds}
         authActionLabel={authActionLabel}
@@ -504,17 +684,30 @@ function App() {
         cartItemsByTourId={cartItemsByTourId}
         isCartEnabled={auth.isAuthenticated && !auth.isVisitor}
         isAuthenticated={auth.isAuthenticated}
+        isBillingLoading={isBillingLoading}
+        billingError={billingError}
+        billingReturnStatus={billingReturnStatus}
+        birdIdentificationEnabled={birdIdentificationEnabled}
+        birdIdentificationUnavailableMessage={!birdAvailability.enabled ? birdAvailability.message : ''}
+        bookingUnavailableMessage={!bookingAvailability.enabled ? bookingAvailability.message : ''}
         onAddTourToCart={handleAddTourToCart}
         onAuthAction={handleHomeAuthAction}
+        onManageBilling={handleManageBilling}
+        onDismissBillingReturn={() => setBillingReturnStatus(null)}
         onOpenBirdIdentification={openBirdIdentification}
         onOpenCart={openCart}
+        onOpenAdmin={openAdminDashboard}
         onOpenMyTours={openMyTours}
+        onUpdateProfile={auth.updateProfile}
+        onUpdateProfileImage={auth.updateProfileImage}
+        onUpgradePlan={handleUpgradePlan}
         onRemoveTourFromCart={handleRemoveTourFromCart}
         removingTourIds={removingTourIds}
         onReserveTour={handleReserveTour}
         reservingTourIds={reservingTourIds}
         onStartChat={startChat}
         onLogin={openLogin}
+        user={auth.user}
       />
       {isChatDrawerOpen && (auth.isAuthenticated || auth.isVisitor) && (
         <HomeChatDrawer
@@ -537,6 +730,8 @@ function App() {
       )}
       {isCartDrawerOpen && auth.isAuthenticated && !auth.isVisitor && (
         <TourCartDrawer
+          agentBookingEnabled={agentBookingEnabled}
+          bookingUnavailableMessage={!bookingAvailability.enabled ? bookingAvailability.message : ''}
           authUser={auth.user}
           cart={cartState.cart}
           error={cartState.error}
@@ -549,7 +744,7 @@ function App() {
           onUpdateItem={cartState.updateItem}
         />
       )}
-      {isBirdIdentificationOpen && auth.isAuthenticated && !auth.isVisitor && (
+      {birdIdentificationEnabled && isBirdIdentificationOpen && auth.isAuthenticated && !auth.isVisitor && (
         <BirdIdentificationModal
           auth={auth}
           onClose={() => setIsBirdIdentificationOpen(false)}
