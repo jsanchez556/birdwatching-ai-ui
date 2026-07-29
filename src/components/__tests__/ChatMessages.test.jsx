@@ -93,14 +93,12 @@ describe('ChatMessages', () => {
       .toHaveAttribute('src', 'https://cdn.example.com/files/voice-chat/response.mp3')
   })
 
-  test('renders voice response audio from assistant metadata', () => {
+  test('renders voice response audio from the canonical message field', () => {
     const messages = [
       {
         role: 'assistant',
         content: 'Look low in the understory and pause at the bend.',
-        metadata: {
-          audioUrl: 'https://cdn.example.com/files/voice-chat/metadata-response.mp3',
-        },
+        audioUrl: 'https://cdn.example.com/files/voice-chat/metadata-response.mp3',
       },
     ]
 
@@ -841,7 +839,7 @@ describe('ChatMessages', () => {
         content: 'Your reservation is confirmed.',
       },
     ]
-    const conversationMeta = {
+    const conversationContext = {
       reservation: {
         confirmationCode: 'BW-CHATMETA123',
         customerName: 'Jose Sánchez Vasquez',
@@ -858,7 +856,7 @@ describe('ChatMessages', () => {
       },
     }
 
-    render(<ChatMessages messages={messages} isLoading={false} conversationMeta={conversationMeta} />)
+    render(<ChatMessages messages={messages} isLoading={false} conversationContext={conversationContext} />)
 
     expect(screen.getByLabelText(/Reservation confirmation/i)).toBeInTheDocument()
     expect(screen.getByText('BW-CHATMETA123')).toBeInTheDocument()
@@ -878,14 +876,14 @@ describe('ChatMessages', () => {
         content: 'Your reservation is confirmed.',
       },
     ]
-    const conversationMeta = {
+    const conversationContext = {
       reservation: {
         confirmationCode: 'BW-ONCE123',
         tourName: 'Monteverde Quetzal Tour',
       },
     }
 
-    render(<ChatMessages messages={messages} isLoading={false} conversationMeta={conversationMeta} />)
+    render(<ChatMessages messages={messages} isLoading={false} conversationContext={conversationContext} />)
 
     expect(screen.getAllByLabelText(/Reservation confirmation/i)).toHaveLength(1)
     expect(screen.getByText('BW-ONCE123')).toBeInTheDocument()

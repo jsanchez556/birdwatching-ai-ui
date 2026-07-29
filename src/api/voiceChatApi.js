@@ -8,6 +8,7 @@ import {
   validateEnvelope,
 } from './http'
 import { resolveMediaUrl } from './mediaApi'
+import { partitionAssistantMetadata } from '../utils/chatConversationState'
 
 function appendJsonHeader(headers, name, value) {
   if (value && isObject(value) && Object.keys(value).length > 0) {
@@ -34,6 +35,7 @@ export async function sendVoiceChat({
   conversationId,
   customerContext,
   conversationContext,
+  assistantMetadata,
   role,
   responseMode = 'field_assistant',
   token,
@@ -63,7 +65,12 @@ export async function sendVoiceChat({
   }
 
   appendJsonHeader(headers, 'X-Customer-Context', customerContext)
-  appendJsonHeader(headers, 'X-Conversation-Context', conversationContext)
+  appendJsonHeader(headers, 'X-Conversation-Context', {
+    ...(conversationContext || {}),
+    ...(assistantMetadata && Object.keys(assistantMetadata).length > 0
+      ? { recentAssistantMetadata: assistantMetadata }
+      : {}),
+  })
 
   const response = await fetch(apiUrl('/voice-chat'), {
     method: 'POST',
@@ -85,6 +92,12 @@ export async function sendVoiceChat({
     throw new Error(API_FALLBACK_ERROR_MESSAGE)
   }
 
+  const {
+    conversationContext: responseConversationContext,
+    messageMetadata,
+    customerContext: responseCustomerContext,
+  } = partitionAssistantMetadata(data.meta)
+
   return {
     transcript,
     answer,
@@ -93,6 +106,8 @@ export async function sendVoiceChat({
       : '',
     audioResponseUrl: typeof audioResponseUrl === 'string' ? audioResponseUrl : '',
     conversationId: data.meta.conversationId || conversationId,
-    metadata: data.meta || {},
+    conversationContext: responseConversationContext,
+    messageMetadata,
+    customerContext: responseCustomerContext,
   }
 }

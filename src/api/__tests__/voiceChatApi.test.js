@@ -35,9 +35,10 @@ describe('voiceChatApi', () => {
         customerName: 'Ana Gomez',
       },
       conversationContext: {
-        recentAssistantMetadata: {
-          selectedTourId: 4,
-        },
+        entrySource: 'featured_tour',
+      },
+      assistantMetadata: {
+        selectedTourId: 4,
       },
       role: 'customer',
       token: 'token-1',
@@ -47,9 +48,11 @@ describe('voiceChatApi', () => {
       audioUrl: 'https://cdn.example.test/voice-chat/response.mp3',
       audioResponseUrl: '/files/voice-chat/response.mp3',
       conversationId: 'conversation-123',
-      metadata: {
+      conversationContext: {
         conversationId: 'conversation-123',
       },
+      messageMetadata: {},
+      customerContext: null,
     })
 
     expect(global.fetch).toHaveBeenCalledTimes(1)
@@ -63,6 +66,7 @@ describe('voiceChatApi', () => {
         'X-Conversation-Id': 'conversation-123',
         'X-Customer-Context': JSON.stringify({ customerName: 'Ana Gomez' }),
         'X-Conversation-Context': JSON.stringify({
+          entrySource: 'featured_tour',
           recentAssistantMetadata: {
             selectedTourId: 4,
           },

@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    name: Test, build, and verify chat contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout UI
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Checkout API contract runner
+        uses: actions/checkout@v4
+        with:
+          repository: jsanchez556/birdwatching-ai-api
+          ref: main
+          path: .contract-api
+          persist-credentials: false
+
+      - name: Verify streamed chat contract
+        run: npm run test:chat-contract -- --api-root .contract-api

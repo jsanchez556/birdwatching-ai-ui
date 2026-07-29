@@ -1,8 +1,39 @@
 # Birdwatching AI UI
 
-React 18 + Vite frontend for the Birdwatching AI chat experience. The app collects booking-ready customer context, provides a responsive Costa Rica birdwatching assistant UI, and integrates with the Birdwatching AI API for streamed chat responses, voice chat, and conversation retrieval.
+This React product shell helps Costa Rica visitors move from bird discovery to
+field identification and tour booking without hiding uncertainty or backend
+failure states. It coordinates streamed chat, voice capture, authenticated
+photo identification, guided booking, billing entry points, and reload
+continuity while leaving retrieval, models, tools, transactions, and durable
+memory behind the API boundary.
+
+## Five-minute portfolio review
+
+- **System story:** [canonical API + UI portfolio case study](https://github.com/jsanchez556/birdwatching-ai-api/blob/main/docs/portfolio-case-study.md)
+- **Architecture and traces:** [browser-to-worker design, grounded chat, image identification, and booking](https://github.com/jsanchez556/birdwatching-ai-api/blob/main/docs/portfolio-case-study.md#end-to-end-ai-traces)
+- **Evidence and results:** [claim map and honest measurement status](https://github.com/jsanchez556/birdwatching-ai-api/blob/main/docs/portfolio-case-study.md#results-and-evidence-status)
+- **Demo:** [local walkthrough and missing-media status](https://github.com/jsanchez556/birdwatching-ai-api/blob/main/docs/portfolio-case-study.md#demo-status-and-local-walkthrough)
+- **Developer path:** [local setup](#local-setup), [frontend architecture](./docs/architecture.md), [API integration](./docs/api.md), and [deployment](./docs/deployment.md)
+
+The primary user journey starts on a tour-and-bird discovery homepage, moves
+into visitor or authenticated chat, and opens focused overlays for cart,
+reservation entry, account/billing, and bird identification. `useProductShell`
+coordinates cross-surface state; `useChat` owns streaming, cancellation,
+hydration, and rendered-message persistence; focused API adapters validate
+backend envelopes; identification uploads become polled jobs; structured
+assistant metadata becomes accessible choices and reservation cards.
+
+### Frontend/backend boundary
+
+The browser may optimistically render and cache non-sensitive UI state, but it
+does not perform RAG, call model providers directly, calculate authoritative
+prices, create reservations, or hold infrastructure secrets. Automated tests
+support user-visible behavior and safe error handling; no checked-in artifact
+establishes production traffic, AI quality, latency, or a live customer demo.
 
 ## Quick Links
+- Shared system case study: [Birdwatching AI portfolio case study](https://github.com/jsanchez556/birdwatching-ai-api/blob/main/docs/portfolio-case-study.md)
+- Backend repository: [birdwatching-ai-api](https://github.com/jsanchez556/birdwatching-ai-api)
 - Project context for AI agents: [CONTEXT.md](./CONTEXT.md)
 - Agent coding rules: [AGENTS.md](./AGENTS.md)
 - Frontend architecture: [docs/architecture.md](./docs/architecture.md)
@@ -149,4 +180,4 @@ ALLOWED_HOSTS=example.com,www.example.com
 ```
 
 ## Current UI Shape
-The app currently renders a one-screen product surface: a homepage entry point for tours, bird highlights, add-ons, login, visitor chat, authenticated chat, cart/My Tours, billing actions, and bird identification. Chat opens inside the same app shell and, for authenticated users, collects customer context before the transcript. It does not use React Router. If routing is added later, preserve the current homepage/chat surface and keep SPA fallback behavior in deployment.
+The app is a multi-surface product shell: a homepage entry point for tours, bird highlights, and add-ons; visitor and authenticated chat; administration; cart and My Tours; billing actions; and bird identification. Most customer flows open as coordinated overlays on the home surface, while the admin dashboard uses lightweight internal surface selection. Authenticated chat collects customer context before the transcript. These surfaces do not currently need independent URLs, so the app does not use React Router. If that requirement changes, preserve SPA fallback behavior in deployment.

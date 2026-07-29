@@ -883,7 +883,7 @@ describe('App authentication flow', () => {
         customerName: 'Ana Gomez',
         customerEmail: 'ana@example.com',
       },
-      conversationMeta: {},
+      conversationContext: {},
       setCustomerContext: jest.fn(),
       sendMessage: jest.fn(),
       stopGenerating: jest.fn(),
@@ -894,7 +894,7 @@ describe('App authentication flow', () => {
     fireEvent.click(screen.getByRole('button', { name: /reserve direct reserve tour/i }))
 
     expect(addTour).not.toHaveBeenCalled()
-    expect(screen.getByRole('dialog', { name: /reserve this tour/i })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: /reserve this tour/i })).toBeInTheDocument()
     expect(useChat).toHaveBeenCalledWith(
       expect.objectContaining({
         token: 'stored-token',
@@ -902,7 +902,7 @@ describe('App authentication flow', () => {
       expect.objectContaining({
         isEphemeral: true,
         initialMessage: 'I would like to reserve Direct Reserve Tour.',
-        initialRecentAssistantMetadata: expect.objectContaining({
+        initialConversationContext: expect.objectContaining({
           conversationType: 'reservation_entry',
           conversationSource: 'featured_tour',
           selectedTour: expect.objectContaining({
@@ -938,7 +938,7 @@ describe('App authentication flow', () => {
       isStreaming: false,
       error: null,
       customerContext: null,
-      conversationMeta: {},
+      conversationContext: {},
       setCustomerContext: jest.fn(),
       sendMessage: jest.fn(),
       stopGenerating: jest.fn(),
@@ -978,7 +978,7 @@ describe('App authentication flow', () => {
       isStreaming: false,
       error: null,
       customerContext: null,
-      conversationMeta: {},
+      conversationContext: {},
       setCustomerContext: jest.fn(),
       sendMessage: jest.fn(),
       stopGenerating: jest.fn(),

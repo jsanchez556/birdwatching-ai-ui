@@ -47,9 +47,10 @@ The auth state stores only the JWT returned by the backend and safe profile fiel
 
 When the user is authenticated, `CustomerContextForm` pre-fills the user name when available and locks `customerEmail` to `auth.user.email`. Itinerary dates still come from the user-entered customer context.
 
-Cached state shape:
+Canonical cached state shape:
 ```json
 {
+  "version": 2,
   "conversationId": "conversation-123",
   "messages": [
     { "role": "user", "content": "Where can I see toucans?" },
@@ -66,26 +67,27 @@ Cached state shape:
       "audioResponseUrl": "/files/voice-chat/audio-id.mp3"
     }
   ],
-  "meta": {
-    "customerContext": {
-      "customerName": "Ana Rivera",
-      "customerEmail": "ana@example.com",
-      "itineraryStartDate": "2026-06-01",
-      "itineraryEndDate": "2026-06-03"
-    },
+  "customerContext": {
+    "customerName": "Ana Rivera",
+    "customerEmail": "ana@example.com",
+    "itineraryStartDate": "2026-06-01",
+    "itineraryEndDate": "2026-06-03"
+  },
+  "conversationContext": {
     "selectedTourId": 1,
-    "participants": 2,
-    "savedAt": "2026-05-17T00:00:00.000Z"
-  }
+    "participants": 2
+  },
+  "savedAt": "2026-05-17T00:00:00.000Z"
 }
 ```
 
-`meta.customerContext`, `meta.reservation`, `meta.selectedTour`,
-`meta.selectedTourId`, `meta.selectedTransportation`, and `meta.participants`
-are chat-level state.
+`customerContext` is customer/itinerary intake. `conversationContext.reservation`,
+`selectedTour`, `selectedTourId`, `selectedTransportation`, and `participants`
+are conversation-level state.
 They are cached once per conversation instead of repeated on assistant message
 metadata. Assistant messages still keep turn-specific display metadata such as
-`uiAction`, `tours`, `pricing`, and voice response audio URLs.
+`uiAction`, `tours`, and `pricing`. Voice response URLs use the message-level
+`audioUrl` and `audioResponseUrl` fields defined in `docs/chat-contracts.md`.
 
 Voice chat stores only rendered transcript state:
 - the transcribed user speech is cached as a normal user message with optional `transcript`
@@ -137,7 +139,9 @@ On initialization:
 1. `useAuth` reads `birdwatchingAI.authState`.
 2. If auth state exists, the app shows the authenticated chat shell.
 3. `useChat` reads `birdwatchingAI.chatState.<userId>` for authenticated users, or `birdwatchingAI.chatState` for unauthenticated use.
-4. If a scoped conversation ID is found, it restores `meta.customerContext`, chat-level metadata, and cached messages.
+4. If a scoped conversation ID is found, it restores `customerContext`,
+   `conversationContext`, and cached messages. Legacy `meta`, `metadata`, and
+   `conversationMeta` containers are normalized only by the persistence utility.
 5. If cached messages are missing, it calls `GET /chat/:conversationId` with the bearer token.
 6. If no scoped authenticated chat state exists, it calls `GET /chat/latest` before creating a client conversation ID.
 7. If the backend returns a latest conversation, it renders and caches that conversation under the scoped key.

@@ -37,7 +37,6 @@ coverage/
 *.tmp
 *.temp
 
-package-lock.json
 yarn.lock
 
 # Vite files

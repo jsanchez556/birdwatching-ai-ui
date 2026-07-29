@@ -9,36 +9,8 @@ import {
   parseJsonResponse,
   validateEnvelope,
 } from './http'
-
-function parseSseBlock(block) {
-  const lines = block.split(/\r?\n/)
-  let event = 'message'
-  const dataLines = []
-
-  for (const line of lines) {
-    if (!line || line.startsWith(':')) {
-      continue
-    }
-
-    if (line.startsWith('event:')) {
-      event = line.slice('event:'.length).trim()
-      continue
-    }
-
-    if (line.startsWith('data:')) {
-      dataLines.push(line.slice('data:'.length).trimStart())
-    }
-  }
-
-  const rawData = dataLines.join('\n')
-  let data = {}
-
-  if (rawData) {
-    data = JSON.parse(rawData)
-  }
-
-  return { event, data }
-}
+import { consumeChatSseStream } from './chatStream'
+import { partitionAssistantMetadata } from '../utils/chatConversationState'
 
 function assertSuccessfulEnvelope(data) {
   if (!validateEnvelope(data) || !isObject(data.meta)) {
@@ -54,36 +26,51 @@ function assertSuccessfulEnvelope(data) {
   }
 }
 
-async function readSseStream(stream, onEvent) {
-  const reader = stream.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    buffer += decoder.decode(value || new Uint8Array(), { stream: !done })
-
-    let separatorIndex = buffer.search(/\r?\n\r?\n/)
-
-    while (separatorIndex !== -1) {
-      const block = buffer.slice(0, separatorIndex)
-      const separatorLength = buffer[separatorIndex] === '\r' ? 4 : 2
-      buffer = buffer.slice(separatorIndex + separatorLength)
-
-      if (block.trim()) {
-        onEvent(parseSseBlock(block))
-      }
-
-      separatorIndex = buffer.search(/\r?\n\r?\n/)
-    }
-
-    if (done) {
-      break
-    }
+function normalizeHydratedMessage(message) {
+  if (!isObject(message)
+    || !['user', 'assistant'].includes(message.role)
+    || typeof message.content !== 'string') {
+    throw new Error(API_FALLBACK_ERROR_MESSAGE)
   }
 
-  if (buffer.trim()) {
-    onEvent(parseSseBlock(buffer))
+  const metadata = message.metadata ?? message.meta
+  if (metadata !== undefined && !isObject(metadata)) {
+    throw new Error(API_FALLBACK_ERROR_MESSAGE)
+  }
+
+  const {
+    audioUrl: legacyAudioUrl,
+    audioResponseUrl: legacyAudioResponseUrl,
+    ...canonicalMetadata
+  } = metadata || {}
+  const { meta, metadata: ignoredMetadata, ...canonicalMessage } = message
+  return {
+    ...canonicalMessage,
+    ...(canonicalMessage.audioUrl || legacyAudioUrl
+      ? { audioUrl: canonicalMessage.audioUrl || legacyAudioUrl }
+      : {}),
+    ...(canonicalMessage.audioResponseUrl || legacyAudioResponseUrl
+      ? { audioResponseUrl: canonicalMessage.audioResponseUrl || legacyAudioResponseUrl }
+      : {}),
+    ...(Object.keys(canonicalMetadata).length > 0 ? { metadata: canonicalMetadata } : {}),
+  }
+}
+
+function normalizeConversationResponse({ conversationId, messages, envelopeMeta }, fallbackConversationId = null) {
+  if (!Array.isArray(messages)) {
+    throw new Error(API_FALLBACK_ERROR_MESSAGE)
+  }
+
+  const {
+    conversationContext,
+    customerContext,
+  } = partitionAssistantMetadata(envelopeMeta)
+
+  return {
+    conversationId: conversationId || fallbackConversationId,
+    messages: messages.map(normalizeHydratedMessage),
+    conversationContext,
+    customerContext,
   }
 }
 
@@ -92,6 +79,7 @@ export async function streamChatMessage({
   conversationId,
   customerContext,
   conversationContext,
+  assistantMetadata,
   role,
   token,
   signal,
@@ -110,7 +98,12 @@ export async function streamChatMessage({
       message,
       conversationId,
       customerContext,
-      conversationContext,
+      conversationContext: {
+        ...(conversationContext || {}),
+        ...(assistantMetadata && Object.keys(assistantMetadata).length > 0
+          ? { recentAssistantMetadata: assistantMetadata }
+          : {}),
+      },
       role,
     }),
     signal,
@@ -125,60 +118,14 @@ export async function streamChatMessage({
     throw new Error('Streaming is not supported by this browser')
   }
 
-  let finalResult = null
-
-  await readSseStream(response.body, ({ event, data }) => {
-    if (event === 'start') {
-      onStart?.(data)
-      return
-    }
-
-    if (event === 'chunk') {
-      if (typeof data.content !== 'string') {
-        throw new Error('Unexpected stream chunk')
-      }
-
-      onChunk?.(data.content)
-      return
-    }
-
-    if (event === 'replace') {
-      if (typeof data.content !== 'string') {
-        throw new Error('Unexpected stream replacement')
-      }
-
-      onReplace?.(data.content)
-      return
-    }
-
-    if (event === 'done') {
-      if (typeof data.response !== 'string') {
-        throw new Error('Unexpected stream completion')
-      }
-
-      finalResult = {
-        conversationId: data.conversationId || conversationId,
-        response: data.response,
-        sources: Array.isArray(data.sources) ? data.sources : [],
-        metadata: data.meta || {},
-      }
-      return
-    }
-
-    if (event === 'error') {
-      if (data.code === 'QUOTA_EXCEEDED' && !data.message) {
-        throw new Error(API_QUOTA_ERROR_MESSAGE)
-      }
-
-      throw new Error(data.message || 'Failed to stream response')
-    }
+  return consumeChatSseStream({
+    stream: response.body,
+    conversationId,
+    onStart,
+    onChunk,
+    onReplace,
+    quotaErrorMessage: API_QUOTA_ERROR_MESSAGE,
   })
-
-  if (!finalResult) {
-    throw new Error('Stream ended before completion')
-  }
-
-  return finalResult
 }
 
 export async function loadConversationMessages(conversationId, { token } = {}) {
@@ -194,16 +141,11 @@ export async function loadConversationMessages(conversationId, { token } = {}) {
   assertSuccessfulEnvelope(data)
 
   const { conversationId: responseConversationId, messages } = data.data
-
-  if (!Array.isArray(messages)) {
-    throw new Error(API_FALLBACK_ERROR_MESSAGE)
-  }
-
-  return {
-    conversationId: responseConversationId || conversationId,
+  return normalizeConversationResponse({
+    conversationId: responseConversationId,
     messages,
-    meta: data.meta || {},
-  }
+    envelopeMeta: data.meta,
+  }, conversationId)
 }
 
 export async function loadLatestConversation({ token } = {}) {
@@ -224,13 +166,9 @@ export async function loadLatestConversation({ token } = {}) {
     throw new Error(API_FALLBACK_ERROR_MESSAGE)
   }
 
-  if (!Array.isArray(messages)) {
-    throw new Error(API_FALLBACK_ERROR_MESSAGE)
-  }
-
-  return {
-    conversationId: conversationId || null,
+  return normalizeConversationResponse({
+    conversationId,
     messages,
-    meta: data.meta || {},
-  }
+    envelopeMeta: data.meta,
+  })
 }

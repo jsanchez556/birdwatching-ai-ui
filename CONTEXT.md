@@ -32,21 +32,32 @@ This repository is a single React/Vite frontend for Costa Rica birdwatching assi
 - Backend API integration: [docs/api.md](./docs/api.md)
 - UI copy and prompt-adjacent guidance: [docs/prompting.md](./docs/prompting.md)
 - Conversation state behavior: [docs/memory.md](./docs/memory.md)
+- Canonical frontend chat contracts: [docs/chat-contracts.md](./docs/chat-contracts.md)
 - Deployment and environment: [docs/deployment.md](./docs/deployment.md)
+- Frontend privacy and local retention: [docs/privacy-retention.md](./docs/privacy-retention.md)
 - Product analytics and event ownership: [docs/analytics.md](./docs/analytics.md)
 - Product feature flags and rollouts: [docs/feature-flags.md](./docs/feature-flags.md)
 - Frontend implementation rules: [docs/frontend-guidelines.md](./docs/frontend-guidelines.md)
+- Stylesheet ownership and import order: [docs/styles.md](./docs/styles.md)
 - Historical AI prompts: [docs/development_prompts/README.md](./docs/development_prompts/README.md)
 
 ## Current Architecture
-The app uses a shell-component-hook-API split:
+The app is a multi-surface product shell using a surface-controller-hook-API split:
 - `src/main.jsx` mounts React in strict mode.
-- `src/App.jsx` composes the homepage, auth, and chat views.
-- `src/pages/HomePage.jsx` composes the premium homepage entry point.
+- `src/App.jsx` selects and composes the active home, chat, or admin surface.
+- `src/hooks/useProductShell.js` owns lightweight surface selection plus cross-surface auth, drawer/modal, billing-return, cart, reservation-entry, analytics, and feature-access coordination.
+- `src/pages/HomeSurface.jsx`, `src/pages/ChatSurface.jsx`, and `src/pages/AdminDashboard.jsx` compose product surfaces without owning backend URL construction.
+- `src/pages/HomePage.jsx` composes the premium homepage content.
 - `src/components/*` owns presentational chat UI.
 - `src/components/home/*` owns presentational homepage sections.
 - `src/hooks/useAuth.js` owns auth state, token persistence, login, signup, logout, and profile updates.
-- `src/hooks/useChat.js` owns conversation state, local persistence, loading, and errors.
+- `src/hooks/useChat.js` owns conversation orchestration, message/metadata state, hydration, persistence, streaming requests, cancellation, and voice-result integration.
+- `src/hooks/useStreamingText.js` owns progressive stream reveal buffering.
+- `src/utils/chatConversationState.js` owns chat metadata normalization and guarded local persistence.
+- `src/hooks/useAudioRecorder.js` owns browser microphone and `MediaRecorder` lifecycle.
+- `src/utils/audioEncoding.js` owns framework-independent audio conversion and WAV encoding.
+- `src/hooks/useVoiceChatUpload.js` owns the cancellable voice-upload lifecycle and delegates HTTP to `src/api/voiceChatApi.js`.
+- `src/utils/reservationEntry.js` normalizes tours/cart items and constructs ephemeral reservation chat entries.
 - The admin Operations Dashboard uses three locally selected sections:
   AI Operations, Commercial administration, and Emergency controls.
   AI Operations is the default and presents compact Users, MRR, AI Cost, and
@@ -54,6 +65,10 @@ The app uses a shell-component-hook-API split:
   `useAdminDashboard` loads only the active section, keeps independent
   session-only caches and request states, and never persists admin responses.
   The responsive section menu remains local state and does not add routing.
+- Admin AI Quality is labeled as portfolio regression quality and renders
+  metrics only when the API identifies validated real-pipeline evidence.
+  Synthetic scorer self-tests and legacy artifacts are explicitly excluded;
+  absent valid evidence renders an unavailable state with no quality score.
 - AI Operations is range-dependent. A reporting-range change invalidates and
   reloads it when active; Commercial administration and Emergency Controls
   remain cached. Refresh and retry clear and reload only affected sections, so
@@ -74,7 +89,9 @@ The app uses a shell-component-hook-API split:
 - `src/api/birdIdentificationApi.js` owns authenticated bird identification URL and raw image upload calls to `POST /birds/identify`, job polling through `GET /jobs/:id`, normalizes the `{ success, data, meta }` envelope, and should preserve optional bird-identification fields defensively.
 - `src/api/homeApi.js` owns homepage HTTP calls and response shape validation.
 - `src/api/mediaApi.js` owns bird media URL resolution through CloudFront when configured, with backend media endpoint fallback.
-- `src/index.css` owns global tokens, layout, responsive behavior, and dark mode.
+- `src/index.css` is the ordered global CSS entry point; `src/styles/*` owns
+  foundation, admin, shared base, homepage, overlay, chat, and final responsive
+  layers as documented in `docs/styles.md`.
 - `server.js` serves `dist/` in production-style environments and exposes `/health`.
 - `vite.config.js` owns dev proxying and preview host allowlists.
 
@@ -82,7 +99,7 @@ The app uses a shell-component-hook-API split:
 Send chat message:
 ```text
 ChatInput submit
-  -> App.sendMessage from useChat
+  -> ChatSurface.sendMessage from useChat
   -> optimistic user message append plus in-progress assistant message
   -> chatApi.streamChatMessage with optional bearer token
   -> POST /chat on the backend
@@ -101,7 +118,7 @@ ChatInput submit
 Billing checkout and management:
 ```text
 Account menu upgrade/manage action
-  -> App.handleUpgrade or App.handleManageBilling
+  -> useProductShell upgradePlan or manageBilling
   -> billingApi.createCheckoutSession or createCustomerPortalSession with bearer token
   -> POST /billing/checkout or POST /billing/portal on the backend
   -> backend selects the requested provider or BILLING_DEFAULT_PROVIDER
@@ -112,9 +129,9 @@ Account menu upgrade/manage action
 Send voice chat message:
 ```text
 ChatInput microphone control
-  -> useChat.startVoiceRecording asks for microphone access and starts MediaRecorder
-  -> useChat.stopVoiceRecording stops tracks and converts the browser recording to audio/wav
-  -> voiceChatApi.sendVoiceChat posts raw WAV bytes to POST /voice-chat
+  -> useAudioRecorder asks for microphone access and owns MediaRecorder/track cleanup
+  -> audioEncoding converts decoded samples to audio/wav without React or MediaRecorder dependencies
+  -> useVoiceChatUpload delegates raw WAV upload to voiceChatApi.sendVoiceChat
   -> request headers include X-Conversation-Id, X-Customer-Context, X-Conversation-Context, and X-Response-Mode: field_assistant when available
   -> backend transcribes speech, runs the existing chat orchestration, generates speech, stores MP3 in S3, and returns transcript, answer, and audioResponseUrl
   -> voiceChatApi resolves relative /files/voice-chat/... URLs through CloudFront or the backend files endpoint
@@ -173,7 +190,7 @@ Browser fetch('/files/:folderName/:filename')
 
 ## Important Implementation Facts
 - ESM is enabled through `"type": "module"` in `package.json`.
-- The app has one screen and currently no React Router dependency.
+- The app has multiple internally selected product surfaces and currently no React Router dependency. These surfaces do not require independent URLs, so selection remains lightweight local state.
 - Users see the homepage first. Login CTAs open the existing auth form, and chat CTAs open the existing authenticated or visitor chat flow.
 - Unauthenticated users who start chat enter visitor mode; authenticated users continue to the existing customer-context and chat flow.
 - `useAuth` stores only the access token, refresh token, expiry timestamps, and safe user profile, or a safe local visitor marker, under `birdwatchingAI.authState`.
@@ -188,7 +205,7 @@ Browser fetch('/files/:folderName/:filename')
 - `useChat` creates a client conversation ID before the first backend response.
 - The backend may return a different `conversationId`; the UI persists the returned ID.
 - `streamChatMessage` sends `customerContext` and sanitized recent assistant metadata as `conversationContext.recentAssistantMetadata` so the backend can continue guided booking flows. Backend ownership and authenticated identity remain authoritative.
-- `sendVoiceChat` sends raw `audio/wav` bytes to `POST /voice-chat`. The UI records with `MediaRecorder` when available, converts the result to WAV with `AudioContext`, and sets `X-Response-Mode: field_assistant` so spoken answers stay short and actionable.
+- `sendVoiceChat` sends raw `audio/wav` bytes to `POST /voice-chat`. `useAudioRecorder` captures with `MediaRecorder`, `audioEncoding.js` converts decoded samples to WAV, and `useVoiceChatUpload` keeps upload/cancellation separate while setting `X-Response-Mode: field_assistant`.
 - Voice chat requests can include `X-Conversation-Id`, `X-Customer-Context`, `X-Conversation-Context`, and `X-Role`. The backend currently accepts only MP3/WAV raw audio content types, so the UI does not upload browser-native `audio/webm` directly.
 - Voice chat responses include a transcript, assistant answer, and relative `audioResponseUrl`. The UI stores the transcript in the user message, stores the resolved playback URL on the assistant message as `audioUrl`, and keeps relative `/files/voice-chat/...` values out of component URL construction.
 - The backend may return RAG `sources`; the current UI accepts the field but does not render it.
@@ -216,7 +233,8 @@ Browser fetch('/files/:folderName/:filename')
 - Request failures append a user-friendly assistant error message and also expose the backend/client error in the alert.
 - Chat scroll position is pushed to the newest message with `useLayoutEffect`.
 - CSS supports light and dark color schemes through semantic custom properties.
-- Production serving can use `vite preview` through `npm run start`; `server.js` is available as a small static server but is not the current package start command.
+- Production serving uses the bounded Node static server in `server.js`; Vite
+  preview remains a local inspection command only.
 
 ## Testing
 Tests live under component-level `__tests__/` folders and use Jest with React Testing Library.
@@ -240,8 +258,8 @@ Current coverage focuses on:
 
 ## When Extending
 1. Add or update API adapter behavior in `src/api/`.
-2. Keep async UI orchestration in hooks under `src/hooks/`.
-3. Keep presentational chat pieces in `src/components/`.
+2. Keep cross-surface orchestration in `useProductShell` or a focused controller, and surface-specific async behavior in hooks under `src/hooks/`.
+3. Keep surface composition in `src/pages/` and presentational pieces in `src/components/`.
 4. Keep reusable visual decisions in tokens and shared CSS patterns.
 5. Update [docs/api.md](./docs/api.md) when backend request or response usage changes.
 6. Update [docs/memory.md](./docs/memory.md) when local conversation state changes.

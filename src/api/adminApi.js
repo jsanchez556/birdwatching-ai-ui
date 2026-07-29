@@ -372,6 +372,16 @@ export async function getAdminAiQuality({ token, startDate, endDate } = {}) {
     || !isQualityRange(data.previousRange)
     || data.previousRange.endAt !== data.range.startAt
     || currentDuration !== previousDuration
+    || !['available', 'unavailable'].includes(data.qualityStatus)
+    || (data.qualityStatus === 'available'
+      ? data.qualitySource !== 'real_pipeline_output'
+      : data.qualitySource !== null)
+    || (data.unavailableReason !== null && typeof data.unavailableReason !== 'string')
+    || (data.provenance !== null && !isObject(data.provenance))
+    || !isObject(data.scorerSelfTest)
+    || data.scorerSelfTest.label !== 'Synthetic scorer self-test — not model or RAG quality'
+    || data.scorerSelfTest.includedInQualityMetrics !== false
+    || typeof data.scorerSelfTest.availableInConfiguredArtifact !== 'boolean'
     || !isObject(data.metrics)
     || AI_QUALITY_METRICS.some((metric) => !isQualityMetric(data.metrics[metric]))
   ) {

@@ -50,9 +50,11 @@ describe('useChat streaming behavior', () => {
       answer: 'Listen near fruiting trees and scan the upper canopy.',
       audioUrl: 'https://cdn.example.com/files/voice-chat/response.mp3',
       audioResponseUrl: '/files/voice-chat/response.mp3',
-      metadata: {
+      conversationContext: {
         conversationId: 'conversation-voice',
       },
+      messageMetadata: {},
+      customerContext: null,
     })
   })
 
@@ -70,7 +72,8 @@ describe('useChat streaming behavior', () => {
       return {
         conversationId: 'conversation-123',
         response: 'abcdef',
-        metadata: {},
+        messageMetadata: {},
+        conversationContext: {},
       }
     })
 
@@ -110,7 +113,8 @@ describe('useChat streaming behavior', () => {
       return {
         conversationId: 'conversation-123',
         response: 'Done',
-        metadata: {},
+        messageMetadata: {},
+        conversationContext: {},
       }
     })
 
@@ -135,12 +139,12 @@ describe('useChat streaming behavior', () => {
     const persisted = JSON.parse(window.localStorage.getItem('birdwatchingAI.chatState'))
     expect(persisted).toMatchObject({
       conversationId: 'conversation-123',
-      meta: {
-        customerContext: {
-          customerName: 'Ana Gomez',
-          customerEmail: 'ana@example.com',
-        },
+      version: 2,
+      customerContext: {
+        customerName: 'Ana Gomez',
+        customerEmail: 'ana@example.com',
       },
+      conversationContext: {},
     })
     expect(persisted.messages).toEqual([
       { role: 'user', content: 'Find tours' },
@@ -152,7 +156,8 @@ describe('useChat streaming behavior', () => {
     streamChatMessage.mockResolvedValue({
       conversationId: 'reservation-conversation-123',
       response: 'I can help reserve that tour.',
-      metadata: {},
+      messageMetadata: {},
+      conversationContext: {},
     })
 
     const { result } = renderHook(() => useChat({
@@ -167,7 +172,7 @@ describe('useChat streaming behavior', () => {
         customerName: 'Ana Gomez',
         customerEmail: 'ana@example.com',
       },
-      initialConversationMeta: {
+      initialConversationContext: {
         conversationType: 'reservation_entry',
         conversationSource: 'featured_tour',
       },
@@ -177,7 +182,7 @@ describe('useChat streaming behavior', () => {
 
     await act(async () => {
       await result.current.sendMessage('I would like to reserve Direct Reserve Tour.', {
-        recentAssistantMetadata: {
+        assistantMetadata: {
           conversationType: 'reservation_entry',
           conversationSource: 'featured_tour',
           selectedTourId: 16,
@@ -191,8 +196,7 @@ describe('useChat streaming behavior', () => {
 
     expect(window.localStorage.length).toBe(0)
     expect(streamChatMessage).toHaveBeenCalledWith(expect.objectContaining({
-      conversationContext: {
-        recentAssistantMetadata: expect.objectContaining({
+      assistantMetadata: expect.objectContaining({
           conversationType: 'reservation_entry',
           conversationSource: 'featured_tour',
           selectedTourId: 16,
@@ -201,7 +205,6 @@ describe('useChat streaming behavior', () => {
             name: 'Direct Reserve Tour',
           },
         }),
-      },
     }))
   })
 
@@ -209,7 +212,7 @@ describe('useChat streaming behavior', () => {
     streamChatMessage.mockResolvedValue({
       conversationId: 'conversation-123',
       response: 'Your reservation is confirmed.',
-      metadata: {
+      conversationContext: {
         participants: 3,
         reservation: {
           confirmationCode: 'BW-METAONLY',
@@ -228,7 +231,7 @@ describe('useChat streaming behavior', () => {
       role: 'assistant',
       content: 'Your reservation is confirmed.',
     })
-    expect(result.current.conversationMeta).toMatchObject({
+    expect(result.current.conversationContext).toMatchObject({
       participants: 3,
       reservation: {
         confirmationCode: 'BW-METAONLY',
@@ -264,7 +267,8 @@ describe('useChat streaming behavior', () => {
     streamChatMessage.mockResolvedValue({
       conversationId: 'conversation-123',
       response: 'Details',
-      metadata: {},
+      messageMetadata: {},
+      conversationContext: {},
     })
 
     const { result } = renderHook(() => useChat())
@@ -274,14 +278,12 @@ describe('useChat streaming behavior', () => {
     })
 
     expect(streamChatMessage).toHaveBeenCalledWith(expect.objectContaining({
-      conversationContext: {
-        recentAssistantMetadata: {
+      assistantMetadata: {
           tours: [{ tourId: 1, name: 'Monteverde Quetzal Tour' }],
           uiAction: { type: 'choice' },
           selectedTourId: 1,
           participants: 3,
         },
-      },
     }))
   })
 
@@ -326,12 +328,10 @@ describe('useChat streaming behavior', () => {
         customerName: 'Ana Gomez',
         customerEmail: 'ana@example.com',
       },
-      conversationContext: {
-        recentAssistantMetadata: {
+      assistantMetadata: {
           birdMatches: [{ speciesCode: 'keptou1' }],
           selectedTourId: 4,
         },
-      },
       responseMode: 'field_assistant',
       role: 'customer',
       token: 'auth-token',
@@ -347,10 +347,6 @@ describe('useChat streaming behavior', () => {
         content: 'Listen near fruiting trees and scan the upper canopy.',
         audioUrl: 'https://cdn.example.com/files/voice-chat/response.mp3',
         audioResponseUrl: '/files/voice-chat/response.mp3',
-        metadata: {
-          audioUrl: 'https://cdn.example.com/files/voice-chat/response.mp3',
-          audioResponseUrl: '/files/voice-chat/response.mp3',
-        },
       },
     ])
   })
@@ -513,7 +509,8 @@ describe('useChat streaming behavior', () => {
     streamChatMessage.mockResolvedValue({
       conversationId: 'conversation-123',
       response: 'Done',
-      metadata: {},
+      messageMetadata: {},
+      conversationContext: {},
     })
 
     const { result } = renderHook(() => useChat('auth-token'))
@@ -532,7 +529,8 @@ describe('useChat streaming behavior', () => {
     streamChatMessage.mockResolvedValue({
       conversationId: 'conversation-123',
       response: 'Done',
-      metadata: {},
+      messageMetadata: {},
+      conversationContext: {},
     })
 
     const { result } = renderHook(() => useChat({
@@ -562,7 +560,8 @@ describe('useChat streaming behavior', () => {
     streamChatMessage.mockResolvedValue({
       conversationId: 'conversation-123',
       response: 'Toucans have large bills.',
-      metadata: {},
+      messageMetadata: {},
+      conversationContext: {},
     })
 
     const { result } = renderHook(() => useChat({

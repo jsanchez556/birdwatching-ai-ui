@@ -7,8 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0 --port ${PORT:-4173}",
-    "start": "vite preview --host 0.0.0.0 --port $PORT",
-    "test": "jest"
+    "start": "node server.js",
+    "test": "jest",
+    "test:chat-contract": "node scripts/test-chat-contract.js"
   },
   "dependencies": {
     "posthog-js": "^1.407.3",

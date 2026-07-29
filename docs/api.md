@@ -541,12 +541,29 @@ Frontend behavior:
 - appends each `chunk.content` to the active assistant message
 - replaces the active assistant message on `replace`
 - finalizes the assistant message from `done.response`
-- stores chat-level `done.meta` fields such as `customerContext`, `reservation`, `selectedTour`, `selectedTourId`, `selectedTransportation`, and `participants` in `conversationMeta` instead of duplicating them on assistant messages
+- API adapters partition chat-level `done.meta` fields before hooks receive
+  them: `customerContext` remains separate, while `reservation`, `selectedTour`,
+  `selectedTourId`, `selectedTransportation`, and `participants` enter the
+  canonical `conversationContext` instead of being duplicated on assistant
+  messages
 - reservation-entry drawer chats are ephemeral in the browser: they can receive backend conversation IDs, but they do not write or restore `localStorage` chat state and do not call `GET /chat/latest` on open
 - preserves per-turn `done.meta.birdMatches` on the assistant message so bird photos, song recordings, sonograms, and licensing links can render beside the answer
 - treats `AbortError` as user cancellation instead of a request failure
 - throws a client error if the stream ends without a `done` event
 - shows the backend/client error in the alert and a friendly assistant fallback in the transcript on failure
+
+The cross-repository smoke test is owned here at
+`scripts/test-chat-contract.js`, next to the consuming adapter boundary. With
+the API repository checked out as a sibling, run:
+
+```bash
+npm run test:chat-contract
+```
+
+The runner uses the API's production SSE helpers to generate the wire bytes and
+the UI's production stream consumer to normalize them. Both repositories'
+pull-request workflows invoke this same runner against the other repository's
+`main` branch.
 
 Backend behavior relevant to UI:
 - creates a UUID conversation ID when none is provided
@@ -658,7 +675,9 @@ Tour and reservation notes:
 - Tour selection can use a `tourId` or a backend-supported tour name/location value; the backend owns matching, ambiguity handling, and availability validation.
 - The backend may return `meta.uiAction` or `meta.uiActions` for guided controls. Supported UI action types include `choice`, `tour_selection`, `date_picker`, `participant_count`, `transportation_selection`, and `reservation_confirmation`.
 - The backend may return `meta.uiAction.type === "participant_count"` with `min`, `max`, and numeric `options`; the UI renders this as a select control and sends the selected number back as the next chat message.
-- After participant count is selected, the backend may include `meta.participants`; the UI preserves it in chat-level `conversationMeta` so later backend turns can reuse it.
+- After participant count is selected, the backend may include
+  `meta.participants`; the API adapter normalizes it into chat-level
+  `conversationContext` so later backend turns can reuse it.
 - The backend may return a choice action asking whether transportation is needed. The existing choice renderer sends `Show transportation` for `show_transportation` and `No, I have my own transportation` for `decline_transportation`; the backend owns the resulting booking logic.
 - Transportation option buttons send a natural-language selection such as `I choose shared shuttle from San Jose to Monteverde`; the backend owns option persistence and pricing context.
 - The final confirmation choice sends `Confirm reservation`, but users may also type `Yes`; the backend interprets that only when the prior metadata included the final confirmation action.

@@ -8,12 +8,14 @@ This is a single-service React/Vite frontend.
 ```text
 src/
   main.jsx              React entrypoint and StrictMode mount
-  App.jsx               view composition for homepage, auth, and chat
-  pages/                page-level composition such as the homepage
+  App.jsx               active-surface composition only
+  pages/                home, chat, and admin surface composition
   api/                  backend HTTP adapters and response validation
   components/           presentational chat and homepage UI components and tests
-  hooks/                reusable stateful behavior and side effects
-  index.css             global CSS tokens, layout, responsive behavior
+  hooks/                product-shell, chat, recording, upload, and other orchestration
+  utils/                framework-independent normalization, persistence, and encoding
+  index.css             ordered global CSS entry point
+  styles/               responsibility-focused global CSS cascade layers
 
 server.js               optional static dist server with /health
 vite.config.js          Vite dev server, React plugin, proxy, preview hosts
@@ -28,9 +30,12 @@ inside adapters.
 
 ## Layer Rules
 - Components render UI and receive behavior through props.
-- Hooks own state transitions, browser storage, async orchestration, and effects.
+- `useProductShell` owns internal surface selection and cross-surface behavior. It does not make raw HTTP requests.
+- Surface modules under `src/pages/` compose controllers/hooks with presentational components.
+- Hooks own focused state transitions, browser APIs, async orchestration, and effects.
+- Framework-independent utilities own reservation normalization, chat persistence/metadata helpers, and audio encoding.
 - API adapters own request URLs, `fetch`, response envelope parsing, and contract validation.
-- App composition connects hooks to components, switches the homepage/auth/chat views, and renders page-level alerts.
+- `App.jsx` reads the product-shell controller and composes the active home, chat, or admin surface.
 - CSS owns visual tokens, layout primitives, message bubble variants, loading animation, and responsive behavior.
 - Deployment files should not contain product logic.
 
@@ -38,12 +43,13 @@ inside adapters.
 ```text
 Browser loads index.html
   -> src/main.jsx mounts <App />
+  -> useProductShell selects the active internal surface and coordinates cross-surface actions
   -> App renders HomePage as the first entry point
   -> Homepage loads public tours, bird highlights, and transportation content
   -> Chat CTAs open the existing authenticated or visitor chat flow
   -> Login CTAs open the existing auth flow
   -> useChat initializes conversation state
-  -> App renders header and either CustomerContextForm or the chat surface
+  -> ChatSurface renders either CustomerContextForm or the transcript/input
   -> CustomerContextForm captures name, email, and itinerary dates before chat starts
   -> ChatInput emits trimmed message
   -> useChat appends user message and an in-progress assistant message
@@ -72,9 +78,10 @@ Authenticated HomeHeader Identify Bird action
 Voice chat follows the same chat surface:
 ```text
 ChatInput microphone control
-  -> useChat starts MediaRecorder after microphone permission
-  -> useChat stops the recorder, stops media tracks, and converts the captured blob to audio/wav
-  -> voiceChatApi posts raw WAV bytes to POST /voice-chat with conversation context headers
+  -> useAudioRecorder starts MediaRecorder after microphone permission
+  -> useAudioRecorder stops the recorder and releases media tracks
+  -> audioEncoding converts the captured blob to audio/wav independently of React and MediaRecorder
+  -> useVoiceChatUpload posts through voiceChatApi with conversation context headers
   -> backend transcribes the audio, runs the existing chat orchestration, generates speech, and stores an MP3 response
   -> voiceChatApi resolves the returned /files/voice-chat/... URL through mediaApi
   -> useChat appends the transcript as a user message and the answer as an assistant message with audioUrl
@@ -110,7 +117,7 @@ Conversation hydration uses:
 6. replacement of local state with backend-loaded messages
 
 Billing checkout and management use:
-1. account menu actions in `App.jsx`
+1. account menu actions coordinated by `useProductShell`
 2. `createCheckoutSession(...)` or `createCustomerPortalSession(...)` from `src/api/billingApi.js`
 3. authenticated `POST /billing/checkout` or `POST /billing/portal`
 4. backend provider selection through its billing provider registry
@@ -136,7 +143,7 @@ Production API calls use:
 3. backend `CORS_ORIGINS` configuration that must allow the deployed frontend origin
 
 ## State Model
-The UI state is intentionally small:
+Conversation state is intentionally focused:
 - `conversationId`: active backend/client conversation identifier
 - `customerContext`: customer name, email, and itinerary dates collected before chat
 - `messages`: rendered user and assistant transcript entries
@@ -146,6 +153,11 @@ The UI state is intentionally small:
 - `voiceStatus`: voice flow stage such as `recording`, `processing`, or `uploading`
 - `error`: request or hydration error text for the alert
 - bird identification modal state is ephemeral and stores only current request loading/error/job/result data in memory
+
+Product-shell state is separate and includes the active internal surface, open
+overlay, login mode, ephemeral reservation chat entry, per-tour pending IDs,
+billing-return notice/error/loading state, and feature-access decisions. Cart
+and auth data remain owned by their existing hooks.
 
 ## Cross-Cutting Concerns
 - Accessibility is handled at component boundaries through labels, semantic sections, and keyboard support.
@@ -157,7 +169,7 @@ The UI state is intentionally small:
 - Bird identification contract drift should be caught in `src/api/birdIdentificationApi.js`; components should receive already-normalized result fields.
 - Relative bird media paths from RAG metadata should be resolved in `src/api/mediaApi.js` and consumed through hooks, keeping media endpoint details out of presentational markup.
 - Backend tool and reservation capabilities should be represented through documented API adapters before they are displayed as structured UI. The reservation confirmation card uses documented `/chat` metadata, with assistant-text parsing only as a fallback for older messages.
-- Routing is not active. If routes are added, preserve SPA fallback support in production serving.
+- Routing is not active because the current surfaces do not require independent URLs. If that product requirement changes, add routing deliberately and preserve SPA fallback support in production serving.
 The admin operations dashboard follows the same boundaries: `adminApi.js`
 owns all `/admin/*` requests and strict read/mutation payload validation,
 `useAdminDashboard` owns local section selection, independent section request

@@ -36,6 +36,7 @@ function OperationalErrors({ errors }) {
         <div>
           <p className="admin-eyebrow">Attention needed</p>
           <h3 id="operational-errors-title">Errors</h3>
+          <p>Partial view: runtime telemetry is volatile and local to this API replica.</p>
         </div>
         <strong>{Number(errors?.meta?.total || rows.length)} total</strong>
       </header>

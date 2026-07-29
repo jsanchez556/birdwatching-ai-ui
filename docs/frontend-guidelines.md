@@ -18,7 +18,10 @@ Back to [Project Context](../CONTEXT.md). Pair this with [API Integration](./api
 - Avoid coupling components directly to `localStorage` or backend `fetch`.
 
 ## State
-- Keep `useChat` responsible for conversation orchestration until state complexity justifies splitting hooks.
+- Keep cross-surface selection, overlays, billing return, cart/reservation entry, analytics, and feature-access coordination in `useProductShell` or focused controller modules.
+- Keep `useChat` focused on conversation state and transport orchestration. Browser capture belongs in `useAudioRecorder`, progressive reveal in `useStreamingText`, voice upload lifecycle in `useVoiceChatUpload`, and persistence/metadata normalization in `chatConversationState`.
+- Keep audio conversion and WAV encoding framework-independent in `src/utils/audioEncoding.js`; it must be testable without React or `MediaRecorder`.
+- Keep reservation-entry construction in `src/utils/reservationEntry.js`, separate from surface rendering and backend reservation business logic.
 - Use functional `setState` when deriving next messages from previous messages.
 - Guard browser storage calls with `try/catch`.
 - Store only non-sensitive UI state.

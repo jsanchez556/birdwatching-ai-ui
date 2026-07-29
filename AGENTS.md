@@ -5,7 +5,7 @@ Repository-specific instructions for Codex, Copilot, Cursor, Claude Code, ChatGP
 Start with [CONTEXT.md](./CONTEXT.md), then use the focused docs under `docs/`.
 
 ## Purpose
-This frontend delivers the chat experience, responsive UI, local conversation continuity, and reusable component patterns for the Birdwatching AI product.
+This frontend delivers the Birdwatching AI multi-surface product shell: the premium homepage, chat, administration, account and billing entry points, cart and reservation entry, bird identification, responsive UI, and local conversation continuity.
 
 ## Stack
 - React 18 with ESM
@@ -18,7 +18,7 @@ This frontend delivers the chat experience, responsive UI, local conversation co
 - When instructions conflict, apply the most specific rule first; if still tied, apply the latest rule in this document; if the conflict is between sections, the `API Integration` section overrides the general rules below it.
 
 - Must:
-- Keep `src/App.jsx` as composition glue for the current one-screen layout only. Do not add routing, page-level state, or screen-specific logic to this file unless the task explicitly requires a multi-screen refactor.
+- Keep `src/App.jsx` as composition glue that selects the active product surface and connects focused orchestration APIs. Product-shell state, cross-surface actions, billing-return handling, feature gates, cart coordination, and analytics belong in `src/hooks/useProductShell.js` or another focused controller.
 - Keep presentational UI in `src/components/`.
 - Keep reusable behavior and side effects in `src/hooks/`.
 - Keep backend HTTP calls in `src/api/`; do not call `fetch` directly from components.
@@ -26,9 +26,20 @@ This frontend delivers the chat experience, responsive UI, local conversation co
 Should:
 - Keep environment-dependent URL behavior behind the API layer or Vite config.
 - Keep styling tokens and responsive behavior in `src/index.css` until a component styling system is introduced.
+- Keep lightweight internal surface selection unless a product requirement calls for independently addressable URLs. Do not add a routing library solely to switch the existing surfaces.
 
 Do not:
 - Do not put backend OpenAI, RAG, database, or reservation logic in this repository.
+
+## Responsibility Boundaries
+- Product-shell orchestration: `src/hooks/useProductShell.js`.
+- Surface composition: `src/pages/*`; surfaces connect hooks/controllers to presentational components.
+- Chat state, hydration, persistence, streaming, cancellation, and response metadata: `src/hooks/useChat.js`, `src/hooks/useStreamingText.js`, and `src/utils/chatConversationState.js`.
+- Browser microphone capture: `src/hooks/useAudioRecorder.js`.
+- Framework-independent audio conversion and WAV encoding: `src/utils/audioEncoding.js`.
+- Voice upload lifecycle: `src/hooks/useVoiceChatUpload.js`, using `src/api/voiceChatApi.js`.
+- Reservation-entry normalization: `src/utils/reservationEntry.js`.
+- HTTP URLs, envelope validation, and backend contracts: `src/api/*`.
 
 ## Chat UI Patterns
 - Display clear speaker roles: user vs assistant.

@@ -34,9 +34,10 @@ describe('chatApi conversation hydration', () => {
         { role: 'user', content: 'Hello' },
         { role: 'assistant', content: 'Hi!' },
       ],
-      meta: {
+      conversationContext: {
         reservation: { reservationId: 42 },
       },
+      customerContext: null,
     })
     expect(global.fetch).toHaveBeenCalledWith('/chat/conversation-123', {
       headers: {
@@ -77,6 +78,28 @@ describe('chatApi conversation hydration', () => {
     await expect(loadLatestConversation({ token: 'token-1' })).rejects.toThrow('Please log in again.')
   })
 
+  test('rejects malformed hydrated message metadata at the API boundary', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          conversationId: 'conversation-invalid',
+          messages: [{
+            role: 'assistant',
+            content: 'Partial content must not render.',
+            metadata: 'invalid',
+          }],
+        },
+        meta: {},
+      }),
+    })
+
+    await expect(loadConversationMessages('conversation-invalid')).rejects.toThrow(
+      'Something went wrong. Please try again.'
+    )
+  })
+
   test('streams chat with reservation-entry context in the request body', async () => {
     const stream = new ReadableStream({
       start(controller) {
@@ -103,11 +126,11 @@ describe('chatApi conversation hydration', () => {
       },
       conversationContext: {
         entrySource: 'featured_tour',
-        recentAssistantMetadata: {
-          conversationType: 'reservation_entry',
-          conversationSource: 'featured_tour',
-          selectedTourId: 16,
-        },
+      },
+      assistantMetadata: {
+        conversationType: 'reservation_entry',
+        conversationSource: 'featured_tour',
+        selectedTourId: 16,
       },
       role: 'customer',
       token: 'token-1',
@@ -127,6 +150,46 @@ describe('chatApi conversation hydration', () => {
           selectedTourId: 16,
         },
       },
+    })
+  })
+
+  test('normalizes legacy message meta and separates envelope context', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          conversationId: 'conversation-legacy',
+          messages: [{
+            role: 'assistant',
+            content: 'Confirmed.',
+            meta: {
+              uiAction: { type: 'choice' },
+              audioUrl: 'https://cdn.example.com/voice.mp3',
+            },
+          }],
+        },
+        meta: {
+          customerContext: { customerName: 'Ana' },
+          reservation: { confirmationCode: 'BW-1' },
+        },
+      }),
+    })
+
+    await expect(loadConversationMessages('conversation-legacy')).resolves.toEqual({
+      conversationId: 'conversation-legacy',
+      customerContext: { customerName: 'Ana' },
+      conversationContext: {
+        reservation: { confirmationCode: 'BW-1' },
+      },
+      messages: [{
+        role: 'assistant',
+        content: 'Confirmed.',
+        audioUrl: 'https://cdn.example.com/voice.mp3',
+        metadata: {
+          uiAction: { type: 'choice' },
+        },
+      }],
     })
   })
 })

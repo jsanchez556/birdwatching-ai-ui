@@ -78,16 +78,24 @@ function QualityMetric({ label, metric }) {
 
 function AiQualitySummary({ data }) {
   const metrics = data.metrics
+  const available = data.qualityStatus === 'available'
+  const model = data.provenance?.modelIdentifier || 'unknown model'
+  const prompt = data.provenance?.promptVersion || 'unknown prompt version'
 
   return (
     <section className="admin-panel admin-quality-panel" aria-labelledby="admin-quality-title">
       <header className="admin-panel-header">
         <div>
           <p className="admin-eyebrow">Offline evaluations</p>
-          <h3 id="admin-quality-title">AI quality</h3>
+          <h3 id="admin-quality-title">Portfolio regression quality</h3>
         </div>
       </header>
-      <div className="admin-quality-groups">
+      {!available && (
+        <p role="status" className="admin-panel-note">
+          Quality unavailable: {data.unavailableReason}
+        </p>
+      )}
+      {available && <div className="admin-quality-groups">
         <section aria-labelledby="admin-answer-quality-title">
           <h4 id="admin-answer-quality-title">Quality</h4>
           <div className="admin-quality-grid">
@@ -103,9 +111,14 @@ function AiQualitySummary({ data }) {
           <h4 id="admin-tools-quality-title">Tools</h4>
           <QualityMetric label="Tool success rate" metric={metrics.toolSuccessRate} />
         </section>
-      </div>
+      </div>}
       <p className="admin-panel-note">
-        Scores use stored offline evaluations. Current and previous periods use UTC half-open intervals.
+        {available
+          ? `Validated real-pipeline outputs · ${model} · ${prompt}. Current and previous periods use UTC half-open intervals.`
+          : 'No model, RAG, or production quality score is shown without validated real-pipeline outputs.'}
+      </p>
+      <p className="admin-panel-note">
+        Synthetic scorer self-test — not model or RAG quality. Excluded from these metrics.
       </p>
     </section>
   )

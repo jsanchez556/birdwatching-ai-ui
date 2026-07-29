@@ -52,6 +52,18 @@ const quality = {
     endAt: '2026-07-01T00:00:00.000Z',
     timezone: 'UTC',
   },
+  qualityStatus: 'available',
+  qualitySource: 'real_pipeline_output',
+  unavailableReason: null,
+  provenance: {
+    modelIdentifier: 'gpt-test',
+    promptVersion: 'chat-v1',
+  },
+  scorerSelfTest: {
+    label: 'Synthetic scorer self-test — not model or RAG quality',
+    includedInQualityMetrics: false,
+    availableInConfiguredArtifact: false,
+  },
   metrics: {
     groundingScore: {
       current: 0.86,

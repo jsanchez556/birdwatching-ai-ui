@@ -23,7 +23,7 @@ function VoiceResponseAudio({ audioUrl }) {
   )
 }
 
-function MessageContent({ message, conversationMeta, onAction, viewerRole }) {
+function MessageContent({ message, conversationContext, onAction, viewerRole }) {
   if (message.isStopped && !message.content) {
     return (
       <span className="stopped-message">
@@ -43,16 +43,16 @@ function MessageContent({ message, conversationMeta, onAction, viewerRole }) {
   }
 
   const shouldUseChatReservation = /\bconfirmed\b|\bconfirmation\s+code\b/i.test(message.content || '')
-  const chatReservation = shouldUseChatReservation && conversationMeta?.reservation
+  const chatReservation = shouldUseChatReservation && conversationContext?.reservation
     ? {
-        ...conversationMeta.reservation,
-        participants: conversationMeta.reservation.participants ?? conversationMeta.participants,
+        ...conversationContext.reservation,
+        participants: conversationContext.reservation.participants ?? conversationContext.participants,
       }
     : null
   const reservation = message.role === 'assistant' && !message.isError
     ? normalizeReservationConfirmation(
       chatReservation || message.metadata?.reservation,
-      (shouldUseChatReservation ? conversationMeta?.selectedTransportation : null) || message.metadata?.selectedTransportation
+      (shouldUseChatReservation ? conversationContext?.selectedTransportation : null) || message.metadata?.selectedTransportation
     )
       || extractReservationConfirmation(message.content)
     : null
@@ -64,7 +64,7 @@ function MessageContent({ message, conversationMeta, onAction, viewerRole }) {
     ? message.metadata.birdMatches
     : []
   const audioUrl = message.role === 'assistant' && !message.isError
-    ? message.audioUrl || message.metadata?.audioUrl
+    ? message.audioUrl
     : ''
 
   if (!reservation) {
@@ -108,7 +108,7 @@ function getCustomerInitials(customerName) {
     .toUpperCase()
 }
 
-function ChatMessages({ messages, isLoading, customerContext, conversationMeta, onAction, viewerRole }) {
+function ChatMessages({ messages, isLoading, customerContext, conversationContext, onAction, viewerRole }) {
   const messagesRef = useRef(null)
 
   useLayoutEffect(() => {
@@ -158,22 +158,22 @@ function ChatMessages({ messages, isLoading, customerContext, conversationMeta, 
     <section className="messages" ref={messagesRef} aria-label="Chat messages" aria-live="polite">
       <div className="message-list">
         {messages.map((message, index) => {
-          const meta = getMessageMeta(message.role)
+          const presentation = getMessageMeta(message.role)
 
           return (
             <article
               key={index}
-              className={`message-row ${meta.rowClass}`}
+              className={`message-row ${presentation.rowClass}`}
             >
               <div className="avatar" aria-hidden="true">
-                {meta.avatar}
+                {presentation.avatar}
               </div>
               <div className="message-stack">
                 <div className="message-label">
-                  {meta.label}
+                  {presentation.label}
                 </div>
                 <div className={`message-bubble${message.isError ? ' error' : ''}${message.role === 'assistant' ? ' assistant-content' : ''}${message.isStreaming ? ' streaming' : ''}`}>
-                  <MessageContent message={message} conversationMeta={conversationMeta} onAction={onAction} viewerRole={viewerRole} />
+                  <MessageContent message={message} conversationContext={conversationContext} onAction={onAction} viewerRole={viewerRole} />
                 </div>
               </div>
             </article>

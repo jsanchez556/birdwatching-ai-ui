@@ -24,6 +24,15 @@ const sections = [
 const quality = {
   range: { startAt: '2026-07-01T00:00:00.000Z', endAt: '2026-08-01T00:00:00.000Z', timezone: 'UTC' },
   previousRange: { startAt: '2026-05-31T00:00:00.000Z', endAt: '2026-07-01T00:00:00.000Z', timezone: 'UTC' },
+  qualityStatus: 'available',
+  qualitySource: 'real_pipeline_output',
+  unavailableReason: null,
+  provenance: { modelIdentifier: 'gpt-test', promptVersion: 'chat-v1' },
+  scorerSelfTest: {
+    label: 'Synthetic scorer self-test — not model or RAG quality',
+    includedInQualityMetrics: false,
+    availableInConfiguredArtifact: false,
+  },
   metrics: {
     groundingScore: { current: 0.86, previous: 0.82, delta: 0.04, currentSampleSize: 120, previousSampleSize: 110 },
     answerRelevance: { current: 0.89, previous: 0.91, delta: -0.02, currentSampleSize: 120, previousSampleSize: 110 },
@@ -134,16 +143,57 @@ describe('AdminDashboard section composition', () => {
       .map((heading) => heading.textContent)
     expect(contentHeadings).toEqual(expect.arrayContaining([
       'AI usage',
-      'AI quality',
+      'Portfolio regression quality',
       'Queues',
       'Recent failures',
     ]))
-    expect(contentHeadings.indexOf('AI usage')).toBeLessThan(contentHeadings.indexOf('AI quality'))
-    expect(contentHeadings.indexOf('AI quality')).toBeLessThan(contentHeadings.indexOf('Queues'))
+    expect(contentHeadings.indexOf('AI usage')).toBeLessThan(contentHeadings.indexOf('Portfolio regression quality'))
+    expect(contentHeadings.indexOf('Portfolio regression quality')).toBeLessThan(contentHeadings.indexOf('Queues'))
     expect(contentHeadings.indexOf('Queues')).toBeLessThan(contentHeadings.indexOf('Recent failures'))
 
     fireEvent.click(screen.getByRole('button', { name: 'Commercial administration' }))
     expect(state.setActiveSection).toHaveBeenCalledWith('commercial')
+  })
+
+  test('shows an unavailable state instead of synthetic or legacy quality scores', () => {
+    const unavailableQuality = {
+      ...quality,
+      qualityStatus: 'unavailable',
+      qualitySource: null,
+      unavailableReason: 'No valid portfolio regression artifact from real pipeline outputs is available.',
+      provenance: null,
+      scorerSelfTest: {
+        ...quality.scorerSelfTest,
+        availableInConfiguredArtifact: true,
+      },
+      metrics: Object.fromEntries(Object.entries(quality.metrics).map(([name]) => [
+        name,
+        {
+          current: null,
+          previous: null,
+          delta: null,
+          currentSampleSize: 0,
+          previousSampleSize: 0,
+        },
+      ])),
+    }
+    useAdminDashboard.mockReturnValue(hookResult('ai_operations', {
+      activeState: {
+        status: 'success',
+        error: null,
+        data: {
+          ...sectionData.ai_operations,
+          quality: unavailableQuality,
+        },
+      },
+    }))
+
+    render(<AdminDashboard currentUserId="1" getAccessToken={jest.fn()} onBack={jest.fn()} />)
+
+    expect(screen.getByRole('status')).toHaveTextContent('Quality unavailable')
+    expect(screen.getByText(/No model, RAG, or production quality score/i)).toBeInTheDocument()
+    expect(screen.getByText(/Synthetic scorer self-test — not model or RAG quality/i)).toBeInTheDocument()
+    expect(screen.queryByText('86.0%')).not.toBeInTheDocument()
   })
 
   test.each([
