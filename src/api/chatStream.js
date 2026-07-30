@@ -1,4 +1,5 @@
-import { partitionAssistantMetadata } from '../utils/chatConversationState'
+import { partitionAssistantMetadata } from '../utils/chatConversationState.js'
+import { sanitizeTourRecommendationMetadata } from './tourRecommendationContract.js'
 
 function parseSseBlock(block) {
   const lines = block.split(/\r?\n/)
@@ -103,7 +104,7 @@ export async function consumeChatSseStream({
         conversationContext,
         messageMetadata,
         customerContext,
-      } = partitionAssistantMetadata(data.meta)
+      } = partitionAssistantMetadata(sanitizeTourRecommendationMetadata(data.meta))
       finalResult = {
         conversationId: data.conversationId || conversationId,
         response: data.response,

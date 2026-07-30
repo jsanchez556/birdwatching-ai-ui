@@ -80,6 +80,21 @@ async function run() {
       type: 'reservation_confirmation',
       label: 'View reservation',
     },
+    tourRecommendation: {
+      summary: 'I found one supported match.',
+      recommendations: [{
+        tourId: '12',
+        tourName: 'Monteverde Quetzal Tour',
+        location: 'Monteverde',
+        estimatedPrice: { amount: 120, currency: 'USD' },
+        matchReasons: ['Matches Monteverde'],
+        availabilityStatus: 'available',
+        confidence: 0.94,
+      }],
+      sources: [],
+      assumptions: [],
+      followUpQuestion: null,
+    },
   }
   const response = new CapturedSseResponse()
 
@@ -116,7 +131,14 @@ async function run() {
     conversationId,
     response: 'Your reservation is confirmed.',
     sources: [],
-    metadata: assistantMetadata,
+    conversationContext: {
+      reservation: assistantMetadata.reservation,
+    },
+    messageMetadata: {
+      uiAction: assistantMetadata.uiAction,
+      tourRecommendation: assistantMetadata.tourRecommendation,
+    },
+    customerContext: null,
   })
 
   console.log('PASS: API-produced /chat SSE is normalized by the UI streaming adapter.')

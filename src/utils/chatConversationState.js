@@ -3,7 +3,7 @@ import {
   readJsonStorage,
   removeStorageItem,
   writeJsonStorage,
-} from './storage'
+} from './storage.js'
 
 export const CHAT_STATE_VERSION = 2
 

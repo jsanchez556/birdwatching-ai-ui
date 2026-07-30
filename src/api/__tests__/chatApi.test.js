@@ -153,6 +153,74 @@ describe('chatApi conversation hydration', () => {
     })
   })
 
+  test('validates streamed recommendation metadata at the API boundary', async () => {
+    const recommendation = {
+      summary: 'I found one supported match.',
+      recommendations: [{
+        tourId: '12',
+        tourName: 'Monteverde Quetzal Tour',
+        location: 'Monteverde',
+        estimatedPrice: { amount: 120, currency: 'USD' },
+        matchReasons: ['Matches Monteverde'],
+        availabilityStatus: 'available',
+        confidence: 0.94,
+      }],
+      sources: [],
+      assumptions: [],
+      followUpQuestion: null,
+    }
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode([
+          'event: done',
+          `data: ${JSON.stringify({
+            conversationId: 'conversation-123',
+            response: 'I found one supported match.',
+            sources: [],
+            meta: { tourRecommendation: recommendation },
+          })}`,
+          '',
+          '',
+        ].join('\n')))
+        controller.close()
+      },
+    })
+    global.fetch.mockResolvedValue({ ok: true, body: stream })
+
+    await expect(streamChatMessage({
+      message: 'Recommend a tour.',
+      conversationId: 'conversation-123',
+    })).resolves.toMatchObject({
+      response: 'I found one supported match.',
+      messageMetadata: {
+        tourRecommendation: recommendation,
+      },
+    })
+  })
+
+  test('drops invalid streamed recommendation metadata without dropping assistant text', async () => {
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode([
+          'event: done',
+          'data: {"conversationId":"conversation-123","response":"Assistant prose remains.","sources":[],"meta":{"tourRecommendation":{"summary":"Invalid","recommendations":[{"confidence":4}]}}}',
+          '',
+          '',
+        ].join('\n')))
+        controller.close()
+      },
+    })
+    global.fetch.mockResolvedValue({ ok: true, body: stream })
+
+    await expect(streamChatMessage({
+      message: 'Recommend a tour.',
+      conversationId: 'conversation-123',
+    })).resolves.toMatchObject({
+      response: 'Assistant prose remains.',
+      messageMetadata: {},
+    })
+  })
+
   test('normalizes legacy message meta and separates envelope context', async () => {
     global.fetch.mockResolvedValue({
       ok: true,

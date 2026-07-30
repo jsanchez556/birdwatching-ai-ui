@@ -48,6 +48,34 @@ are never fabricated. Voice playback uses the canonical top-level `audioUrl`;
 API and storage boundaries lift the legacy `metadata.audioUrl` form during
 normalization.
 
+Recommendation turns may include `metadata.tourRecommendation`:
+
+```json
+{
+  "summary": "I found one supported match.",
+  "recommendations": [{
+    "tourId": "1",
+    "tourName": "Monteverde Quetzal Tour",
+    "location": "Monteverde",
+    "estimatedPrice": { "amount": 120, "currency": "USD" },
+    "matchReasons": ["Matches Monteverde"],
+    "availabilityStatus": "available",
+    "confidence": 0.94
+  }],
+  "sources": [],
+  "assumptions": [],
+  "followUpQuestion": null
+}
+```
+
+Availability is `available`, `limited`, `unavailable`, or `unknown`. Unknown
+price uses `{ "amount": null, "currency": null }`; known currency values are
+uppercase ISO 4217 codes. Confidence is in `0–1`, recommendations may be empty,
+and `followUpQuestion` is null when no clarification is needed. The API adapter
+validates the entire optional object and drops it if any field is invalid, so
+components never render partial cards. Assistant `content` remains visible and
+is never parsed to create recommendation fields.
+
 ## Conversation state
 
 ```json

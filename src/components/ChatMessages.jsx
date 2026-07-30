@@ -2,6 +2,8 @@ import { useLayoutEffect, useRef } from 'react'
 import BirdMatchesCarousel from './BirdMatchesCarousel'
 import ReservationConfirmationCard from './ReservationConfirmationCard'
 import MessageActions from './MessageActions'
+import TourRecommendationCards from './TourRecommendationCards'
+import { isTourRecommendation } from '../api/tourRecommendationContract'
 import {
   extractReservationConfirmation,
   normalizeReservationConfirmation,
@@ -66,11 +68,16 @@ function MessageContent({ message, conversationContext, onAction, viewerRole }) 
   const audioUrl = message.role === 'assistant' && !message.isError
     ? message.audioUrl
     : ''
+  const tourRecommendation = message.role === 'assistant' && !message.isError
+    && isTourRecommendation(message.metadata?.tourRecommendation)
+    ? message.metadata.tourRecommendation
+    : null
 
   if (!reservation) {
     return (
       <>
         {message.content}
+        <TourRecommendationCards recommendation={tourRecommendation} />
         <VoiceResponseAudio audioUrl={audioUrl} />
         <BirdMatchesCarousel birds={birdMatches} />
         <MessageActions actions={messageActions} onAction={onAction} viewerRole={viewerRole} />
@@ -84,6 +91,7 @@ function MessageContent({ message, conversationContext, onAction, viewerRole }) 
         <div className="message-text">{message.content}</div>
       )}
       <ReservationConfirmationCard reservation={reservation} />
+      <TourRecommendationCards recommendation={tourRecommendation} />
       <VoiceResponseAudio audioUrl={audioUrl} />
       <BirdMatchesCarousel birds={birdMatches} />
       <MessageActions actions={messageActions} onAction={onAction} viewerRole={viewerRole} />

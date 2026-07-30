@@ -548,6 +548,9 @@ Frontend behavior:
   messages
 - reservation-entry drawer chats are ephemeral in the browser: they can receive backend conversation IDs, but they do not write or restore `localStorage` chat state and do not call `GET /chat/latest` on open
 - preserves per-turn `done.meta.birdMatches` on the assistant message so bird photos, song recordings, sonograms, and licensing links can render beside the answer
+- validates optional `done.meta.tourRecommendation` as an all-or-nothing
+  per-turn contract, preserves valid data on the assistant message, and drops
+  invalid recommendation metadata without dropping assistant text
 - treats `AbortError` as user cancellation instead of a request failure
 - throws a client error if the stream ends without a `done` event
 - shows the backend/client error in the alert and a friendly assistant fallback in the transcript on failure
@@ -572,7 +575,10 @@ Backend behavior relevant to UI:
 - loads recent conversation history from PostgreSQL
 - may retrieve RAG sources from PostgreSQL pgvector knowledge chunks ingested from backend `src/ingestion/data`
 - may use OpenAI tool calls for tour search/recommendation, availability checks, transportation estimates, pricing, discounts, and reservations
-- when tour listing or recommendation tools return tours, the assistant response should stay short, for example `I found 2 tours that match your preferences.`, while tour details are provided in `meta.tours`
+- when recommendation-mode tour search returns tours, the assistant response
+  stays short while card fields are provided in the validated
+  `meta.tourRecommendation` contract; legacy `meta.tours` remains available for
+  guided booking controls
 - tour records in chat metadata may include `location`, `node`, `subnode`, and `zone`; `location` is a display label derived from the node graph, while `node`, `subnode`, and `zone` are the structured location fields
 - when bird RAG returns media-rich bird profiles, details are provided in `meta.birdMatches`; media URLs are optional references and are not embedded in pgvector
 - saves the exchange to PostgreSQL on a best-effort basis
@@ -671,6 +677,13 @@ Tour and reservation notes:
 - Safe structured tool data may be returned in the `done.meta` object for frontend rendering.
 - Available backend tools are `searchTours`, `calculateTransportation`, `checkAvailability`, `calculatePricing`, and `createReservation`.
 - Tour listing and recommendation details are returned in `meta.tours` when available.
+- Recommendation-mode results additionally use `meta.tourRecommendation`.
+  `src/api/tourRecommendationContract.js` validates the full optional object at
+  the network boundary, and `TourRecommendationCards` renders only those
+  structured fields. It never parses assistant prose. Unknown price is
+  `{ amount: null, currency: null }`; availability is `available`, `limited`,
+  `unavailable`, or `unknown`; confidence is a `0–1` value formatted as a
+  percentage.
 - Tour listing, selection, and reservation metadata can include `location`, `node`, `subnode`, and `zone`. The frontend treats these as display metadata and does not infer booking logic from them.
 - Tour selection can use a `tourId` or a backend-supported tour name/location value; the backend owns matching, ambiguity handling, and availability validation.
 - The backend may return `meta.uiAction` or `meta.uiActions` for guided controls. Supported UI action types include `choice`, `tour_selection`, `date_picker`, `participant_count`, `transportation_selection`, and `reservation_confirmation`.
@@ -687,7 +700,9 @@ Tour and reservation notes:
 - Successful reservation text should stay short and the confirmation details are exposed in `done.meta.reservation` when a reservation is created.
 - Reservation metadata may include `tourLocation`/`tour_location`, `tourNode`/`tour_node`, `tourSubnode`/`tour_subnode`, and `tourZone`/`tour_zone`; the confirmation card displays those fields when present.
 - The current UI renders reservation cards from chat-level reservation metadata for confirmation-style assistant messages, uses chat-level `selectedTransportation` for transportation display and grand-total calculation, falls back to message reservation metadata for older cached messages, and normalizes both camelCase and snake_case reservation fields. It only parses clear reservation-confirmation summaries from assistant text as a final fallback.
-- If the UI later adds structured tour, source, discount, or reservation displays beyond the confirmation card, use the documented `meta` fields instead of inferring data from assistant text.
+- Structured recommendation cards use the documented
+  `meta.tourRecommendation` fields instead of inferring data from assistant
+  text.
 
 ## `GET /chat/:conversationId`
 Used by `loadConversationMessages(conversationId, { token })`.

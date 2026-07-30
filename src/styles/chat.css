@@ -211,6 +211,120 @@
   white-space: normal;
 }
 
+.tour-recommendations {
+  width: min(100%, 560px);
+  white-space: normal;
+}
+
+.tour-recommendation-list {
+  display: grid;
+  gap: 12px;
+}
+
+.tour-recommendation-card {
+  display: grid;
+  gap: 14px;
+  padding: 15px;
+  border: 1px solid rgba(40, 115, 77, 0.2);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(40, 115, 77, 0.08), transparent 64%),
+    var(--surface-softer);
+}
+
+.tour-recommendation-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tour-recommendation-eyebrow {
+  margin-bottom: 4px;
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tour-recommendation-card h3 {
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.tour-recommendation-location {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}
+
+.tour-availability {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border: 1px solid rgba(40, 115, 77, 0.24);
+  border-radius: 999px;
+  background: rgba(40, 115, 77, 0.1);
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 760;
+  line-height: 1;
+}
+
+.tour-availability.is-limited,
+.tour-availability.is-unknown {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.tour-availability.is-unavailable {
+  border-color: rgba(178, 70, 70, 0.24);
+  background: rgba(178, 70, 70, 0.1);
+  color: #8b2d2d;
+}
+
+.tour-recommendation-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.tour-recommendation-facts > div {
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.tour-recommendation-facts dt,
+.tour-match-reasons h4 {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.tour-recommendation-facts dd {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-weight: 760;
+}
+
+.tour-match-reasons h4 {
+  margin: 0 0 6px;
+}
+
+.tour-match-reasons ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}
+
 .reservation-card-header {
   display: flex;
   align-items: flex-start;
@@ -833,6 +947,17 @@ body.has-open-modal {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 
+  .tour-recommendation-card {
+    border-color: rgba(105, 199, 146, 0.2);
+    background:
+      linear-gradient(180deg, rgba(105, 199, 146, 0.1), transparent 64%),
+      var(--surface-softer);
+  }
+
+  .tour-availability.is-unavailable {
+    color: #ffb9b9;
+  }
+
   .reservation-detail {
     background: rgba(255, 255, 255, 0.03);
   }
@@ -1453,4 +1578,3 @@ body.has-open-modal {
     transform: none;
   }
 }
-

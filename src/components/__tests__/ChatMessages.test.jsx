@@ -30,6 +30,120 @@ describe('ChatMessages', () => {
     expect(screen.getByText(/Birdwatching AI/i)).toBeInTheDocument()
   })
 
+  test('renders structured tour recommendation cards while preserving assistant text', () => {
+    const messages = [{
+      role: 'assistant',
+      content: 'I found two tours that match your preferences.',
+      metadata: {
+        tourRecommendation: {
+          summary: 'I found two tours that match your preferences.',
+          recommendations: [
+            {
+              tourId: '12',
+              tourName: 'Monteverde Quetzal Tour',
+              location: 'Monteverde',
+              estimatedPrice: { amount: 120, currency: 'USD' },
+              matchReasons: ['Matches Monteverde', 'Fits a moderate budget'],
+              availabilityStatus: 'available',
+              confidence: 0.94,
+            },
+            {
+              tourId: '13',
+              tourName: 'Curi-Cancha Morning Walk',
+              location: 'Curi-Cancha',
+              estimatedPrice: { amount: null, currency: null },
+              matchReasons: ['Easy walking route'],
+              availabilityStatus: 'limited',
+              confidence: 0.81,
+            },
+          ],
+          sources: [],
+          assumptions: [],
+          followUpQuestion: 'Which tour interests you?',
+        },
+      },
+    }]
+
+    render(<ChatMessages messages={messages} isLoading={false} />)
+
+    expect(screen.getByText('I found two tours that match your preferences.')).toBeInTheDocument()
+    const recommendations = screen.getByLabelText('Tour recommendations')
+    expect(within(recommendations).getByRole('heading', { name: 'Monteverde Quetzal Tour' })).toBeInTheDocument()
+    expect(within(recommendations).getByRole('heading', { name: 'Curi-Cancha Morning Walk' })).toBeInTheDocument()
+    expect(within(recommendations).getByText('94%')).toBeInTheDocument()
+    expect(within(recommendations).getByText('$120')).toBeInTheDocument()
+    expect(within(recommendations).getByText('Available')).toBeInTheDocument()
+    expect(within(recommendations).getByText('Limited availability')).toBeInTheDocument()
+    expect(within(recommendations).getByText('Price unavailable')).toBeInTheDocument()
+  })
+
+  test('does not parse assistant prose to construct recommendation cards', () => {
+    render(
+      <ChatMessages
+        messages={[{
+          role: 'assistant',
+          content: 'Monteverde Quetzal Tour\nMatch: 94%\nPrice: $120\nAvailability: Available',
+        }]}
+        isLoading={false}
+      />
+    )
+
+    expect(screen.getByText(/Monteverde Quetzal Tour/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Tour recommendations')).not.toBeInTheDocument()
+  })
+
+  test('renders no recommendation cards for empty or missing optional metadata', () => {
+    const emptyContract = {
+      summary: 'No supported matches were found.',
+      recommendations: [],
+      sources: [],
+      assumptions: [],
+      followUpQuestion: null,
+    }
+
+    render(
+      <ChatMessages
+        messages={[
+          { role: 'assistant', content: 'Ordinary response.' },
+          {
+            role: 'assistant',
+            content: 'No supported matches were found.',
+            metadata: { tourRecommendation: emptyContract },
+          },
+        ]}
+        isLoading={false}
+      />
+    )
+
+    expect(screen.getByText('Ordinary response.')).toBeInTheDocument()
+    expect(screen.getByText('No supported matches were found.')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Tour recommendations')).not.toBeInTheDocument()
+  })
+
+  test('ignores invalid persisted recommendation metadata without crashing', () => {
+    render(
+      <ChatMessages
+        messages={[{
+          role: 'assistant',
+          content: 'The original assistant response remains.',
+          metadata: {
+            tourRecommendation: {
+              summary: 'Invalid metadata',
+              recommendations: [{
+                tourName: 'Incomplete tour',
+                confidence: 2,
+              }],
+            },
+          },
+        }]}
+        isLoading={false}
+      />
+    )
+
+    expect(screen.getByText('The original assistant response remains.')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Tour recommendations')).not.toBeInTheDocument()
+  })
+
   test('shows customer initials in user message avatars', () => {
     const messages = [
       { role: 'user', content: 'I want a Monteverde tour.' },

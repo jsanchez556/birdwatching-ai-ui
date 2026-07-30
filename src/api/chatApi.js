@@ -11,6 +11,7 @@ import {
 } from './http'
 import { consumeChatSseStream } from './chatStream'
 import { partitionAssistantMetadata } from '../utils/chatConversationState'
+import { sanitizeTourRecommendationMetadata } from './tourRecommendationContract'
 
 function assertSuccessfulEnvelope(data) {
   if (!validateEnvelope(data) || !isObject(data.meta)) {
@@ -42,7 +43,7 @@ function normalizeHydratedMessage(message) {
     audioUrl: legacyAudioUrl,
     audioResponseUrl: legacyAudioResponseUrl,
     ...canonicalMetadata
-  } = metadata || {}
+  } = sanitizeTourRecommendationMetadata(metadata) || {}
   const { meta, metadata: ignoredMetadata, ...canonicalMessage } = message
   return {
     ...canonicalMessage,
@@ -64,7 +65,7 @@ function normalizeConversationResponse({ conversationId, messages, envelopeMeta 
   const {
     conversationContext,
     customerContext,
-  } = partitionAssistantMetadata(envelopeMeta)
+  } = partitionAssistantMetadata(sanitizeTourRecommendationMetadata(envelopeMeta))
 
   return {
     conversationId: conversationId || fallbackConversationId,

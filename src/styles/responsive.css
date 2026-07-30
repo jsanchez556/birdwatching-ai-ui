@@ -129,6 +129,18 @@
     padding: 13px;
   }
 
+  .tour-recommendation-card {
+    padding: 13px;
+  }
+
+  .tour-recommendation-header {
+    display: grid;
+  }
+
+  .tour-availability {
+    width: fit-content;
+  }
+
   .reservation-card-header {
     display: grid;
   }
