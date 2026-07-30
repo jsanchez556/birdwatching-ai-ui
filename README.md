@@ -52,53 +52,54 @@ Status is based on executable code, tests, and deployment wiring in this reposit
 
 ## 4. System architecture diagram
 
+Shows how the React application crosses the browser/server trust boundary while keeping durable AI and business state on the backend.
+
 ```mermaid
 flowchart LR
   subgraph Browser["Browser trust boundary"]
-    UI["React surfaces"]
-    Hooks["Hooks and product shell"]
-    Adapters["API adapters"]
-    Local["localStorage cache"]
-    Media["MediaRecorder and file input"]
+    UI["React surfaces and shell"] --> Hooks["Focused hooks"]
+    Hooks --> Adapters["API adapters"]
+    Hooks <--> Local["Local UI cache"]
+    Capture["Audio and images"] --> Hooks
   end
 
-  subgraph Server["Birdwatching AI API"]
-    HTTP["Express API"]
-    Agent["RAG and agent services"]
-    Queue["BullMQ queues"]
-    Worker["Identification and ingestion workers"]
+  subgraph Platform["Server-side platform"]
+    API["Express API"]
+    Agent["RAG and agent"]
+    Queue["BullMQ"]
+    Worker["Workers"]
   end
 
-  DB[("PostgreSQL and pgvector")]
+  Data[("PostgreSQL and pgvector")]
   Redis[("Redis")]
-  OpenAI["OpenAI"]
-  Storage["S3 and CloudFront"]
-  Stripe["Stripe"]
-  PostHog["PostHog"]
-  LangSmith["LangSmith"]
+  AIProvider["OpenAI"]
+  PlatformProviders["Stripe, S3 and CDN"]
+  BrowserMetrics["PostHog"]
+  ServerTraces["LangSmith"]
 
-  UI --> Hooks
-  Hooks <--> Local
-  Media --> Hooks
-  Hooks --> Adapters
-  Adapters -->|"JSON requests"| HTTP
-  HTTP -->|"SSE chunks"| Adapters
-  HTTP --> Agent
-  Agent --> DB
-  Agent --> Redis
-  Agent --> OpenAI
-  HTTP --> Queue
+  Adapters -->|"JSON requests"| API
+  API -->|"SSE stream"| Adapters
+  Adapters -.->|"Abort or poll"| API
+  API --> Agent
+  API --> Queue
   Queue --> Redis
-  Queue --> Worker
-  Worker --> DB
-  Worker --> OpenAI
-  HTTP --> Storage
-  HTTP --> Stripe
-  HTTP --> LangSmith
-  Hooks -->|"consent-gated events"| PostHog
+  Redis --> Worker
+  Worker --> Data
+  Worker --> AIProvider
+  Agent --> Data
+  Agent --> Redis
+  Agent --> AIProvider
+  API --> PlatformProviders
+  API -.-> ServerTraces
+  Worker -.-> ServerTraces
+  Hooks -.->|"consent-gated"| BrowserMetrics
 ```
 
-Solid arrows are logical data or control paths, not a claim that every optional provider is configured in every environment.
+Reading notes:
+
+- The browser owns interaction state and transport adaptation; the API revalidates identity, authorization, quotas, and input.
+- PostgreSQL is the durable source of truth. Browser storage and Redis are caches or coordination state.
+- External services appear only at their relevant boundary: the browser exports consent-gated PostHog events and follows provider-hosted URLs returned by the API.
 
 ## 5. End-to-end request lifecycle
 
@@ -189,6 +190,38 @@ The SSE chat endpoint is intentionally different: named `start`, `chunk`, `repla
 
 RAG is entirely server-side. The UI may receive source metadata and `birdMatches`, but never creates embeddings, queries pgvector, or treats a browser cache as knowledge.
 
+### RAG request flow
+
+Shows how the frontend submits a chat turn, consumes a grounded or degraded response, and keeps its local transcript separate from server memory.
+
+```mermaid
+flowchart TD
+  Input["Chat input"] --> ChatHook["useChat"]
+  ChatHook --> Adapter["Chat adapter"]
+  Adapter -->|"POST chat"| API["API validation"]
+  API --> Memory["Conversation context"]
+  Memory --> Embed["Query embedding"]
+  Embed -.->|"embedding failure"| Empty["Empty RAG context"]
+  Embed --> Cache["Redis lookup"]
+  Cache -->|"hit"| Context["Context assembly"]
+  Cache -->|"miss"| Vector["pgvector search"]
+  Cache -.->|"cache failure"| Vector
+  Vector --> Context
+  Vector -.->|"retrieval failure"| Empty
+  Empty --> Agent["Agent and model"]
+  Context --> Agent
+  Agent -->|"SSE events"| Parser["Stream parser"]
+  Parser --> Reveal["Progressive render"]
+  Reveal --> Local["Local transcript cache"]
+  Agent --> Durable[("Messages and usage")]
+```
+
+Reading notes:
+
+- Embeddings, retrieval, context assembly, model execution, and durable persistence stay behind the API boundary.
+- Redis failure bypasses the cache; retrieval failure can continue with an empty, explicitly degraded RAG context.
+- The browser accepts source metadata but currently does not render general RAG sources; its local transcript is not durable knowledge.
+
 Conversation state has two tiers:
 
 - **Browser cache:** rendered messages, conversation ID, customer context, and limited conversation metadata in a user-scoped `localStorage` key. Reads and JSON parsing are guarded; invalid data is discarded.
@@ -204,6 +237,36 @@ The browser does not invoke tools directly. It submits user intent and renders c
 - Raw tool arguments and internal execution traces are not required for public rendering.
 - Tour selection, pricing, transportation, availability, and reservation status remain backend-authoritative.
 - A positive assistant sentence alone is not treated as a transactional commit when structured reservation metadata is absent.
+
+### AI agent tool-execution flow
+
+Shows how guided UI choices enter the server-side planner and return only after controlled tool execution.
+
+```mermaid
+flowchart TD
+  Choice["User intent"] --> ChatHook["Chat hook"]
+  ChatHook -->|"POST chat"| API["API boundary"]
+  API --> Planner["Tool planner"]
+  Controls["Feature controls"] --> Planner
+  Planner --> Validate["Argument validation"]
+  Validate --> Tools["Sequential tools"]
+  Tools --> State["Intermediate state"]
+  State --> Tools
+  Tools -->|"reservation step"| Tx["PostgreSQL transaction"]
+  Tools -.->|"retryable failure"| Retry["Bounded retry"]
+  Retry --> Tools
+  Tools -.->|"terminal failure"| Safe["Structured failure"]
+  Tx --> Final["Final model response"]
+  Tools -->|"plan complete"| Final
+  Safe --> Final
+  Final -->|"SSE and metadata"| UI["Chat rendering"]
+```
+
+Reading notes:
+
+- The browser sends intent, not executable tool calls; planning, validation, retries, and tool state are server-owned.
+- A tool failure is returned as structured context so the final response cannot safely claim an uncommitted booking.
+- The reservation card prefers successful server metadata; model text alone is not transactional proof.
 
 Tool registration, argument validation, retries, PostgreSQL reservation semantics, and multi-step planning are documented in the backend repository.
 
@@ -226,6 +289,35 @@ The identification modal supports pasteable URLs, uploads, and mobile camera sel
 ## 12. Background processing and caching
 
 The UI does not run background workers. It observes asynchronous bird-identification state by polling the authenticated job endpoint.
+
+### Asynchronous worker flow
+
+Shows the frontend-visible lifecycle of queued bird identification and the server-side work hidden behind job polling.
+
+```mermaid
+flowchart TD
+  Image["Image input"] --> Hook["Identification hook"]
+  Hook --> Adapter["Image adapter"]
+  Adapter -->|"POST identify"| API["Authenticated API"]
+  API --> Job[("Durable job")]
+  Job --> Queue["BullMQ enqueue"]
+  Queue --> Redis[("Redis")]
+  Redis --> Worker["Worker processor"]
+  Worker --> AI["Vision and RAG"]
+  AI --> Result[("Durable result")]
+  Worker -.->|"retry and backoff"| Redis
+  Worker -.->|"final failure"| Job
+  Worker -.->|"sanitized copy"| DLQ["Dead-letter queue"]
+  Hook -.->|"GET jobs by id"| API
+  API -->|"status or result"| Hook
+  Hook --> Modal["Result modal"]
+```
+
+Reading notes:
+
+- The browser keeps only the job ID and polls; PostgreSQL owns durable status and results.
+- Redis carries BullMQ work but is not the source of truth for the identification result.
+- Retries and dead-letter handling are server-side; the modal renders safe failed, missing, or uncertainty states.
 
 Browser caching is limited to:
 
@@ -252,6 +344,34 @@ The frontend is a presentation and redirect boundary:
 - It shows billing-return status as informational UI only.
 - It never stores provider customer/subscription IDs, price IDs, webhook secrets, or payment credentials.
 - It never grants plan access from a redirect query parameter.
+
+### Billing and subscription lifecycle
+
+Shows why the hosted checkout redirect is presentation state while signed webhook processing establishes entitlement.
+
+```mermaid
+flowchart TD
+  User["Authenticated user"] --> Shell["Account action"]
+  Shell --> Adapter["Billing adapter"]
+  Adapter -->|"POST checkout"| API["Authenticated API"]
+  API --> Checkout["Checkout session"]
+  Checkout --> Stripe["Stripe checkout"]
+  Stripe -->|"browser redirect"| Notice["Return notice"]
+  Notice -.-> NoGrant["Not entitlement"]
+  Stripe -->|"signed webhook"| Verify["Verify signature"]
+  Verify --> Event[("Idempotent event")]
+  Event --> Subscription[("Subscription state")]
+  Subscription --> Access["Entitlements and quotas"]
+  Access --> Usage[("Usage and cost")]
+  Usage --> Reports["User and admin reports"]
+  Adapter -.->|"GET usage"| API
+```
+
+Reading notes:
+
+- The browser validates provider-neutral URLs but never stores provider IDs or decides subscription state.
+- Only a verified webhook updates the durable subscription; a success redirect is informational.
+- Quotas and cost records are enforced and calculated server-side, then exposed through user/admin reporting contracts.
 
 Quotas, usage reservations, token/cost persistence, subscription synchronization, temporary feature controls, and feature-economics reporting are backend responsibilities. The UI renders returned availability and admin data; it does not enforce cost limits on its own.
 
