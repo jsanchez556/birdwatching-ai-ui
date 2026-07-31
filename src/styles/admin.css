@@ -329,6 +329,111 @@
   font-size: 0.86rem;
 }
 
+.admin-routing-health {
+  grid-column: 1 / -1;
+}
+
+.admin-routing-health .admin-panel-header > span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.admin-routing-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.admin-routing-metrics > div {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.admin-routing-metrics dt {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.admin-routing-metrics dd {
+  margin-top: 5px;
+  font-size: 1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-routing-usage {
+  margin-top: 14px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.admin-routing-usage .admin-muted {
+  margin-top: 4px;
+}
+
+.admin-routing-breakdowns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.admin-routing-breakdown {
+  min-width: 0;
+}
+
+.admin-routing-breakdown h4 {
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.admin-routing-breakdown .admin-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-routing-breakdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.76rem;
+}
+
+.admin-routing-breakdown th,
+.admin-routing-breakdown td {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.admin-routing-breakdown th:first-child,
+.admin-routing-breakdown td:first-child {
+  max-width: 180px;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+
+.admin-routing-breakdown thead th {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+
+.admin-routing-breakdown tbody th {
+  font-weight: 700;
+}
+
+.admin-empty-copy {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
 .admin-bar-chart {
   display: grid;
   gap: 16px;
@@ -1228,6 +1333,11 @@
   .admin-quality-groups {
     grid-template-columns: 1fr;
   }
+
+  .admin-routing-metrics,
+  .admin-routing-breakdowns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 620px) {
@@ -1270,6 +1380,11 @@
   }
 
   .admin-quality-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-routing-metrics,
+  .admin-routing-breakdowns {
     grid-template-columns: 1fr;
   }
 
@@ -1320,4 +1435,3 @@
     animation: none;
   }
 }
-

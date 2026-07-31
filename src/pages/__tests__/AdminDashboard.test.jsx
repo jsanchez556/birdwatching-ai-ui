@@ -43,7 +43,36 @@ const quality = {
 
 const sectionData = {
   ai_operations: {
-    overview: { activeUsers: 147, mrr: 1890, aiCostToday: 18.72, errorRate: 0.021 },
+    overview: {
+      activeUsers: 147,
+      mrr: 1890,
+      aiCostToday: 18.72,
+      errorRate: 0.021,
+      routingHealth: {
+        executions: 2,
+        executionSuccessRate: 0.5,
+        userVisibleSuccessRate: 1,
+        latencyMs: { p50: 800, p95: 1200, p99: 1200 },
+        tokens: { input: 100, output: 40, total: 140, unavailableExecutions: 1 },
+        estimatedCost: { total: 0.0025, pricedExecutions: 1, unavailableExecutions: 1 },
+        retryRate: 0.5,
+        fallbackRate: 0.5,
+        schemaValidationFailureRate: 0,
+        degradedModeRate: 0.5,
+        breakdowns: {
+          taskCategory: [{
+            key: 'general_chat',
+            executions: 2,
+            successRate: 0.5,
+            userVisibleSuccessRate: 1,
+            averageLatencyMs: 1000,
+          }],
+          routingTier: [],
+          selectedModel: [],
+          finalModel: [],
+        },
+      },
+    },
     usage: { totals: { requests: 1294 }, byFeature: [{ feature: 'chat', requests: 1294 }] },
     costs: {
       totals: { requests: 1294, tokens: 870400, estimatedCost: 18.72, averageCostPerRequest: 0.0145, unpricedRequests: 0 },
@@ -138,6 +167,10 @@ describe('AdminDashboard section composition', () => {
     expect(screen.getByText('$1.9K')).toHaveAccessibleName('$1,890.00 monthly recurring revenue')
     expect(screen.getByLabelText('$18.72 estimated AI cost')).toHaveTextContent('$18.72')
     expect(screen.getByText('2.1%')).toHaveAccessibleName('2.1% AI error rate')
+    expect(screen.getByRole('heading', { name: 'Model routing' })).toBeInTheDocument()
+    expect(screen.getByText('User-visible success')).toBeInTheDocument()
+    expect(screen.getByRole('table', { name: 'Task category routing breakdown' }))
+      .toBeInTheDocument()
 
     const contentHeadings = screen.getAllByRole('heading')
       .map((heading) => heading.textContent)

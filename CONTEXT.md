@@ -65,6 +65,11 @@ The app is a multi-surface product shell using a surface-controller-hook-API spl
   `useAdminDashboard` loads only the active section, keeps independent
   session-only caches and request states, and never persists admin responses.
   The responsive section menu remains local state and does not add routing.
+- AI Operations also renders aggregated model-routing health from the existing
+  `/admin/overview` payload: execution/user-visible success, latency
+  percentiles, token/cost availability, retry/fallback/schema/degradation
+  rates, and bounded task/tier/selected-model/final-model breakdowns. It never
+  receives prompts, responses, customer data, or raw error values.
 - Admin AI Quality is labeled as portfolio regression quality and renders
   metrics only when the API identifies validated real-pipeline evidence.
   Synthetic scorer self-tests and legacy artifacts are explicitly excluded;

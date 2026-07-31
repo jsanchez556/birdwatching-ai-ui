@@ -6,6 +6,7 @@ import AiQualitySummary from '../components/admin/AiQualitySummary'
 import CostChart from '../components/admin/CostChart'
 import FailedJobs from '../components/admin/FailedJobs'
 import KpiCard from '../components/admin/KpiCard'
+import ModelRoutingHealth from '../components/admin/ModelRoutingHealth'
 import OperationalErrors from '../components/admin/OperationalErrors'
 import QueueHealth from '../components/admin/QueueHealth'
 import SubscriptionSummary from '../components/admin/SubscriptionSummary'
@@ -231,6 +232,9 @@ function AdminDashboard({ currentUserId, getAccessToken, onBack }) {
               />
             </div>
           </section>
+          <div className="admin-dashboard-grid admin-single-panel-grid">
+            <ModelRoutingHealth data={data.overview.routingHealth} />
+          </div>
           <div className="admin-dashboard-grid">
             <UsageChart data={data.usage} />
             <CostChart data={data.costs} showTotal={false} />

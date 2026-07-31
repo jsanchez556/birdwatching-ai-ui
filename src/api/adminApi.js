@@ -267,6 +267,89 @@ function requireListData(envelope) {
   }
 }
 
+function isFiniteNonNegative(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
+function isRate(value) {
+  return isFiniteNonNegative(value) && value <= 1
+}
+
+function isNullableNonNegative(value) {
+  return value === null || isFiniteNonNegative(value)
+}
+
+function isRoutingBreakdown(value) {
+  return Array.isArray(value) && value.every((entry) => (
+    isObject(entry)
+    && hasExactKeys(entry, [
+      'key',
+      'executions',
+      'successRate',
+      'userVisibleSuccessRate',
+      'averageLatencyMs',
+    ])
+    && typeof entry.key === 'string'
+    && entry.key.length > 0
+    && entry.key.length <= 160
+    && Number.isInteger(entry.executions)
+    && entry.executions >= 0
+    && isRate(entry.successRate)
+    && isRate(entry.userVisibleSuccessRate)
+    && isFiniteNonNegative(entry.averageLatencyMs)
+  ))
+}
+
+function isRoutingHealth(value) {
+  return isObject(value)
+    && hasExactKeys(value, [
+      'executions',
+      'executionSuccessRate',
+      'userVisibleSuccessRate',
+      'latencyMs',
+      'tokens',
+      'estimatedCost',
+      'retryRate',
+      'fallbackRate',
+      'schemaValidationFailureRate',
+      'degradedModeRate',
+      'breakdowns',
+    ])
+    && Number.isInteger(value.executions)
+    && value.executions >= 0
+    && isRate(value.executionSuccessRate)
+    && isRate(value.userVisibleSuccessRate)
+    && isObject(value.latencyMs)
+    && hasExactKeys(value.latencyMs, ['p50', 'p95', 'p99'])
+    && ['p50', 'p95', 'p99'].every((field) => isNullableNonNegative(value.latencyMs[field]))
+    && isObject(value.tokens)
+    && hasExactKeys(value.tokens, ['input', 'output', 'total', 'unavailableExecutions'])
+    && ['input', 'output', 'total', 'unavailableExecutions']
+      .every((field) => isFiniteNonNegative(value.tokens[field]))
+    && isObject(value.estimatedCost)
+    && hasExactKeys(value.estimatedCost, [
+      'total',
+      'pricedExecutions',
+      'unavailableExecutions',
+    ])
+    && isFiniteNonNegative(value.estimatedCost.total)
+    && isFiniteNonNegative(value.estimatedCost.pricedExecutions)
+    && isFiniteNonNegative(value.estimatedCost.unavailableExecutions)
+    && isRate(value.retryRate)
+    && isRate(value.fallbackRate)
+    && isRate(value.schemaValidationFailureRate)
+    && isRate(value.degradedModeRate)
+    && isObject(value.breakdowns)
+    && hasExactKeys(value.breakdowns, [
+      'taskCategory',
+      'routingTier',
+      'selectedModel',
+      'finalModel',
+    ])
+    && ['taskCategory', 'routingTier', 'selectedModel', 'finalModel']
+      .every((field) => isRoutingBreakdown(value.breakdowns[field]))
+}
+
 export async function getAdminOverview({ token, startDate, endDate } = {}) {
   const envelope = await adminRequest(`/admin/overview${rangeQuery({ startDate, endDate })}`, { token })
   const data = requireObjectData(envelope)
@@ -279,11 +362,17 @@ export async function getAdminOverview({ token, startDate, endDate } = {}) {
     'aiCostToday',
     'averageLatencyMs',
     'errorRate',
+    'routingHealth',
   ]
 
-  if (fields.some((field) => typeof data[field] !== 'number' || !Number.isFinite(data[field]))) {
+  if (
+    !hasExactKeys(data, fields)
+    || fields.slice(0, -1)
+      .some((field) => typeof data[field] !== 'number' || !Number.isFinite(data[field]))
+  ) {
     throw new Error(ADMIN_FALLBACK_ERROR)
   }
+  if (!isRoutingHealth(data.routingHealth)) throw new Error(ADMIN_FALLBACK_ERROR)
 
   return data
 }

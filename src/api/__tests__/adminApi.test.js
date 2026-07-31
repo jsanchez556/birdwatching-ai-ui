@@ -39,6 +39,30 @@ const overview = {
   aiCostToday: 18.72,
   averageLatencyMs: 1840,
   errorRate: 0.021,
+  routingHealth: {
+    executions: 2,
+    executionSuccessRate: 0.5,
+    userVisibleSuccessRate: 1,
+    latencyMs: { p50: 800, p95: 1200, p99: 1200 },
+    tokens: { input: 100, output: 40, total: 140, unavailableExecutions: 1 },
+    estimatedCost: { total: 0.0025, pricedExecutions: 1, unavailableExecutions: 1 },
+    retryRate: 0.5,
+    fallbackRate: 0.5,
+    schemaValidationFailureRate: 0,
+    degradedModeRate: 0.5,
+    breakdowns: {
+      taskCategory: [{
+        key: 'general_chat',
+        executions: 2,
+        successRate: 0.5,
+        userVisibleSuccessRate: 1,
+        averageLatencyMs: 1000,
+      }],
+      routingTier: [],
+      selectedModel: [],
+      finalModel: [],
+    },
+  },
 }
 
 const quality = {
@@ -123,6 +147,19 @@ describe('adminApi', () => {
         },
       })
     )
+  })
+
+  test('rejects routing-health payloads containing raw diagnostic fields', async () => {
+    global.fetch.mockResolvedValue(jsonResponse(envelope({
+      ...overview,
+      routingHealth: {
+        ...overview.routingHealth,
+        prompt: 'must not reach the dashboard',
+      },
+    })))
+
+    await expect(getAdminOverview({ token: 'admin-token' }))
+      .rejects.toThrow('Unable to load admin operations data')
   })
 
   test('loads only the endpoints mapped to the selected dashboard section', async () => {
