@@ -58,8 +58,9 @@ The app is a multi-surface product shell using a surface-controller-hook-API spl
 - `src/utils/audioEncoding.js` owns framework-independent audio conversion and WAV encoding.
 - `src/hooks/useVoiceChatUpload.js` owns the cancellable voice-upload lifecycle and delegates HTTP to `src/api/voiceChatApi.js`.
 - `src/utils/reservationEntry.js` normalizes tours/cart items and constructs ephemeral reservation chat entries.
-- The admin Operations Dashboard uses three locally selected sections:
-  AI Operations, Commercial administration, and Emergency controls.
+- The admin Operations Dashboard uses four locally selected sections:
+  AI Operations, Context engineering, Commercial administration, and Emergency
+  controls.
   AI Operations is the default and presents compact Users, MRR, AI Cost, and
   Errors KPIs followed by AI Usage, AI Quality, Queues, and Recent Failures.
   `useAdminDashboard` loads only the active section, keeps independent
@@ -74,9 +75,14 @@ The app is a multi-surface product shell using a surface-controller-hook-API spl
   metrics only when the API identifies validated real-pipeline evidence.
   Synthetic scorer self-tests and legacy artifacts are explicitly excluded;
   absent valid evidence renders an unavailable state with no quality score.
-- AI Operations is range-dependent. A reporting-range change invalidates and
-  reloads it when active; Commercial administration and Emergency Controls
-  remain cached. Refresh and retry clear and reload only affected sections, so
+- AI Operations and Context engineering are range-dependent. Context
+  engineering loads aggregate-only telemetry from
+  `GET /admin/context-engineering`, shows explicit numerator/denominator and
+  unavailable states, and labels actual-versus-estimated token and cost
+  semantics. It never requests or renders raw traces, prompts, memories, RAG
+  text, tool payloads, or provenance. A reporting-range change invalidates and
+  reloads the active range-dependent section; Commercial administration and
+  Emergency Controls remain cached. Refresh and retry clear and reload only affected sections, so
   a failure cannot clear another section’s successful data.
 - Safe admin mutations stay in their relevant sections: retained failed BullMQ
   jobs in Recent Failures, eligible users in Commercial administration, and AI

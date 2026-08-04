@@ -2,6 +2,7 @@ import {
   getAdminAiCosts,
   getAdminErrors,
   getAdminAiQuality,
+  getAdminContextEngineering,
   getAdminOverview,
   getAdminQueueHealth,
   disableAdminAiFeature,
@@ -120,6 +121,36 @@ const quality = {
   },
 }
 
+const contextEngineering = {
+  range: {
+    startAt: '2026-07-01T00:00:00.000Z',
+    endAt: '2026-07-02T00:00:00.000Z',
+    timezone: 'UTC',
+  },
+  source: {
+    type: 'process_local_telemetry',
+    scope: 'current_instance_bounded_retention',
+  },
+  aggregation: {
+    eligibleRequests: 10,
+    finalGenerationRequests: 9,
+    planningTraces: 10,
+    generationTraces: 9,
+    actualTokenRequests: 7,
+    estimatedTokenRequests: 2,
+    tokenSemantics: 'actual_with_estimated_fallback',
+    costSemantics: 'estimated_input_token_cost',
+  },
+  metrics: {
+    averageInputTokens: { status: 'available', numerator: 9000, denominator: 9, value: 1000, rate: null },
+    contextCostPerRequest: { status: 'available', numerator: 0.018, denominator: 9, value: 0.002, rate: null },
+    ragContextUtilization: { status: 'available', numerator: 6, denominator: 8, value: 0.75, rate: 0.75 },
+    memoryRetrievalRate: { status: 'available', numerator: 2, denominator: 4, value: 0.5, rate: 0.5 },
+    compactionFrequency: { status: 'available', numerator: 3, denominator: 9, value: 0.3333, rate: 0.3333 },
+    contextRelatedFailureRate: { status: 'available', numerator: 1, denominator: 10, value: 0.1, rate: 0.1 },
+  },
+}
+
 describe('adminApi', () => {
   beforeEach(() => {
     global.fetch = jest.fn()
@@ -147,6 +178,36 @@ describe('adminApi', () => {
         },
       })
     )
+  })
+
+  test('loads aggregate-only context engineering telemetry with the reporting window', async () => {
+    global.fetch.mockResolvedValue(jsonResponse(envelope(contextEngineering)))
+
+    await expect(getAdminContextEngineering({
+      token: 'admin-token',
+      startDate: contextEngineering.range.startAt,
+      endDate: contextEngineering.range.endAt,
+    })).resolves.toEqual(contextEngineering)
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/admin/context-engineering?startDate=2026-07-01T00%3A00%3A00.000Z&endDate=2026-07-02T00%3A00%3A00.000Z',
+      expect.objectContaining({ headers: { Authorization: 'Bearer admin-token' } })
+    )
+  })
+
+  test('rejects unavailable context metrics that pretend missing data is zero success', async () => {
+    global.fetch.mockResolvedValue(jsonResponse(envelope({
+      ...contextEngineering,
+      metrics: {
+        ...contextEngineering.metrics,
+        ragContextUtilization: {
+          status: 'unavailable', numerator: 0, denominator: 0, value: 0, rate: 0,
+        },
+      },
+    })))
+
+    await expect(getAdminContextEngineering({ token: 'admin-token' }))
+      .rejects.toThrow('Unable to load admin operations data')
   })
 
   test('rejects routing-health payloads containing raw diagnostic fields', async () => {

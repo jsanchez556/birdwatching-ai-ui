@@ -274,6 +274,14 @@
   margin-bottom: 0;
 }
 
+.admin-context-kpis {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.admin-context-engineering .admin-panel-note:last-child {
+  margin-top: 0.4rem;
+}
+
 .admin-single-panel-grid {
   grid-template-columns: minmax(0, 1fr);
 }

@@ -4,6 +4,7 @@ import AdminSectionNavigation from '../components/admin/AdminSectionNavigation'
 import AiFeatureControls, { FEATURES } from '../components/admin/AiFeatureControls'
 import AiQualitySummary from '../components/admin/AiQualitySummary'
 import CostChart from '../components/admin/CostChart'
+import ContextEngineeringSummary from '../components/admin/ContextEngineeringSummary'
 import FailedJobs from '../components/admin/FailedJobs'
 import KpiCard from '../components/admin/KpiCard'
 import ModelRoutingHealth from '../components/admin/ModelRoutingHealth'
@@ -35,6 +36,7 @@ const percentFormatter = new Intl.NumberFormat('en-US', {
 
 const SECTION_DESCRIPTIONS = {
   [ADMIN_SECTION_IDS.AI_OPERATIONS]: 'Usage, quality, queues, and recent failures for the selected reporting range.',
+  [ADMIN_SECTION_IDS.CONTEXT_ENGINEERING]: 'Context selection, retrieval, compaction, cost, and failure telemetry for the selected reporting range.',
   [ADMIN_SECTION_IDS.COMMERCIAL]: 'Subscription status and customer account administration.',
   [ADMIN_SECTION_IDS.EMERGENCY]: 'Authoritative AI feature state and audited shutdown controls.',
 }
@@ -277,6 +279,14 @@ function AdminDashboard({ currentUserId, getAccessToken, onBack }) {
             onSuspend={requestSuspension}
             onUnsuspend={requestReactivation}
           />
+        </div>
+      )
+    }
+
+    if (activeSection === ADMIN_SECTION_IDS.CONTEXT_ENGINEERING) {
+      return (
+        <div className="admin-dashboard-grid admin-single-panel-grid">
+          <ContextEngineeringSummary data={data.contextEngineering} />
         </div>
       )
     }

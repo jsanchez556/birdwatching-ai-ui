@@ -180,18 +180,20 @@ and confirmations. Trace links open
 in a new tab with `noopener noreferrer`; records without a validated URL show
 `Trace unavailable`.
 
-The existing dashboard route is organized into three local-state sections:
+The existing dashboard route is organized into four local-state sections:
 
 - AI Operations (default): compact Users, MRR, AI Cost, and Errors KPIs,
   followed in order by usage/cost breakdowns, offline quality, queues, and
   recent failed jobs/errors.
+- Context engineering: aggregate-only context selection, retrieval, compaction,
+  token/cost, and failure metrics with explicit unavailable states.
 - Commercial administration: subscription status and user operations.
 - Emergency controls: current feature state, shutdown, expiry, and re-enable.
 
 The default operational loader intentionally excludes users, subscriptions, and
-feature controls. Secondary sections load on first selection and reuse their
-mounted-session cache. AI Operations is range-dependent; Commercial and
-Emergency are not. Desktop uses a persistent side menu, while smaller screens
+feature controls or context telemetry. Secondary sections load on first selection and reuse their
+mounted-session cache. AI Operations and Context engineering are
+range-dependent; Commercial and Emergency are not. Desktop uses a persistent side menu, while smaller screens
 use the same ordered navigation as a horizontally scrollable control.
 
 `AiQualitySummary.jsx` owns percentage, percentage-point delta, sample-size, and

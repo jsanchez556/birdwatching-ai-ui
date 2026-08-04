@@ -5,6 +5,7 @@ import useAdminDashboard, { ADMIN_SECTION_IDS } from '../../hooks/useAdminDashbo
 jest.mock('../../hooks/useAdminDashboard', () => {
   const ids = {
     AI_OPERATIONS: 'ai_operations',
+    CONTEXT_ENGINEERING: 'context_engineering',
     COMMERCIAL: 'commercial',
     EMERGENCY: 'emergency',
   }
@@ -17,6 +18,7 @@ jest.mock('../../hooks/useAdminDashboard', () => {
 
 const sections = [
   { id: 'ai_operations', label: 'AI Operations', rangeDependent: true },
+  { id: 'context_engineering', label: 'Context engineering', rangeDependent: true },
   { id: 'commercial', label: 'Commercial administration', rangeDependent: false },
   { id: 'emergency', label: 'Emergency controls', rangeDependent: false },
 ]
@@ -111,6 +113,21 @@ const sectionData = {
         }],
       },
       meta: { total: 1 },
+    },
+  },
+  context_engineering: {
+    contextEngineering: {
+      aggregation: {
+        tokenSemantics: 'actual_with_estimated_fallback',
+      },
+      metrics: {
+        averageInputTokens: { status: 'available', numerator: 9000, denominator: 9, value: 1000, rate: null },
+        contextCostPerRequest: { status: 'available', numerator: 0.018, denominator: 9, value: 0.002, rate: null },
+        ragContextUtilization: { status: 'available', numerator: 6, denominator: 8, value: 0.75, rate: 0.75 },
+        memoryRetrievalRate: { status: 'available', numerator: 2, denominator: 4, value: 0.5, rate: 0.5 },
+        compactionFrequency: { status: 'unavailable', numerator: null, denominator: 0, value: null, rate: null },
+        contextRelatedFailureRate: { status: 'available', numerator: 1, denominator: 10, value: 0.1, rate: 0.1 },
+      },
     },
   },
   commercial: {
@@ -227,6 +244,19 @@ describe('AdminDashboard section composition', () => {
     expect(screen.getByText(/No model, RAG, or production quality score/i)).toBeInTheDocument()
     expect(screen.getByText(/Synthetic scorer self-test — not model or RAG quality/i)).toBeInTheDocument()
     expect(screen.queryByText('86.0%')).not.toBeInTheDocument()
+  })
+
+  test('shows context formulas and unavailable states without exposing trace content', () => {
+    useAdminDashboard.mockReturnValue(hookResult('context_engineering'))
+    render(<AdminDashboard currentUserId="1" getAccessToken={jest.fn()} onBack={jest.fn()} />)
+
+    expect(screen.getByRole('heading', { name: 'Context engineering' })).toHaveFocus()
+    expect(screen.getByRole('heading', { name: 'Context selection health' })).toBeInTheDocument()
+    expect(screen.getByText('75.0%')).toBeInTheDocument()
+    expect(screen.getByText('6 of 8')).toBeInTheDocument()
+    expect(screen.getByText('Unavailable')).toBeInTheDocument()
+    expect(screen.getByText(/combine provider-reported usage with estimates/i)).toBeInTheDocument()
+    expect(screen.queryByText(/prompt|memory content|tool payload/i)).not.toBeInTheDocument()
   })
 
   test.each([

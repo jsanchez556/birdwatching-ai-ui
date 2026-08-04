@@ -10,6 +10,7 @@ const RANGE_OPTIONS = [
 
 export const ADMIN_SECTIONS = Object.freeze([
   { id: ADMIN_SECTION_IDS.AI_OPERATIONS, label: 'AI Operations', rangeDependent: true },
+  { id: ADMIN_SECTION_IDS.CONTEXT_ENGINEERING, label: 'Context engineering', rangeDependent: true },
   { id: ADMIN_SECTION_IDS.COMMERCIAL, label: 'Commercial administration', rangeDependent: false },
   { id: ADMIN_SECTION_IDS.EMERGENCY, label: 'Emergency controls', rangeDependent: false },
 ])

@@ -480,6 +480,67 @@ export async function getAdminAiQuality({ token, startDate, endDate } = {}) {
   return data
 }
 
+const CONTEXT_METRIC_NAMES = [
+  'averageInputTokens',
+  'contextCostPerRequest',
+  'ragContextUtilization',
+  'memoryRetrievalRate',
+  'compactionFrequency',
+  'contextRelatedFailureRate',
+]
+
+function isContextMetric(metric) {
+  if (!isObject(metric) || !hasExactKeys(metric, [
+    'status', 'numerator', 'denominator', 'value', 'rate',
+  ])) return false
+  if (!['available', 'unavailable'].includes(metric.status)) return false
+  if (!Number.isInteger(metric.denominator) || metric.denominator < 0) return false
+  if (metric.status === 'unavailable') {
+    return metric.numerator === null && metric.value === null && metric.rate === null
+  }
+  return isFiniteNonNegative(metric.numerator)
+    && metric.denominator > 0
+    && isFiniteNonNegative(metric.value)
+    && (metric.rate === null || isRate(metric.rate))
+}
+
+export async function getAdminContextEngineering({ token, startDate, endDate } = {}) {
+  const envelope = await adminRequest(
+    `/admin/context-engineering${rangeQuery({ startDate, endDate })}`,
+    { token }
+  )
+  const data = requireObjectData(envelope)
+  if (
+    !hasExactKeys(data, ['range', 'source', 'aggregation', 'metrics'])
+    || !isQualityRange(data.range)
+    || !hasExactKeys(data.source, ['type', 'scope'])
+    || data.source.type !== 'process_local_telemetry'
+    || data.source.scope !== 'current_instance_bounded_retention'
+    || !hasExactKeys(data.aggregation, [
+      'eligibleRequests',
+      'finalGenerationRequests',
+      'planningTraces',
+      'generationTraces',
+      'actualTokenRequests',
+      'estimatedTokenRequests',
+      'tokenSemantics',
+      'costSemantics',
+    ])
+    || ['eligibleRequests', 'finalGenerationRequests', 'planningTraces', 'generationTraces',
+      'actualTokenRequests', 'estimatedTokenRequests'].some((field) => (
+      !Number.isInteger(data.aggregation[field]) || data.aggregation[field] < 0
+    ))
+    || !['actual', 'estimated', 'actual_with_estimated_fallback']
+      .includes(data.aggregation.tokenSemantics)
+    || data.aggregation.costSemantics !== 'estimated_input_token_cost'
+    || !hasExactKeys(data.metrics, CONTEXT_METRIC_NAMES)
+    || CONTEXT_METRIC_NAMES.some((name) => !isContextMetric(data.metrics[name]))
+  ) {
+    throw new Error(ADMIN_FALLBACK_ERROR)
+  }
+  return data
+}
+
 export async function getAdminSubscriptions({ token, limit = 100 } = {}) {
   const envelope = await adminRequest(`/admin/subscriptions?page=1&limit=${limit}`, { token })
   return requireListData(envelope)
@@ -765,6 +826,7 @@ export async function unsuspendAdminUser({ token, userId } = {}) {
 
 export const ADMIN_SECTION_IDS = Object.freeze({
   AI_OPERATIONS: 'ai_operations',
+  CONTEXT_ENGINEERING: 'context_engineering',
   COMMERCIAL: 'commercial',
   EMERGENCY: 'emergency',
 })
@@ -790,6 +852,9 @@ const ADMIN_SECTION_LOADERS = Object.freeze({
     ])
     return { overview, usage, costs, quality, queueHealth, failures, errors }
   },
+  [ADMIN_SECTION_IDS.CONTEXT_ENGINEERING]: async (options) => ({
+    contextEngineering: await getAdminContextEngineering(options),
+  }),
   [ADMIN_SECTION_IDS.COMMERCIAL]: async (options) => {
     const [subscriptions, users] = await Promise.all([
       getAdminSubscriptions(options),

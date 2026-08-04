@@ -10,6 +10,7 @@ The active UI currently calls:
 - `GET /admin/ai-usage`
 - `GET /admin/ai-costs`
 - `GET /admin/ai-quality`
+- `GET /admin/context-engineering`
 - `GET /admin/users`
 - `GET /admin/failures`
 - `POST /admin/jobs/:jobId/retry`
@@ -178,13 +179,14 @@ Authenticated users with the server-issued `admin` role can open the operations
 dashboard from the account menu. `src/api/adminApi.js` exposes explicit
 section-to-loader mappings. The default AI Operations section requests overview,
 usage, costs, quality, queue health, failures, and sanitized errors. It does not
-request subscriptions, users, or feature controls. Commercial administration
+request subscriptions, users, feature controls, or context telemetry. Context
+engineering requests only aggregate context metrics. Commercial administration
 requests subscriptions and safe users; Emergency Controls requests feature
 state. Every response validates the normalized
 `{ success, data, meta }` envelope before entering a section cache.
 
 The reporting range selector sends ISO `startDate` and exclusive `endDate`
-parameters to the range-dependent AI Operations request. Commercial
+parameters to the range-dependent AI Operations and Context engineering requests. Commercial
 administration and Emergency Controls are range-independent. Subscription and failure lists use
 bounded pagination. Admin responses are cached only for the mounted dashboard
 session and are not persisted. AI cost analytics show requests, tokens, estimated cost, and
@@ -222,6 +224,15 @@ The UI formats values as percentages and deltas as percentage points. A null
 current value renders `No evaluation data`; it is never displayed as `0%`.
 AI-quality data is part of the AI Operations cache; a failed refresh clears
 that active section without clearing Commercial or Emergency Controls.
+
+`GET /admin/context-engineering` must return aggregate-only `range`, `source`,
+`aggregation`, and `metrics` objects. Each of the six metrics contains
+`status`, `numerator`, `denominator`, `value`, and `rate`. An unavailable metric
+must use a numeric zero denominator with null numerator/value/rate; the adapter
+rejects a fabricated zero rate. The dashboard displays average input tokens,
+estimated input-token cost per request, RAG utilization, memory retrieval,
+compaction, and context failures. It labels provider-reported usage versus
+estimated fallback and never accepts raw trace or context fields.
 
 ### Safe admin mutation requests
 

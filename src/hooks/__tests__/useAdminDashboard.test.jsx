@@ -5,6 +5,7 @@ import { loadAdminSection } from '../../api/adminApi'
 jest.mock('../../api/adminApi', () => {
   const ids = {
     AI_OPERATIONS: 'ai_operations',
+    CONTEXT_ENGINEERING: 'context_engineering',
     COMMERCIAL: 'commercial',
     EMERGENCY: 'emergency',
   }
