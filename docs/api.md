@@ -1,5 +1,65 @@
 # API Integration
 
+## Nature tours and maintenance
+
+Public `GET /tours` returns `{ tours, tourTypes }`; tour records carry both the
+customer-facing activity `type` and the existing `tourType` scheduling mode.
+Unknown future activity values render as an `Other` variant rather than
+breaking tour discovery.
+
+`src/api/adminMaintenanceApi.js` owns authenticated list, get, create, patch,
+and delete/archive calls for `/admin/countries`, `/admin/zones`, `/admin/nodes`,
+`/admin/birds`, `/admin/birds-by-node`, and `/admin/tours`. Lists validate
+`data.items` and pagination metadata; mutations validate `data.entity` and the
+delete/archive flag. Components do not call these endpoints directly.
+
+The adapter also owns `PUT /admin/tours/:tourId/image`. It sends one PNG as
+`multipart/form-data`, validates the normalized `data.tour` and `data.image`
+response, and exposes the returned stored-image reference to the editor preview. The
+browser does not set the multipart `Content-Type` header manually and never
+constructs an S3 URL. `data.image.key` identifies the new immutable
+`tours/{uuid}.png` object and is persisted as `data.tour.imagePath`, while
+`data.image.url` is its resolved delivery URL with the stable server-returned
+version. On success, the editor and product shell retain that authoritative
+path, URL, and version for the affected tour; failed uploads do not publish an
+update. Because the object path changes on each replacement, CloudFront cannot
+reuse the prior cached object even if it ignores query strings. When `imagePath`
+is empty, reads derive `/files/tours/{tourId}.png`
+without writing that fallback to the database.
+
+Country entities may include nullable `latitude`, `longitude`, and `zoom` for
+the node map's initial view. The map uses the triplet only when all values are
+valid (`-90..90`, `-180..180`, integer zoom `0..19`) and otherwise falls back to
+`9.75`, `-84.2`, zoom `7`.
+
+The same adapter owns protected forward and reverse modes of
+`GET /admin/location-search`. Text search sends `q` and optional `countryCode`;
+reverse lookup sends validated `latitude` and `longitude` after an intentional
+map or device-location selection. Node forms use normalized
+`{ name, latitude, longitude }` results to reposition the map and populate the
+readable location field; provider URLs and errors never leak into presentational components. Tour payloads contain
+`nodeId` but never `lat` or `lon`, because the backend derives coordinates from
+the node.
+
+Admin Tours, Zones, Nodes, and Birds present these list contracts as responsive data
+grids. Only the text `search` query is exposed in each maintenance grid header;
+pagination remains server-driven through `meta.page` and `meta.totalPages`.
+Create and Edit reuse the same resource forms inside an accessible modal. An
+edit refreshes its current page and search query, while a create refreshes page
+one. The Nodes modal owns map/place search and Birds-by-node assignment calls;
+the Tour modal only creates missing nodes and selects them without clearing its
+draft. The separate My Tours workspace retains its authorized type, publication,
+and difficulty filters outside the administration grid header.
+
+`src/api/myToursApi.js` owns guide/administrator calls to `GET` and `POST
+/my-tours`, `GET` and `PATCH /my-tours/:id`, and `GET /my-tours/references`.
+The browser never sends an owner ID. Search, type, publication status,
+geography, and pagination filters remain server-authoritative.
+
+Administrator user search uses `GET /admin/users?search=&page=&limit=`. Role
+changes use `PATCH /admin/users/:userId/role` with one allowlisted `role` field,
+accessible confirmation, audit-reference feedback, and session-revocation state.
+
 Back to [Project Context](../CONTEXT.md). See [Architecture](./architecture.md) for UI flow details.
 
 The frontend integrates with the Birdwatching AI API through `src/api/adminApi.js`, `src/api/authApi.js`, `src/api/cartApi.js`, `src/api/chatApi.js`, `src/api/voiceChatApi.js`, `src/api/birdIdentificationApi.js`, `src/api/homeApi.js`, and `src/api/mediaApi.js`. Backend API implementation lives in the backend repository.
@@ -12,6 +72,7 @@ The active UI currently calls:
 - `GET /admin/ai-quality`
 - `GET /admin/context-engineering`
 - `GET /admin/users`
+- `PATCH /admin/users/:userId/role`
 - `GET /admin/failures`
 - `POST /admin/jobs/:jobId/retry`
 - `POST /admin/users/:userId/suspend`
@@ -19,6 +80,7 @@ The active UI currently calls:
 - `GET /admin/queue-health`
 - `GET /admin/failures`
 - `GET /admin/errors`
+- `GET /admin/location-search`
 - `POST /auth/signup`
 - `POST /auth/login`
 - `POST /auth/refresh`
@@ -29,6 +91,11 @@ The active UI currently calls:
 - `POST /billing/portal`
 - `GET /billing/usage`
 - `GET /cart`
+- `GET /my-tours`
+- `POST /my-tours`
+- `GET /my-tours/:id`
+- `PATCH /my-tours/:id`
+- `GET /my-tours/references`
 - `POST /cart/items`
 - `PATCH /cart/items/:itemId`
 - `DELETE /cart/items/:itemId`
@@ -545,7 +612,7 @@ Frontend behavior:
 - sends the collected `customerContext` so the backend can reuse name, email, and itinerary dates during booking
 - when authenticated, sends `auth.user.email` as the customer email and does not let the user edit it in the customer context form
 - sends sanitized `conversationContext.recentAssistantMetadata` from the most recent assistant message plus chat-level booking state so guided actions can continue across turns
-- homepage `Reserve tour` and cart `Reserve cart` entry points send `conversationType: "reservation_entry"`, `conversationSource`/`entrySource`, and safe `reservationEntry` tour/cart summaries in `conversationContext.recentAssistantMetadata`
+- homepage `Book Tour` and cart reservation drawer entry points send `conversationType: "reservation_entry"`, `conversationSource`/`entrySource`, exact `selectedTour`/`selectedTourId`, and safe `reservationEntry` tour/cart summaries in `conversationContext.recentAssistantMetadata`; a featured-tour entry treats that exact structured selection as confirmed and does not initiate recommendation search
 - passes an `AbortSignal` so stop-generation can cancel the active request
 - appends an in-progress assistant message before the stream completes
 - persists the `conversationId` from `start` or `done` when present
@@ -557,7 +624,7 @@ Frontend behavior:
   `selectedTourId`, `selectedTransportation`, and `participants` enter the
   canonical `conversationContext` instead of being duplicated on assistant
   messages
-- reservation-entry drawer chats are ephemeral in the browser: they can receive backend conversation IDs, but they do not write or restore `localStorage` chat state and do not call `GET /chat/latest` on open
+- reservation-entry chats use normal user-scoped local continuity. A new structured entry overrides stale selection fields while retaining stored customer/itinerary context; if no conversation exists, it skips latest-chat hydration so the selected tour cannot be overwritten before the initial turn
 - preserves per-turn `done.meta.birdMatches` on the assistant message so bird photos, song recordings, sonograms, and licensing links can render beside the answer
 - validates optional `done.meta.tourRecommendation` as an all-or-nothing
   per-turn contract, preserves valid data on the assistant message, and drops
@@ -680,7 +747,7 @@ Frontend behavior:
 - leading slashes and an optional `/files/` prefix are normalized before the backend request
 - duplicate slashes are collapsed and unsafe traversal segments are rejected
 - path segments are URL-encoded before requesting `/files/...` or building a CloudFront URL
-- successful relative-path resolutions are cached in memory for the current page session
+- successful relative-path resolutions are cached in memory for the current page session; query-string versions use separate cache entries and are preserved on both direct CloudFront URLs and URLs returned by `/files/...`
 - failed media resolutions degrade to the existing photo/sonogram unavailable UI rather than failing the chat message
 
 Tour and reservation notes:
@@ -697,7 +764,9 @@ Tour and reservation notes:
   percentage.
 - Tour listing, selection, and reservation metadata can include `location`, `node`, `subnode`, and `zone`. The frontend treats these as display metadata and does not infer booking logic from them.
 - Tour selection can use a `tourId` or a backend-supported tour name/location value; the backend owns matching, ambiguity handling, and availability validation.
-- The backend may return `meta.uiAction` or `meta.uiActions` for guided controls. Supported UI action types include `choice`, `tour_selection`, `date_picker`, `participant_count`, `transportation_selection`, and `reservation_confirmation`.
+- The backend may return `meta.uiAction` or `meta.uiActions` for guided controls. Supported UI action types include `choice`, `tour_selection`, `reservation_details`, `date_picker`, `participant_count`, `transportation_selection`, and `reservation_confirmation`.
+- A `reservation_details` action contains only the currently missing fields and submits date, participant count, transportation preference, conditional pickup location, and any missing customer/itinerary values in one chat message. The UI validates required values, email shape, date choices, and itinerary order before sending; the backend remains authoritative.
+- A `date_picker` with `availableDates` is locally validated before its action message is sent. This is immediate usability feedback only; the backend revalidates itinerary bounds, occurrence status, capacity, and the one-tour-per-day rule.
 - The backend may return `meta.uiAction.type === "participant_count"` with `min`, `max`, and numeric `options`; the UI renders this as a select control and sends the selected number back as the next chat message.
 - After participant count is selected, the backend may include
   `meta.participants`; the API adapter normalizes it into chat-level
@@ -707,6 +776,7 @@ Tour and reservation notes:
 - The final confirmation choice sends `Confirm reservation`, but users may also type `Yes`; the backend interprets that only when the prior metadata included the final confirmation action.
 - Reservation creation requires participants and customer name in backend tool arguments; customer name, email, and itinerary dates should usually come from `customerContext` collected before chat.
 - Homepage and cart reservation entry points provide selected tour details through chat metadata so users do not need to describe the tour again; the backend remains responsible for availability, pricing, missing itinerary details, and reservation creation.
+- The featured carousel provides approximate, accent-insensitive search over the existing `GET /tours` response. Search is local and introduces no new browser endpoint or structured filter contract.
 - Pricing can apply recognized discount codes such as `EARLYBIRD`, `STUDENT`, and `LOCAL`, or group discounts.
 - Successful reservation text should stay short and the confirmation details are exposed in `done.meta.reservation` when a reservation is created.
 - Reservation metadata may include `tourLocation`/`tour_location`, `tourNode`/`tour_node`, `tourSubnode`/`tour_subnode`, and `tourZone`/`tour_zone`; the confirmation card displays those fields when present.
@@ -810,9 +880,20 @@ The homepage uses public, non-streaming endpoints for static or configured marke
         "node": "Monteverde",
         "subnode": "Curi-Cancha Reserve",
         "zone": "Northern Mountains",
+        "zoneRank": 1,
+        "durationValue": 4,
+        "durationUnit": "hours",
         "duration": "4 hours",
         "pricePerPerson": 120,
         "difficulty": "moderate",
+        "tourType": "scheduled",
+        "isActive": true,
+        "maxParticipants": 8,
+        "minimumPrice": 120,
+        "availableSlots": 3,
+        "occurrenceDates": [
+          { "occurrenceId": 42, "startsAt": "2026-09-10T12:00:00.000Z", "date": "2026-09-10", "remainingSpaces": 3, "status": "scheduled" }
+        ],
         "imageUrl": "https://example.test/tour.jpg"
       }
     ]
@@ -820,6 +901,12 @@ The homepage uses public, non-streaming endpoints for static or configured marke
   "meta": {}
 }
 ```
+
+Zone sections are ordered by `zoneRank` ascending. Flexible-date tours return
+`availableSlots: null` and do not render schedule facts; their capacity is
+`maxParticipants`. Scheduled tours are returned only before their `startDate`
+and with a future bookable occurrence; they expose their remaining occurrence
+capacity and date range.
 
 `GET /birds/highlights` returns curated species cards. The backend can source names from `HOMEPAGE_BIRD_HIGHLIGHTS`, falling back to built-in Costa Rica highlights.
 

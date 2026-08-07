@@ -4,6 +4,7 @@
  * @typedef {{
  *   tourId: string,
  *   tourName: string,
+ *   type?: string,
  *   location: string,
  *   estimatedPrice: EstimatedPrice,
  *   matchReasons: string[],
@@ -66,17 +67,22 @@ function isEstimatedPrice(value) {
 
 function isRecommendation(value) {
   return isObject(value)
-    && hasExactKeys(value, [
+    && (hasExactKeys(value, [
       'tourId',
       'tourName',
+      'type',
       'location',
       'estimatedPrice',
       'matchReasons',
       'availabilityStatus',
       'confidence',
-    ])
+    ]) || hasExactKeys(value, [
+      'tourId', 'tourName', 'location', 'estimatedPrice', 'matchReasons',
+      'availabilityStatus', 'confidence',
+    ]))
     && isNonEmptyString(value.tourId)
     && isNonEmptyString(value.tourName)
+    && (value.type === undefined || isNonEmptyString(value.type))
     && isNonEmptyString(value.location)
     && isEstimatedPrice(value.estimatedPrice)
     && Array.isArray(value.matchReasons)

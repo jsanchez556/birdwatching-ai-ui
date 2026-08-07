@@ -24,10 +24,18 @@ export function summarizeTour(tour) {
     zone: tour.zone,
     pricePerPerson: tour.pricePerPerson,
     duration: tour.duration,
+    durationValue: tour.durationValue,
+    durationUnit: tour.durationUnit,
     durationHours: tour.durationHours,
     difficulty: tour.difficulty,
     startDate: tour.startDate || tour.start_date,
     endDate: tour.endDate || tour.end_date,
+    tourType: tour.tourType,
+    type: tour.type,
+    maxParticipants: tour.maxParticipants,
+    minimumPrice: tour.minimumPrice,
+    availableSlots: tour.availableSlots,
+    occurrenceDates: tour.occurrenceDates,
   })
 }
 

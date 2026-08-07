@@ -23,6 +23,7 @@ function HomeHeader({
   onOpenCart,
   onOpenBirdIdentification,
   onOpenMyTours,
+  onOpenBookings,
   onManageBilling,
   onUpdateProfile,
   onUpdateProfileImage,
@@ -81,6 +82,11 @@ function HomeHeader({
     onOpenMyTours?.()
   }
 
+  const handleBookingsAction = () => {
+    closeMenu()
+    onOpenBookings?.()
+  }
+
   const handleManageBilling = () => {
     closeMenu()
     onManageBilling?.()
@@ -122,7 +128,7 @@ function HomeHeader({
             {!isCollapsed && <img src={partnerMark} alt="" />}
           </span>
           <span className="home-brand-copy">
-            <span className="home-brand-primary">Birdwatching AI</span>
+            <span className="home-brand-primary">Rio Celeste Nature</span>
             <span className="home-brand-secondary">Costa Rica Tours</span>
           </span>
         </a>
@@ -213,8 +219,13 @@ function HomeHeader({
               >
                   Identify Bird
               </button>
-              <button type="button" className="home-header-link" onClick={handleMyToursAction}>
-                My Tours
+              {(user?.role === 'admin' || user?.role === 'tour guide') && (
+                <button type="button" className="home-header-link" onClick={handleMyToursAction}>
+                  My Tours
+                </button>
+              )}
+              <button type="button" className="home-header-link" onClick={handleBookingsAction}>
+                My bookings
               </button>
               <button
                 type="button"

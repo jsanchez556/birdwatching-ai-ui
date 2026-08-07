@@ -36,7 +36,6 @@ Suggested structure:
 - `src/components/home/FeaturedTours.jsx`
 - `src/components/home/BirdHighlights.jsx`
 - `src/components/home/TransportationSection.jsx`
-- `src/components/home/ChatbotCTA.jsx`
 - `src/components/home/LoginCTA.jsx`
 - `src/components/home/CookieConsent.jsx`
 
@@ -49,10 +48,7 @@ The homepage must include:
    - Premium eco-lodge visual direction.
    - Placeholder background or image.
    - Clear headline and supporting copy.
-   - CTA buttons:
-     - `Start Birdwatching Chat`
-     - `Login`
-     - `Explore Tours`
+   - CTA buttons for login and tour exploration.
 
 2. **Featured Birdwatching Tours**
    - Display tour cards from a backend endpoint.

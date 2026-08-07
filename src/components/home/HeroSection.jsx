@@ -72,7 +72,6 @@ function postYouTubeCommand(iframe, targetOrigin, func, args = []) {
 function HeroSection({
   heroVideo,
   onAuthAction,
-  onStartChat,
   showLoginCta = true,
 }) {
   const [hasVideoError, setHasVideoError] = useState(false)
@@ -186,22 +185,19 @@ function HeroSection({
         />
       )}
       <div className={isHeroContentVisible ? 'home-hero-content is-visible' : 'home-hero-content is-pending'}>
-        <p className="home-kicker">Private rainforest birding journeys</p>
-        <h1 id="home-hero-title">Costa Rica birdwatching, guided with local insight.</h1>
+        <p className="home-kicker">Small-group nature experiences in Costa Rica</p>
+        <h1 id="home-hero-title">Find your way into the wild.</h1>
         <p>
-          Plan cloud forest mornings, canal safaris, highland quetzal searches, and
-          comfortable transfers with an assistant built for birders.
+          Discover birdwatching, day walks, night trails, and national parks with
+          local guidance, clear availability, and effortless trip planning.
         </p>
         <div className="home-hero-actions" aria-label="Homepage actions">
-          <button type="button" className="home-primary-action" onClick={onStartChat}>
-            Start Birdwatching Chat
-          </button>
           {showLoginCta && (
             <button type="button" className="home-secondary-action" onClick={onAuthAction}>
               Login
             </button>
           )}
-          <a className="home-secondary-action" href="#featured-tours">
+          <a className="home-primary-action" href="#featured-tours">
             Explore Tours
           </a>
         </div>

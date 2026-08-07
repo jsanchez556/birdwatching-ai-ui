@@ -128,11 +128,13 @@ When a user sends a voice message:
 
 If localStorage writes fail, the app continues without persistent local cache.
 
-Reservation-entry chats opened from featured tours or the cart are intentionally browser-ephemeral:
-- `useChat` starts them with in-memory tour/cart metadata instead of reading `localStorage`
-- they do not write `birdwatchingAI.chatState` while streaming or after completion
-- they do not call `GET /chat/latest` when opened
-- backend conversation IDs may still be returned so reservation tools can associate server-side work with the active chat
+Reservation-entry chats opened from featured tours or the cart use the normal
+user-scoped persistence model. A new entry merges its structured `selectedTour`,
+`selectedTourId`, source, safe tour summary, and customer/itinerary context over
+the stored conversation context. When there is no stored conversation ID, it
+does not race the entry against `GET /chat/latest`; the entry message creates or
+continues the conversation normally. Only non-sensitive rendered state is
+cached, and backend availability/reservation state remains authoritative.
 
 ## Read Behavior
 On initialization:

@@ -13,6 +13,7 @@ import useAuth from './useAuth'
 import useCart from './useCart'
 import useFeatureAvailability from './useFeatureAvailability'
 import useFeatureFlag from './useFeatureFlag'
+import { canManageTours } from '../constants/userRoles'
 
 function getBillingReturnStatus() {
   const status = new URLSearchParams(window.location.search).get('billing')
@@ -54,6 +55,7 @@ export default function useProductShell() {
   const [addingTourIds, setAddingTourIds] = useState([])
   const [removingTourIds, setRemovingTourIds] = useState([])
   const [reservingTourIds, setReservingTourIds] = useState([])
+  const [tourImageUpdates, setTourImageUpdates] = useState({})
   const [billingError, setBillingError] = useState(null)
   const [billingReturnStatus, setBillingReturnStatus] = useState(getBillingReturnStatus)
   const [isBillingLoading, setIsBillingLoading] = useState(false)
@@ -114,17 +116,6 @@ export default function useProductShell() {
     }
     action?.()
     return true
-  }
-
-  const startChat = () => {
-    if (!auth.isAuthenticated && !auth.isVisitor) auth.enterAsVisitor()
-    setChatEntry(null)
-    setOpenOverlay('chat')
-    trackChatStarted({
-      plan: auth.user?.plan || (auth.isAuthenticated ? 'FREE' : 'VISITOR'),
-      source: 'homepage',
-      userType: auth.isAuthenticated ? 'authenticated' : 'visitor',
-    })
   }
 
   const openReservationChat = ({ source, tours }) => {
@@ -224,6 +215,7 @@ export default function useProductShell() {
 
   const enterAsVisitor = () => {
     auth.enterAsVisitor()
+    setChatEntry(null)
     setOpenOverlay('chat')
     trackChatStarted({ plan: 'VISITOR', source: 'login_modal', userType: 'visitor' })
   }
@@ -241,12 +233,23 @@ export default function useProductShell() {
     if (isSignedInCustomer && auth.user?.role === 'admin') setActiveSurface('admin')
   }
 
+  const recordTourImageUpdate = ({ tourId, imagePath, url, version } = {}) => {
+    const key = String(tourId || '').trim()
+    if (!key || !imagePath || !url) return
+    setTourImageUpdates((current) => ({
+      ...current,
+      [key]: { imagePath, url, version: version || '' },
+    }))
+  }
+
   return {
     activeSurface: activeSurface === 'admin'
       && isSignedInCustomer
       && auth.user?.role === 'admin'
       ? 'admin'
-      : activeSurface,
+      : activeSurface === 'my-tours' && !canManageTours(auth.user?.role)
+        ? 'home'
+        : activeSurface,
     auth,
     cart,
     chatEntry,
@@ -268,6 +271,7 @@ export default function useProductShell() {
       isBillingLoading,
       removingTourIds,
       reservingTourIds,
+      tourImageUpdates,
     },
     actions: {
       addTourToCart,
@@ -286,17 +290,26 @@ export default function useProductShell() {
       },
       openCart: () => requireCustomer(() => setOpenOverlay('cart')),
       openLogin,
-      openMyTours: () => requireCustomer(() => {
-        setOpenOverlay('my-tours')
+      openBookings: () => requireCustomer(() => {
+        setOpenOverlay('bookings')
         cart.refreshMyTours().catch(() => {})
       }),
+      openMyTours: () => requireCustomer(() => {
+        if (canManageTours(auth.user?.role)) {
+          setOpenOverlay(null)
+          setActiveSurface('my-tours')
+        }
+      }),
       removeTourFromCart,
+      recordTourImageUpdate,
       reserveCartItems,
       reserveTour,
       setAuthMode,
-      showHome: () => setActiveSurface('home'),
+      showHome: () => {
+        setActiveSurface('home')
+        setChatEntry(null)
+      },
       signup,
-      startChat,
       upgradePlan: () => startBillingAction(
         async () => createCheckoutSession({
           token: await auth.getValidToken(),

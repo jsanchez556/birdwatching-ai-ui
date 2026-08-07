@@ -37,7 +37,7 @@ function actionMessage(action, option) {
 }
 
 function isReservationAction(action, option) {
-  if (['reservation_confirmation', 'participant_count', 'date_picker', 'transportation_selection'].includes(action.type)) {
+  if (['reservation_confirmation', 'reservation_details', 'participant_count', 'date_picker', 'transportation_selection'].includes(action.type)) {
     return true
   }
 
@@ -50,6 +50,114 @@ function isReservationAction(action, option) {
     'confirm_reservation',
     'show_transportation',
   ].includes(option?.value)
+}
+
+function isVisibleReservationField(field, values) {
+  if (!field.requiredWhen) return true
+  return values[field.requiredWhen.field] === String(field.requiredWhen.equals)
+}
+
+function reservationDetailsMessage(fields, values) {
+  const parts = ['I want to complete the reservation.']
+  fields.forEach((field) => {
+    const value = values[field.name]
+    if (!value || !isVisibleReservationField(field, values)) return
+    if (field.name === 'date') parts.push(`Date: ${value}.`)
+    else if (field.name === 'participants') parts.push(`Participants: ${value}.`)
+    else if (field.name === 'transportationRequired') {
+      parts.push(value === 'true'
+        ? 'Transportation required: yes.'
+        : 'Transportation required: no; I have my own transportation.')
+    } else if (field.name === 'pickupLocation') parts.push(`Pickup location: ${value}.`)
+    else if (field.name === 'customerName') parts.push(`My name is ${value}.`)
+    else if (field.name === 'customerEmail') parts.push(`My email is ${value}.`)
+    else if (field.name === 'itineraryStartDate') parts.push(`Itinerary start date: ${value}.`)
+    else if (field.name === 'itineraryEndDate') parts.push(`Itinerary end date: ${value}.`)
+  })
+  return parts.join(' ')
+}
+
+function ReservationDetailsAction({ action, onAction, viewerRole }) {
+  const fields = Array.isArray(action.fields) ? action.fields : []
+  const [values, setValues] = useState({})
+  const [errors, setErrors] = useState({})
+  const isBlocked = viewerRole === 'visitor'
+
+  if (!fields.length) return null
+
+  const updateValue = (name, value) => {
+    setValues((current) => ({ ...current, [name]: value }))
+    setErrors((current) => ({ ...current, [name]: undefined }))
+  }
+
+  const submit = () => {
+    const nextErrors = {}
+    fields.forEach((field) => {
+      if (!isVisibleReservationField(field, values)) return
+      const value = String(values[field.name] || '').trim()
+      if (!value) nextErrors[field.name] = 'This field is required.'
+      else if (field.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        nextErrors[field.name] = 'Enter a valid email address.'
+      } else if (field.name === 'date' && Array.isArray(field.availableDates)
+        && field.availableDates.length > 0 && !field.availableDates.includes(value)) {
+        nextErrors[field.name] = 'That date is not available for this tour.'
+      }
+    })
+    const startDate = values.itineraryStartDate
+    const endDate = values.itineraryEndDate
+    if (startDate && endDate && startDate > endDate) {
+      nextErrors.itineraryEndDate = 'End date must be on or after the start date.'
+    }
+    setErrors(nextErrors)
+    if (Object.keys(nextErrors).length === 0) {
+      onAction(reservationDetailsMessage(fields, values))
+    }
+  }
+
+  return (
+    <fieldset className="message-actions reservation-details-action" disabled={isBlocked}>
+      <legend className="action-prompt">{action.prompt || 'Provide the remaining reservation details.'}</legend>
+      <div className="reservation-details-fields">
+        {fields.filter((field) => isVisibleReservationField(field, values)).map((field) => {
+          const controlId = `reservation-${field.name}`
+          const options = Array.isArray(field.options) ? field.options : []
+          return (
+            <label key={field.name} htmlFor={controlId}>
+              <span>{field.label}</span>
+              {field.type === 'select' ? (
+                <select
+                  id={controlId}
+                  value={values[field.name] || ''}
+                  onChange={(event) => updateValue(field.name, event.target.value)}
+                  aria-invalid={Boolean(errors[field.name])}
+                >
+                  <option value="">Select</option>
+                  {options.map((option) => (
+                    <option key={`${field.name}-${String(option.value)}`} value={String(option.value)}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  id={controlId}
+                  type={field.type || 'text'}
+                  min={field.availableDates?.[0]}
+                  max={field.availableDates?.[field.availableDates.length - 1]}
+                  value={values[field.name] || ''}
+                  onChange={(event) => updateValue(field.name, event.target.value)}
+                  aria-invalid={Boolean(errors[field.name])}
+                />
+              )}
+              {errors[field.name] && <span className="field-error" role="alert">{errors[field.name]}</span>}
+            </label>
+          )
+        })}
+      </div>
+      <button type="button" className="action-button compact" onClick={submit}>Send reservation details</button>
+      {isBlocked && <div className="action-note">Log in to use booking actions.</div>}
+    </fieldset>
+  )
 }
 
 function ChoiceAction({ action, onAction, viewerRole }) {
@@ -86,6 +194,8 @@ function ChoiceAction({ action, onAction, viewerRole }) {
 
 function DatePickerAction({ action, onAction, viewerRole }) {
   const availableDates = Array.isArray(action.availableDates) ? action.availableDates : []
+  const [selectedDate, setSelectedDate] = useState('')
+  const [dateError, setDateError] = useState('')
   const min = availableDates[0]
   const max = availableDates[availableDates.length - 1]
   const isBlocked = viewerRole === 'visitor'
@@ -99,12 +209,25 @@ function DatePickerAction({ action, onAction, viewerRole }) {
         min={min}
         max={max}
         disabled={isBlocked}
+        value={selectedDate}
         onChange={(event) => {
-          if (event.target.value) {
-            onAction(`Use ${event.target.value} for tour ${action.tourId || ''}`.trim())
-          }
+          setSelectedDate(event.target.value)
+          setDateError('')
         }}
       />
+      <button
+        type="button"
+        className="action-button compact"
+        disabled={!selectedDate || isBlocked}
+        onClick={() => {
+          if (availableDates.length > 0 && !availableDates.includes(selectedDate)) {
+            setDateError('That date is not available for this tour.')
+            return
+          }
+          onAction(`Use ${selectedDate} for tour ${action.tourId || ''}`.trim())
+        }}
+      >Choose date</button>
+      {dateError && <div className="action-note" role="alert">{dateError}</div>}
       {isBlocked && <div className="action-note">Log in to use booking actions.</div>}
     </div>
   )
@@ -164,6 +287,10 @@ function MessageActions({ actions = [], onAction, viewerRole }) {
   return (
     <div className="message-action-list">
       {actions.map((action, index) => {
+        if (action.type === 'reservation_details') {
+          return <ReservationDetailsAction key={`${action.type}-${index}`} action={action} onAction={onAction} viewerRole={viewerRole} />
+        }
+
         if (action.type === 'date_picker') {
           return <DatePickerAction key={`${action.type}-${index}`} action={action} onAction={onAction} viewerRole={viewerRole} />
         }

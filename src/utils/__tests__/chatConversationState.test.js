@@ -103,4 +103,20 @@ describe('chat conversation persistence boundary', () => {
     })
     expect(state.conversationId).not.toBe('broken')
   })
+
+  test('starts a structured reservation entry without latest-chat hydration', () => {
+    const state = getInitialConversationState({ token: 'token', userId: 'user-1' }, {
+      initialEntryId: 'featured-tour-16',
+      initialCustomerContext: { customerName: 'Ana', itineraryStartDate: '2026-09-10', itineraryEndDate: '2026-09-12' },
+      initialConversationContext: { selectedTourId: 16, selectedTour: { tourId: 16, name: 'Direct Reserve Tour' } },
+    })
+
+    expect(state).toMatchObject({
+      conversationId: null,
+      customerContext: { customerName: 'Ana' },
+      conversationContext: { selectedTourId: 16, selectedTour: { name: 'Direct Reserve Tour' } },
+      shouldLoadLatestFromApi: false,
+      isHydrating: false,
+    })
+  })
 })

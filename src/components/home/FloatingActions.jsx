@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useResolvedMedia } from '../../hooks/useResolvedMediaUrl'
 
-const BW_ICON_KEY = 'resources/bwapp.png'
 const WHATSAPP_ICON_KEY = 'resources/wtsapp.png'
 
-function FloatingActionIcon({ className = '', fallback, label, media }) {
+function FloatingActionIcon({ fallback, label, media }) {
   const [imageFailed, setImageFailed] = useState(false)
   const src = media.url
   const isPending = Boolean(media.isResolving && !imageFailed)
@@ -17,7 +16,7 @@ function FloatingActionIcon({ className = '', fallback, label, media }) {
   if (src && !isUnavailable) {
     return (
       <img
-        className={className ? `home-fab-icon ${className}` : 'home-fab-icon'}
+        className="home-fab-icon"
         src={src}
         alt=""
         aria-hidden="true"
@@ -39,28 +38,11 @@ function FloatingActionIcon({ className = '', fallback, label, media }) {
   )
 }
 
-function FloatingActions({ onStartChat }) {
-  const bwIconMedia = useResolvedMedia(BW_ICON_KEY)
+function FloatingActions() {
   const whatsappIconMedia = useResolvedMedia(WHATSAPP_ICON_KEY)
 
   return (
     <div className="home-fab-group" aria-label="Quick actions">
-      <a
-        href="#birdwatching-chat"
-        className="home-fab chat-fab"
-        aria-label="Start Birdwatching Chat"
-        onClick={(event) => {
-          event.preventDefault()
-          onStartChat()
-        }}
-      >
-        <FloatingActionIcon
-          className="bw-fab-icon"
-          fallback="BW"
-          label="Birdwatching AI"
-          media={bwIconMedia}
-        />
-      </a>
       <a
         className="home-fab whatsapp-fab"
         href="https://wa.me/00000000000"

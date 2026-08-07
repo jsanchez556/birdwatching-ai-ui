@@ -399,7 +399,7 @@ export default function useChat(authInput, options = {}) {
     const initialMessage = options.initialMessage
     const entryId = options.initialEntryId
 
-    if (!options.isEphemeral || !initialMessage || !entryId || initialEntryIdRef.current === entryId) {
+    if (!initialMessage || !entryId || initialEntryIdRef.current === entryId) {
       return
     }
 

@@ -1,5 +1,13 @@
 # Deployment
 
+The admin coordinate picker uses public OpenStreetMap raster tiles by default.
+`VITE_MAP_TILE_URL` may override the public `{z}/{x}/{y}` tile template; it must
+not contain a secret key. Tile-provider configuration stays in `src/config/map.js`.
+Forward and reverse geocoding remain backend-proxied and require the API's
+`GEOCODING_PROVIDER_URL` and deployment-specific `GEOCODING_USER_AGENT`
+configuration. Browser geolocation also requires a secure HTTPS context outside
+localhost; the UI requests it only from the explicit current-location action.
+
 Back to [Project Context](../CONTEXT.md).
 
 ## Runtime
@@ -39,7 +47,7 @@ Required for production API integration:
 - `VITE_CLOUDFRONT_BASE_URL`: optional public CloudFront/CDN origin for relative media keys, without a required trailing slash
 
 Useful for local development:
-- `VITE_API_PROXY_TARGET`: backend origin used by the Vite dev proxy, commonly `http://localhost:3000`
+- `VITE_API_PROXY_TARGET`: backend origin used by the Vite dev proxy, commonly `http://localhost:3001`
 
 Useful for Railway preview host validation:
 - `ALLOWED_HOSTS`: comma-separated extra hosts for Vite preview
@@ -84,7 +92,7 @@ When `VITE_API_URL` is empty, the adapters under `src/api/` send relative reques
 /files/:folderName/:filename
 ```
 
-`vite.config.js` proxies `/auth`, `/billing`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files` to `VITE_API_URL`, then `VITE_API_PROXY_TARGET`, then `http://localhost:3000`. This avoids local CORS issues and lets the backend keep production CORS rules strict. `/files` is used to exchange relative RAG bird media keys and voice response audio paths for backend-issued media URLs when `VITE_CLOUDFRONT_BASE_URL` is empty; the frontend still does not store bucket credentials.
+`vite.config.js` proxies `/auth`, `/billing`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files` to `VITE_API_URL`, then `VITE_API_PROXY_TARGET`, then `http://localhost:3001`. This avoids local CORS issues and lets the backend keep production CORS rules strict. `/files` is used to exchange relative RAG bird media keys and voice response audio paths for backend-issued media URLs when `VITE_CLOUDFRONT_BASE_URL` is empty; the frontend still does not store bucket credentials.
 
 ## Railway
 `railway.json` uses Nixpacks and runs from the repository root:

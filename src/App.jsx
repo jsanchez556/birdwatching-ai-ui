@@ -3,6 +3,7 @@ import useProductShell from './hooks/useProductShell'
 import HomeSurface from './pages/HomeSurface'
 
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
+const MyToursPage = lazy(() => import('./pages/MyToursPage'))
 const AuthenticatedChatSurface = lazy(() => (
   import('./pages/ChatSurface').then((module) => ({
     default: module.AuthenticatedChatSurface,
@@ -25,7 +26,7 @@ export default function App() {
   if (shell.activeSurface === 'chat' && (shell.auth.isAuthenticated || shell.auth.isVisitor)) {
     return (
       <Suspense fallback={<SurfaceLoading />}>
-        <AuthenticatedChatSurface auth={shell.auth} onHome={shell.actions.showHome} />
+        <AuthenticatedChatSurface auth={shell.auth} chatEntry={shell.chatEntry} onHome={shell.actions.showHome} />
       </Suspense>
     )
   }
@@ -36,6 +37,19 @@ export default function App() {
         <AdminDashboard
           currentUserId={shell.auth.user?.id}
           getAccessToken={shell.auth.getValidToken}
+          onBack={shell.actions.showHome}
+          onTourImageUpdated={shell.actions.recordTourImageUpdate}
+        />
+      </Suspense>
+    )
+  }
+
+  if (shell.activeSurface === 'my-tours') {
+    return (
+      <Suspense fallback={<SurfaceLoading />}>
+        <MyToursPage
+          getAccessToken={shell.auth.getValidToken}
+          isAdmin={shell.auth.user?.role === 'admin'}
           onBack={shell.actions.showHome}
         />
       </Suspense>

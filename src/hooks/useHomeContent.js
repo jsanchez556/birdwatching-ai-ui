@@ -17,6 +17,7 @@ const initialState = {
 
 export default function useHomeContent() {
   const [state, setState] = useState(initialState)
+  const [requestVersion, setRequestVersion] = useState(0)
 
   useEffect(() => {
     let isMounted = true
@@ -65,7 +66,7 @@ export default function useHomeContent() {
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [requestVersion])
 
-  return state
+  return { ...state, retry: () => setRequestVersion((version) => version + 1) }
 }

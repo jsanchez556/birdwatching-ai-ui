@@ -49,6 +49,7 @@ const RETRYABLE_JOB_TYPES = new Set([
   'embedding',
   'ingestion',
 ])
+const ADMIN_USER_ROLES = new Set(['admin', 'customer', 'tour guide'])
 
 class AdminOperationError extends Error {
   constructor(message, {
@@ -151,7 +152,9 @@ function safeOperationError(operation, status, code) {
         ? 'This feature cannot be enabled right now.'
         : operation === 'unsuspend'
           ? 'This account cannot be reactivated.'
-          : 'This account cannot be suspended.'
+          : operation === 'role'
+            ? 'This protected administrator role cannot be changed.'
+            : 'This account cannot be suspended.'
     return new AdminOperationError(message, { status, code: code || 'CONFLICT' })
   }
   if (status === 422) {
@@ -161,6 +164,11 @@ function safeOperationError(operation, status, code) {
         : 'Review the selected suspension reason and try again.',
       { status, code: code || 'UNPROCESSABLE_ENTITY' }
     )
+  }
+  if (status === 400 && operation === 'role') {
+    return new AdminOperationError('Choose a supported user role.', {
+      status, code: code || 'INVALID_USER_ROLE',
+    })
   }
   if (status >= 500) {
     return new AdminOperationError(
@@ -179,13 +187,14 @@ async function adminOperationRequest(path, {
   token,
   body,
   operation,
+  method = 'POST',
 } = {}) {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), ADMIN_REQUEST_TIMEOUT_MS)
 
   try {
     const response = await fetch(apiUrl(path), {
-      method: 'POST',
+      method,
       headers: {
         ...authHeaders(token),
         ...JSON_HEADERS,
@@ -546,8 +555,10 @@ export async function getAdminSubscriptions({ token, limit = 100 } = {}) {
   return requireListData(envelope)
 }
 
-export async function getAdminUsers({ token, limit = 100 } = {}) {
-  const envelope = await adminRequest(`/admin/users?page=1&limit=${limit}`, { token })
+export async function getAdminUsers({ token, page = 1, limit = 100, search = '' } = {}) {
+  const query = new URLSearchParams({ page: String(page), limit: String(limit) })
+  if (search) query.set('search', search)
+  const envelope = await adminRequest(`/admin/users?${query}`, { token })
   const result = requireListData(envelope)
 
   if (result.data.some((user) => (
@@ -824,7 +835,31 @@ export async function unsuspendAdminUser({ token, userId } = {}) {
   return data
 }
 
+export async function changeAdminUserRole({ token, userId, role } = {}) {
+  const data = await adminOperationRequest(
+    `/admin/users/${encodeURIComponent(userId)}/role`,
+    { token, body: { role }, operation: 'role', method: 'PATCH' }
+  )
+  if (
+    !hasExactKeys(data, ['auditId', 'user', 'sessionsRevoked'])
+    || !/^\d+$/.test(data.auditId)
+    || !hasExactKeys(data.user, ['id', 'previousRole', 'role'])
+    || data.user.id !== String(userId)
+    || !ADMIN_USER_ROLES.has(data.user.previousRole)
+    || !ADMIN_USER_ROLES.has(data.user.role)
+    || data.user.role !== role
+    || data.sessionsRevoked !== true
+  ) throw invalidOperationResponse()
+  return data
+}
+
 export const ADMIN_SECTION_IDS = Object.freeze({
+  COUNTRIES: 'countries',
+  ZONES: 'zones',
+  NODES: 'nodes',
+  BIRDS: 'birds',
+  BIRDS_BY_NODE: 'birds-by-node',
+  TOURS: 'tours',
   AI_OPERATIONS: 'ai_operations',
   CONTEXT_ENGINEERING: 'context_engineering',
   COMMERCIAL: 'commercial',
@@ -832,6 +867,12 @@ export const ADMIN_SECTION_IDS = Object.freeze({
 })
 
 const ADMIN_SECTION_LOADERS = Object.freeze({
+  [ADMIN_SECTION_IDS.COUNTRIES]: async () => ({}),
+  [ADMIN_SECTION_IDS.ZONES]: async () => ({}),
+  [ADMIN_SECTION_IDS.NODES]: async () => ({}),
+  [ADMIN_SECTION_IDS.BIRDS]: async () => ({}),
+  [ADMIN_SECTION_IDS.BIRDS_BY_NODE]: async () => ({}),
+  [ADMIN_SECTION_IDS.TOURS]: async () => ({}),
   [ADMIN_SECTION_IDS.AI_OPERATIONS]: async (options) => {
     const [
       overview,
@@ -877,6 +918,7 @@ export async function loadAdminSection(sectionId, options = {}) {
 
 export {
   ADMIN_REASON_CODES,
+  ADMIN_USER_ROLES,
   ADMIN_REQUEST_TIMEOUT_MS,
   AdminOperationError,
   DISABLEABLE_AI_FEATURES,

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import AdminOperationDialog from '../components/admin/AdminOperationDialog'
 import AdminSectionNavigation from '../components/admin/AdminSectionNavigation'
+import AdminMaintenance from '../components/admin/AdminMaintenance'
 import AiFeatureControls, { FEATURES } from '../components/admin/AiFeatureControls'
 import AiQualitySummary from '../components/admin/AiQualitySummary'
 import CostChart from '../components/admin/CostChart'
@@ -35,6 +36,12 @@ const percentFormatter = new Intl.NumberFormat('en-US', {
 })
 
 const SECTION_DESCRIPTIONS = {
+  [ADMIN_SECTION_IDS.COUNTRIES]: 'Country reference records retained by the maintenance API.',
+  [ADMIN_SECTION_IDS.ZONES]: 'Regional groupings within countries.',
+  [ADMIN_SECTION_IDS.NODES]: 'Tour locations and their geographic hierarchy.',
+  [ADMIN_SECTION_IDS.BIRDS]: 'Bird taxonomy and discovery metadata.',
+  [ADMIN_SECTION_IDS.BIRDS_BY_NODE]: 'Bird occurrence assignments by location.',
+  [ADMIN_SECTION_IDS.TOURS]: 'Nature-tour inventory, pricing, coordinates, and publication.',
   [ADMIN_SECTION_IDS.AI_OPERATIONS]: 'Usage, quality, queues, and recent failures for the selected reporting range.',
   [ADMIN_SECTION_IDS.CONTEXT_ENGINEERING]: 'Context selection, retrieval, compaction, cost, and failure telemetry for the selected reporting range.',
   [ADMIN_SECTION_IDS.COMMERCIAL]: 'Subscription status and customer account administration.',
@@ -45,7 +52,7 @@ function affectedSectionsForOperation(type) {
   if (type === 'retry') {
     return [ADMIN_SECTION_IDS.AI_OPERATIONS]
   }
-  if (type === 'suspend' || type === 'unsuspend') {
+  if (type === 'suspend' || type === 'unsuspend' || type === 'role') {
     return [ADMIN_SECTION_IDS.COMMERCIAL]
   }
   if (type === 'disable' || type === 'enable') {
@@ -63,7 +70,7 @@ function SectionLoading({ label }) {
   )
 }
 
-function AdminDashboard({ currentUserId, getAccessToken, onBack }) {
+function AdminDashboard({ currentUserId, getAccessToken, onBack, onTourImageUpdated }) {
   const [selectedOperation, setSelectedOperation] = useState(null)
   const returnFocusRef = useRef(null)
   const sectionHeadingRef = useRef(null)
@@ -102,6 +109,12 @@ function AdminDashboard({ currentUserId, getAccessToken, onBack }) {
     : null
   const activeDefinition = sections.find(({ id }) => id === activeSection) || sections[0]
   const data = activeState.data
+  const isMaintenanceSection = [
+    ADMIN_SECTION_IDS.ZONES,
+    ADMIN_SECTION_IDS.NODES,
+    ADMIN_SECTION_IDS.BIRDS,
+    ADMIN_SECTION_IDS.TOURS,
+  ].includes(activeSection)
 
   useEffect(() => {
     sectionHeadingRef.current?.focus()
@@ -124,6 +137,12 @@ function AdminDashboard({ currentUserId, getAccessToken, onBack }) {
     }
     if (selectedOperation.type === 'unsuspend') {
       return operations.unsuspendUser({ userId: selectedOperation.targetId })
+    }
+    if (selectedOperation.type === 'role') {
+      return operations.changeUserRole({
+        userId: selectedOperation.targetId,
+        role: selectedOperation.role,
+      })
     }
     if (selectedOperation.type === 'enable') {
       return operations.enableFeature({ feature: selectedOperation.targetId })
@@ -164,6 +183,17 @@ function AdminDashboard({ currentUserId, getAccessToken, onBack }) {
     }, control)
   }, [openOperation])
 
+  const requestRoleChange = useCallback((user, role, control) => {
+    openOperation({
+      type: 'role',
+      targetId: user.id,
+      role,
+      targetLabel: `${userLabel(user)}: ${user.role} → ${role}`,
+      impact: 'Changes authorization immediately and revokes all active refresh sessions for this user.',
+      successMessage: 'The user role was changed and existing refresh sessions were revoked.',
+    }, control)
+  }, [openOperation])
+
   const requestFeatureDisable = useCallback((feature, control) => {
     openOperation({
       type: 'disable',
@@ -185,6 +215,14 @@ function AdminDashboard({ currentUserId, getAccessToken, onBack }) {
   }, [openOperation])
 
   const renderSection = () => {
+    if (isMaintenanceSection) {
+      return <AdminMaintenance
+        resource={activeSection}
+        getAccessToken={getAccessToken}
+        showOwner={activeSection === ADMIN_SECTION_IDS.TOURS}
+        onTourImageUpdated={onTourImageUpdated}
+      />
+    }
     if (activeState.status === 'loading') {
       return <SectionLoading label={activeDefinition.label} />
     }
@@ -278,6 +316,8 @@ function AdminDashboard({ currentUserId, getAccessToken, onBack }) {
             getOperationState={operations.getOperationState}
             onSuspend={requestSuspension}
             onUnsuspend={requestReactivation}
+            onChangeRole={requestRoleChange}
+            getAccessToken={getAccessToken}
           />
         </div>
       )
@@ -316,11 +356,11 @@ function AdminDashboard({ currentUserId, getAccessToken, onBack }) {
           <button type="button" className="admin-back-action" onClick={onBack}>
             <span aria-hidden="true">←</span> Back to site
           </button>
-          <p className="admin-eyebrow">Birdwatching AI</p>
-          <h1>Operations dashboard</h1>
-          <p>Platform health, usage, billing, and background work.</p>
+          <p className="admin-eyebrow">Nature tours administration</p>
+          <h1>Administration</h1>
+          <p>Maintain destinations, wildlife, tours, and platform operations.</p>
         </div>
-        <div className="admin-toolbar">
+        {!isMaintenanceSection && <div className="admin-toolbar">
           <label>
             <span>Reporting range</span>
             <select value={range} onChange={(event) => setRange(event.target.value)}>
@@ -332,7 +372,7 @@ function AdminDashboard({ currentUserId, getAccessToken, onBack }) {
           <button type="button" onClick={refresh} disabled={activeState.status === 'loading'}>
             {activeState.status === 'loading' ? 'Refreshing' : 'Refresh section'}
           </button>
-        </div>
+        </div>}
       </header>
 
       <div className="admin-section-shell">
@@ -343,16 +383,16 @@ function AdminDashboard({ currentUserId, getAccessToken, onBack }) {
         />
         <section
           className="admin-section-content"
-          aria-labelledby="admin-active-section-title"
+          aria-labelledby={isMaintenanceSection ? 'maintenance-title' : 'admin-active-section-title'}
           aria-busy={activeState.status === 'loading'}
         >
-          <header className="admin-dimension-header">
+          {!isMaintenanceSection && <header className="admin-dimension-header">
             <p className="admin-eyebrow">Dashboard section</p>
             <h2 id="admin-active-section-title" ref={sectionHeadingRef} tabIndex="-1">
               {activeDefinition.label}
             </h2>
             <p>{SECTION_DESCRIPTIONS[activeSection]}</p>
-          </header>
+          </header>}
           {renderSection()}
         </section>
       </div>

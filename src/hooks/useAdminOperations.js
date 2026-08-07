@@ -7,6 +7,8 @@ import {
   retryAdminJob,
   suspendAdminUser,
   unsuspendAdminUser,
+  changeAdminUserRole,
+  ADMIN_USER_ROLES,
 } from '../api/adminApi'
 
 const IDLE_STATE = Object.freeze({
@@ -163,8 +165,18 @@ export default function useAdminOperations({
     request: (token) => unsuspendAdminUser({ token, userId }),
   }), [execute])
 
+  const changeUserRole = useCallback(({ userId, role }) => execute({
+    type: 'role',
+    targetId: userId,
+    validationError: ADMIN_USER_ROLES.has(role)
+      ? null
+      : localValidationError('Choose a supported user role.'),
+    request: (token) => changeAdminUserRole({ token, userId, role }),
+  }), [execute])
+
   return {
     clearOperation,
+    changeUserRole,
     disableFeature,
     enableFeature,
     getOperationState,

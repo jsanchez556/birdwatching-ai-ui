@@ -6,6 +6,7 @@ const CONFIRM_LABELS = {
   disable: 'Disable feature',
   enable: 'Enable feature',
   unsuspend: 'Reactivate user',
+  role: 'Change role',
 }
 
 const TITLES = {
@@ -14,6 +15,7 @@ const TITLES = {
   disable: 'Temporarily disable AI feature',
   enable: 'Enable AI feature',
   unsuspend: 'Reactivate user',
+  role: 'Change user role',
 }
 
 const REASONS = [

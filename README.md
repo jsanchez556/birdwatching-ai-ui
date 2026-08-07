@@ -2,7 +2,9 @@
 
 ## 1. Project overview
 
-This repository is the React 18/Vite browser application for Birdwatching AI, a Costa Rica birding and tour-assistance platform. It owns the product shell, public homepage, authenticated and visitor chat, tour cart and reservation entry, bird-image identification UI, voice capture, account and billing entry points, and an administrator operations surface.
+This repository is the React 18/Vite browser application for a premium Costa Rica nature-tour platform. It owns multi-category tour discovery, chat, cart and reservation entry, bird-image identification, voice capture, account and billing entry points, and administrator operations and data maintenance.
+
+Guide and administrator accounts receive a protected My Tours workspace. Administrator user management supports searched, paginated, confirmed role changes with protected-account feedback.
 
 The browser is deliberately not an AI runtime. It captures and validates user input, maintains ephemeral interaction state, consumes normalized HTTP/SSE contracts, and renders server-issued results. OpenAI calls, retrieval, tool execution, durable conversation state, reservations, quotas, billing webhooks, and private object-storage credentials belong to the [Birdwatching AI API](https://github.com/jsanchez556/birdwatching-ai-api).
 
@@ -28,6 +30,9 @@ Status is based on executable code, tests, and deployment wiring in this reposit
 | Voice chat | **Implemented, optional** | `MediaRecorder` capture, framework-independent WAV conversion, raw upload to `POST /voice-chat`, response-audio URL resolution, and playback are wired. Browser support, permission, API feature availability, S3, and media delivery remain external prerequisites. |
 | Bird identification | **Implemented, optional** | Authenticated URL/upload submission, cancellation, BullMQ job polling, uncertainty-aware result rendering, and tests exist. Model execution and queue ownership are server-side. |
 | Tour cart and reservation entry | **Implemented** | Authenticated CRUD and reservation requests use backend adapters. Final availability, pricing, and reservation commits are server-authoritative. |
+| Multi-category tour discovery and data maintenance | **Implemented** | Public activity filters and tour cards support birdwatching, walks, parks, and future categories. Tours, Zones, Nodes, and Birds use responsive server-paginated grids and accessible modal editors. Tour editors provide inline node creation, while existing-node map/place search and bird assignments live in the Nodes dialog; tour coordinates remain read-only values owned by the selected node. |
+
+The node coordinate map starts from the default country's validated `latitude`, `longitude`, and `zoom`. Missing or invalid triplets use the documented Costa Rica fallback (`9.75`, `-84.2`, zoom `7`). These values establish only the initial view and never constrain coordinate selection; existing node coordinates and place-search results still take focus when present. Administrators can pan by pointer or touch, zoom by wheel, pinch, buttons, or keyboard, and tap or press Enter to place the synchronized node marker.
 | Billing UI | **Implemented, provider-neutral** | Checkout and portal calls accept backend-returned redirect URLs. The UI neither verifies payment nor grants entitlement. |
 | PostHog analytics and feature gates | **Implemented, optional** | Consent-gated browser initialization and event tests exist. Missing configuration disables export; server-side feature availability can also disable AI entry points. |
 | Admin operations UI | **Implemented** | Admin metrics, errors, queue state, retry, account suspension, and temporary AI feature controls have strict adapter validation and UI tests. |
@@ -138,7 +143,7 @@ Prompt construction, retrieval, embeddings, model selection, usage accounting, a
 
 The product is a lightweight internal-surface application rather than a URL router:
 
-- `HomeSurface` composes the homepage and lazy-loaded chat/identification overlays.
+- `HomeSurface` composes the homepage plus authentication, cart, tour-history, bird-identification, and chat overlays. Carousel `Book Tour`, cart reservation, and visitor entry from the login modal open the homepage chat drawer; the reusable full-page chat surface remains available to other product entry points.
 - `AuthenticatedChatSurface` provides the dedicated chat shell.
 - `AdminDashboard` is lazy-loaded and available only to an authenticated admin state.
 - `useProductShell` owns surface selection, overlay state, billing-return handling, cart/reservation entry, feature access, and cross-surface actions.
@@ -417,7 +422,7 @@ Gaps: there is no checked-in Playwright/Cypress suite, visual regression suite, 
 
 - Node.js 22, matching CI and the backend engine requirement
 - npm
-- A running backend for live product workflows; by default the proxy expects `http://localhost:3000`
+- A running backend for live product workflows; by default the proxy expects `http://localhost:3001`
 
 ### Install and configure
 
@@ -429,7 +434,7 @@ Create `.env` without secrets:
 
 ```dotenv
 VITE_API_URL=
-VITE_API_PROXY_TARGET=http://localhost:3000
+VITE_API_PROXY_TARGET=http://localhost:3001
 VITE_CLOUDFRONT_BASE_URL=
 VITE_POSTHOG_ENABLED=false
 ```
@@ -458,7 +463,7 @@ All `VITE_*` values are embedded into browser assets and must be treated as publ
 | Variable | Required | Used by | Purpose | Safe local default or notes |
 |---|---:|---|---|---|
 | `VITE_API_URL` | Production | API adapters and Vite proxy selection | Public API origin baked into the bundle | Empty locally for relative proxy calls; trailing slash is removed. |
-| `VITE_API_PROXY_TARGET` | No | Vite dev server | Proxy target when `VITE_API_URL` is empty | `http://localhost:3000`. |
+| `VITE_API_PROXY_TARGET` | No | Vite dev server | Proxy target when `VITE_API_URL` is empty | `http://localhost:3001`. |
 | `VITE_CLOUDFRONT_BASE_URL` | No | Media adapter | Build public media URLs directly from safe object keys | Empty uses `GET /files/:folder/:filename`. |
 | `VITE_POSTHOG_ENABLED` | No | Browser analytics | Permit consent-gated PostHog initialization | `false`. |
 | `VITE_POSTHOG_KEY` | When analytics is enabled | Browser analytics | Public PostHog project key | No default; never use a private server key. |

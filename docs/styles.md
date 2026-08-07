@@ -17,7 +17,7 @@ original cascade.
    controls, authentication layout, application shell, and shared utilities.
 4. `styles/homepage.css` — homepage header, hero, account and pricing panels,
    content cards, tours, cart, cookie consent, and floating actions.
-5. `styles/overlays.css` — chat drawer, bird-identification modal, authentication
+5. `styles/overlays.css` — featured-tour reservation drawer, bird-identification, authentication, cart, and account overlays
    modal, and their overlay-specific descendants.
 6. `styles/chat.css` — chat notices, transcript, message content, reservation and
    bird-media cards, composer, voice controls, and chat animations.

@@ -97,6 +97,19 @@ function getFirstOpenDate(cart) {
   return null
 }
 
+function getInitialTourDate(tour, cart, participants = 1) {
+  if (tour?.tourType !== 'scheduled') return getFirstOpenDate(cart)
+  const usedDates = new Set(cart.items.map((item) => item.scheduledDate).filter(Boolean))
+  const occurrence = (tour.occurrenceDates || []).find((item) => (
+    item.status === 'scheduled'
+    && Number(item.remainingSpaces) >= participants
+    && !usedDates.has(item.date)
+    && (!cart.itineraryStartDate || item.date >= cart.itineraryStartDate)
+    && (!cart.itineraryEndDate || item.date <= cart.itineraryEndDate)
+  ))
+  return occurrence?.date || null
+}
+
 export default function useCart({ isAuthenticated, getAccessToken }) {
   const isEnabled = isAuthenticated && typeof getAccessToken === 'function'
   const [cart, setCart] = useState(() => createEmptyCart())
@@ -166,11 +179,12 @@ export default function useCart({ isAuthenticated, getAccessToken }) {
 
     try {
       const token = await withToken()
-      const scheduledDate = options.scheduledDate || getFirstOpenDate(cart)
+      const participants = options.participants || 1
+      const scheduledDate = options.scheduledDate || getInitialTourDate(tour, cart, participants)
       const item = await addCartItem({
         tourId,
         scheduledDate,
-        participants: options.participants || 1,
+        participants,
         needsTransportation: options.needsTransportation,
         metadata: {
           source: 'featured_tour',

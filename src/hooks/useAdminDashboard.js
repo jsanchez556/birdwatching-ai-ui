@@ -9,10 +9,14 @@ const RANGE_OPTIONS = [
 ]
 
 export const ADMIN_SECTIONS = Object.freeze([
-  { id: ADMIN_SECTION_IDS.AI_OPERATIONS, label: 'AI Operations', rangeDependent: true },
-  { id: ADMIN_SECTION_IDS.CONTEXT_ENGINEERING, label: 'Context engineering', rangeDependent: true },
-  { id: ADMIN_SECTION_IDS.COMMERCIAL, label: 'Commercial administration', rangeDependent: false },
-  { id: ADMIN_SECTION_IDS.EMERGENCY, label: 'Emergency controls', rangeDependent: false },
+  { id: ADMIN_SECTION_IDS.BIRDS, label: 'Birds', group: 'Maintenance', rangeDependent: false },
+  { id: ADMIN_SECTION_IDS.ZONES, label: 'Zones', group: 'Maintenance', rangeDependent: false },
+  { id: ADMIN_SECTION_IDS.NODES, label: 'Nodes', group: 'Maintenance', rangeDependent: false },
+  { id: ADMIN_SECTION_IDS.TOURS, label: 'Tours', group: 'Maintenance', rangeDependent: false },
+  { id: ADMIN_SECTION_IDS.COMMERCIAL, label: 'Users and billing', group: 'Administration', rangeDependent: false },
+  { id: ADMIN_SECTION_IDS.AI_OPERATIONS, label: 'AI operations', group: 'Administration', rangeDependent: true },
+  { id: ADMIN_SECTION_IDS.CONTEXT_ENGINEERING, label: 'Context engineering', group: 'Administration', rangeDependent: true },
+  { id: ADMIN_SECTION_IDS.EMERGENCY, label: 'Emergency controls', group: 'Administration', rangeDependent: false },
 ])
 
 const SECTION_BY_ID = new Map(ADMIN_SECTIONS.map((section) => [section.id, section]))
@@ -43,7 +47,7 @@ function getUtcRange(rangeValue, now = new Date()) {
 }
 
 export default function useAdminDashboard({ getAccessToken } = {}) {
-  const [activeSection, setActiveSectionState] = useState(ADMIN_SECTION_IDS.AI_OPERATIONS)
+  const [activeSection, setActiveSectionState] = useState(ADMIN_SECTION_IDS.TOURS)
   const [range, setRangeState] = useState('30d')
   const [sectionStates, setSectionStates] = useState(createSectionStates)
   const [now, setNow] = useState(() => Date.now())

@@ -3,8 +3,93 @@ import { createPortal } from 'react-dom'
 import { loadBirdProfile } from '../../api/homeApi'
 import BirdMediaCard from '../BirdMediaCard'
 import { useResolvedMedia } from '../../hooks/useResolvedMediaUrl'
+import { displayTourType, TOUR_TYPES } from '../../constants/tourTypes'
+import { appendMediaVersion } from '../../api/mediaApi'
+import { formatTourDuration } from '../../utils/tourDuration'
 
 const TOURS_PER_PAGE = 3
+const TOUR_IMAGE_PATH_PATTERN = /^tours\/(?:[1-9]\d*(?:\.png)?|[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.png)$/
+
+function getTourPortraitReference(tour) {
+  const storedPath = typeof tour.imagePath === 'string'
+    ? tour.imagePath.trim().replace(/^\/+/, '').replace(/^files\/+/, '')
+    : ''
+
+  // A persisted image path is authoritative. Never render a potentially stale
+  // portrait URL when the API also supplies a different database-backed path.
+  if (storedPath) {
+    if (!TOUR_IMAGE_PATH_PATTERN.test(storedPath)) return ''
+    const canonicalPath = /^tours\/[1-9]\d*$/.test(storedPath)
+      ? `${storedPath}.png`
+      : storedPath
+    const encodedPath = canonicalPath.split('/').map(encodeURIComponent).join('/')
+    return appendMediaVersion(
+      `/files/${encodedPath}`,
+      tour.portraitVersion || tour.imageVersion,
+    )
+  }
+
+  return appendMediaVersion(
+    tour.portraitUrl,
+    tour.portraitVersion || tour.imageVersion,
+  )
+}
+
+function normalizeSearchText(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+}
+
+function editDistance(left, right) {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index)
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    const current = [leftIndex]
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      current[rightIndex] = Math.min(
+        current[rightIndex - 1] + 1,
+        previous[rightIndex] + 1,
+        previous[rightIndex - 1] + (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1),
+      )
+    }
+    previous.splice(0, previous.length, ...current)
+  }
+  return previous[right.length]
+}
+
+function matchesApproximateSearch(tour, query) {
+  const queryTokens = normalizeSearchText(query).split(/\s+/).filter(Boolean)
+  if (!queryTokens.length) return true
+  const haystack = normalizeSearchText([
+    tour.name, tour.title, tour.location, tour.region, tour.zone, tour.node, tour.subnode,
+    tour.description, tour.type, tour.tourType,
+    ...(tour.birds || []).flatMap((bird) => [bird.name, bird.commonName, bird.tags?.join(' ')]),
+  ].filter(Boolean).join(' '))
+  const words = haystack.split(/[^a-z0-9]+/).filter(Boolean)
+  return queryTokens.every((token) => haystack.includes(token)
+    || (token.length >= 4 && words.some((word) => Math.abs(word.length - token.length) <= 2
+      && editDistance(word, token) <= 2)))
+}
+
+function getCostaRicaCalendarDate() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Costa_Rica', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date())
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${byType.year}-${byType.month}-${byType.day}`
+}
+
+function isTourEligible(tour) {
+  if (tour.isActive === false || tour.ownerStatus === 'suspended') return false
+  if ((tour.tourType || 'unscheduled') !== 'scheduled') {
+    return Number(tour.maxParticipants ?? tour.availableSlots ?? 1) > 0
+  }
+  const today = getCostaRicaCalendarDate()
+  const startDate = tour.startDate || tour.start_date
+  if (!startDate || today >= startDate) return false
+  const occurrences = Array.isArray(tour.occurrenceDates) ? tour.occurrenceDates : []
+  return Number(tour.availableSlots) > 0 && occurrences.some((item) => (
+    item.status === 'scheduled' && item.date >= today && Number(item.remainingSpaces) > 0
+  ))
+}
 
 function formatPrice(value) {
   if (value === null || value === undefined || value === '') {
@@ -75,7 +160,14 @@ function formatTourNode(tour) {
 }
 
 function getTourRank(tour) {
+  if (tour.rank === null || tour.rank === undefined || tour.rank === '') return Number.MAX_SAFE_INTEGER
   const rank = Number(tour.rank)
+  return Number.isFinite(rank) ? rank : Number.MAX_SAFE_INTEGER
+}
+
+function getZoneRank(tour) {
+  if (tour.zoneRank === null || tour.zoneRank === undefined || tour.zoneRank === '') return Number.MAX_SAFE_INTEGER
+  const rank = Number(tour.zoneRank)
   return Number.isFinite(rank) ? rank : Number.MAX_SAFE_INTEGER
 }
 
@@ -177,13 +269,14 @@ function TourImageOverlay({ tour }) {
   const price = formatPrice(tour.pricePerPerson)
   const overlayItems = [
     { key: 'node', icon: 'location', label: 'Location', value: formatTourNode(tour) },
-    { key: 'duration', icon: 'duration', label: 'Duration', value: tour.duration },
+    { key: 'duration', icon: 'duration', label: 'Duration', value: formatTourDuration(tour) },
     { key: 'difficulty', icon: 'difficulty', label: 'Difficulty', value: tour.difficulty },
     { key: 'price', icon: 'price', label: 'Price', value: price ? `From ${price}` : null },
   ]
 
   return (
     <div className="tour-card-overlay" aria-label="Tour summary">
+      <span className="tour-type-badge">{displayTourType(tour.type)}</span>
       <p className="tour-card-overlay-title">{tourName}</p>
       <dl className="tour-card-overlay-meta">
         {overlayItems.map((item) => (
@@ -215,10 +308,12 @@ function groupToursByZone(tours) {
 
   return Array.from(groups, ([zone, zoneTours]) => ({
     zone,
+    zoneRank: Math.min(...zoneTours.map(getZoneRank)),
     tours: zoneTours
       .slice()
-      .sort((left, right) => getTourRank(left) - getTourRank(right)),
-  }))
+      .sort((left, right) => getTourRank(left) - getTourRank(right)
+        || String(getTourId(left) ?? getTourKey(left)).localeCompare(String(getTourId(right) ?? getTourKey(right)))),
+  })).sort((left, right) => left.zoneRank - right.zoneRank || left.zone.localeCompare(right.zone))
 }
 
 function TourCard({
@@ -237,11 +332,13 @@ function TourCard({
 }) {
   const price = formatPrice(tour.pricePerPerson)
   const dates = formatTourDates(tour)
+  const isScheduled = tour.tourType === 'scheduled'
   const birds = Array.isArray(tour.birds) ? tour.birds.filter((bird) => bird?.name).slice(0, 3) : []
   const [portraitFailed, setPortraitFailed] = useState(false)
-  const portraitMedia = useResolvedMedia(tour.portraitUrl)
+  const portraitReference = getTourPortraitReference(tour)
+  const portraitMedia = useResolvedMedia(portraitReference)
   const portraitUrl = portraitMedia.url
-  const isPortraitPending = Boolean(tour.portraitUrl && portraitMedia.isResolving && !portraitFailed)
+  const isPortraitPending = Boolean(portraitReference && portraitMedia.isResolving && !portraitFailed)
   const isPortraitUnavailable = Boolean(portraitMedia.error || portraitFailed)
   const tourName = tour.title || tour.name || 'Featured tour'
   const isPrimaryActionBusy = isAdding || isRemoving
@@ -258,7 +355,7 @@ function TourCard({
 
   useEffect(() => {
     setPortraitFailed(false)
-  }, [tour.portraitUrl, portraitUrl])
+  }, [portraitReference])
 
   return (
     <article className="home-card tour-card">
@@ -286,14 +383,18 @@ function TourCard({
       </div>
       <div className="home-card-body">
         {tour.description && <p className="tour-card-description">{tour.description}</p>}
-        <dl className="home-card-facts">
+        {isScheduled && <dl className="home-card-facts">
+          <div>
+            <dt>Availability</dt>
+            <dd>{Number(tour.availableSlots) > 0 ? `${tour.availableSlots} places available` : 'Ask about availability'}</dd>
+          </div>
           {dates && (
             <div>
               <dt>Dates</dt>
               <dd>{dates}</dd>
             </div>
           )}
-        </dl>
+        </dl>}
         {birds.length > 0 && (
           <p className="tour-card-birds">
             <span className="tour-card-birds-label">Key birds</span>
@@ -345,13 +446,13 @@ function TourCard({
           <button
               type="button"
               className="tour-card-action tour-reserve-action"
-              aria-label={isReserving ? `Preparing ${tourName} reservation` : `Reserve ${tourName}`}
+              aria-label={isReserving ? `Preparing ${tourName} reservation` : `Book Tour: ${tourName}`}
               disabled={!agentBookingEnabled || isReserving}
               title={!agentBookingEnabled ? bookingUnavailableMessage : undefined}
               onClick={() => onReserveTour?.(tour)}
             >
               <ReserveTourIcon />
-              <span>{!agentBookingEnabled ? 'Booking unavailable' : isReserving ? 'Preparing...' : 'Reserve tour'}</span>
+              <span>{!agentBookingEnabled ? 'Booking unavailable' : isReserving ? 'Preparing...' : 'Book Tour'}</span>
             </button>
         </div>
       </div>
@@ -372,14 +473,22 @@ function FeaturedTours({
   error,
   onAddToCart,
   onRemoveFromCart,
+  onRetry,
   onReserveTour,
 }) {
   const [carouselIndexes, setCarouselIndexes] = useState({})
   const [birdModal, setBirdModal] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedType, setSelectedType] = useState('All')
   const closeButtonRef = useRef(null)
   const openerRef = useRef(null)
   const birdRequestIdRef = useRef(0)
-  const tourGroups = useMemo(() => groupToursByZone(tours), [tours])
+  const filteredTours = useMemo(() => tours.filter((tour) => (
+    isTourEligible(tour)
+    && (selectedType === 'All' || displayTourType(tour.type) === selectedType)
+    && matchesApproximateSearch(tour, searchQuery)
+  )), [searchQuery, selectedType, tours])
+  const tourGroups = useMemo(() => groupToursByZone(filteredTours), [filteredTours])
   const addedTourIdSet = useMemo(() => new Set(addedTourIds.map(String)), [addedTourIds])
   const addingTourIdSet = useMemo(() => new Set(addingTourIds.map(String)), [addingTourIds])
   const removingTourIdSet = useMemo(() => new Set(removingTourIds.map(String)), [removingTourIds])
@@ -466,13 +575,52 @@ function FeaturedTours({
     <>
       <section id="featured-tours" className="home-section" aria-labelledby="featured-tours-title">
         <div className="home-section-heading">
-          <p className="home-kicker">Featured tours</p>
-          <h2 id="featured-tours-title">Birding routes with room to breathe</h2>
+          <p className="home-kicker">Curated nature experiences</p>
+          <h2 id="featured-tours-title">Choose how you want to explore</h2>
+          <p>From dawn birding to night trails and national parks, find a guided experience that fits your pace.</p>
         </div>
+        {!isLoading && !error && tours.length > 0 && (
+          <>
+            <div className="tour-type-navigation" role="group" aria-label="Filter tours by activity type">
+              {['All', ...TOUR_TYPES].map((type) => {
+                const isSelected = selectedType === type
+
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    aria-pressed={isSelected}
+                    className={isSelected ? 'is-active' : ''}
+                    onClick={() => setSelectedType(type)}
+                  >
+                    {type}
+                  </button>
+                )
+              })}
+            </div>
+            <form className="tour-search" role="search" aria-label="Search tours" onSubmit={(event) => event.preventDefault()}>
+              <label>
+                <span>Search tours</span>
+                <input type="search" value={searchQuery} placeholder="Activity, destination, wildlife…" onChange={(event) => setSearchQuery(event.target.value)} />
+              </label>
+            </form>
+          </>
+        )}
         {isLoading && <p className="home-status" role="status">Loading featured tours...</p>}
-        {error && <p className="home-status" role="status">Tours are temporarily unavailable.</p>}
+        {error && (
+          <div className="home-status" role="status">
+            <p>Tours are temporarily unavailable.</p>
+            <button type="button" onClick={onRetry}>Retry tours</button>
+          </div>
+        )}
         {!isLoading && !error && tours.length === 0 && (
           <p className="home-status" role="status">No featured tours are available right now.</p>
+        )}
+        {!isLoading && !error && tours.length > 0 && filteredTours.length === 0 && (
+          <div className="home-status" role="status">
+            <p>No eligible tours match your search.</p>
+            <button type="button" onClick={() => { setSearchQuery(''); setSelectedType('All') }}>Clear search and filters</button>
+          </div>
         )}
         {!isLoading && !error && tourGroups.map(({ zone, tours: zoneTours }) => {
           const currentIndex = Math.min(

@@ -215,15 +215,35 @@ export function getInitialConversationState(auth, options = {}) {
 
   const storedState = getStoredChatState(auth.userId)
   if (storedState?.conversationId) {
-    persistChatState({ ...storedState, userId: auth.userId })
+    const customerContext = {
+      ...(storedState.customerContext || {}),
+      ...(options.initialCustomerContext || {}),
+    }
+    const conversationContext = {
+      ...(storedState.conversationContext || {}),
+      ...(options.initialConversationContext || {}),
+    }
+    persistChatState({ ...storedState, customerContext, conversationContext, userId: auth.userId })
     return {
       conversationId: storedState.conversationId,
-      customerContext: storedState.customerContext,
-      conversationContext: storedState.conversationContext || {},
+      customerContext: Object.keys(customerContext).length ? customerContext : null,
+      conversationContext,
       messages: storedState.messages || [],
       shouldLoadFromApi: !storedState.hasStoredMessages,
       shouldLoadLatestFromApi: false,
       isHydrating: !storedState.hasStoredMessages,
+    }
+  }
+
+  if (options.initialEntryId) {
+    return {
+      conversationId: null,
+      customerContext: options.initialCustomerContext || storedState?.customerContext || null,
+      conversationContext: options.initialConversationContext || storedState?.conversationContext || {},
+      messages: storedState?.messages || [],
+      shouldLoadFromApi: false,
+      shouldLoadLatestFromApi: false,
+      isHydrating: false,
     }
   }
 

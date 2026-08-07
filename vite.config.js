@@ -13,7 +13,7 @@ function getAllowedHosts(env) {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const proxyTarget = (
-    env.VITE_API_URL || env.VITE_API_PROXY_TARGET || 'http://localhost:3000'
+    env.VITE_API_URL || env.VITE_API_PROXY_TARGET || 'http://localhost:3001'
   ).replace(/\/$/, '')
 
   return {
@@ -29,6 +29,10 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true
         },
         '/admin': {
+          target: proxyTarget,
+          changeOrigin: true
+        },
+        '/my-tours': {
           target: proxyTarget,
           changeOrigin: true
         },

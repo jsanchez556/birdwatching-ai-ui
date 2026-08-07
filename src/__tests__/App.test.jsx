@@ -43,7 +43,6 @@ const useChat = require('../hooks/useChat').default
 const useCart = require('../hooks/useCart').default
 const useHomeContent = require('../hooks/useHomeContent').default
 const useResolvedMediaUrl = require('../hooks/useResolvedMediaUrl').default
-const analytics = require('../analytics/analytics').default
 
 describe('App authentication flow', () => {
   beforeEach(() => {
@@ -92,19 +91,16 @@ describe('App authentication flow', () => {
     })
     render(<App />)
 
-    expect(screen.getByRole('heading', { name: /Costa Rica birdwatching/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Find your way into the wild/i })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /^Login$/i }).length).toBeGreaterThan(0)
-    expect(screen.getAllByRole('button', { name: /Start Birdwatching Chat/i }).length).toBeGreaterThan(0)
-    expect(screen.getByRole('link', { name: /Start Birdwatching Chat/i })).toHaveAttribute(
-      'href',
-      '#birdwatching-chat'
-    )
+    expect(screen.queryByRole('button', { name: /Start Birdwatching Chat/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Start Birdwatching Chat/i })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Contact us on WhatsApp/i })).toHaveAttribute(
       'href',
       'https://wa.me/00000000000'
     )
     expect(useResolvedMediaUrl).toHaveBeenCalledWith('resources/wtsapp.png')
-    expect(useResolvedMediaUrl).toHaveBeenCalledWith('resources/bwapp.png')
+    expect(useResolvedMediaUrl).not.toHaveBeenCalledWith('resources/bwapp.png')
     expect(screen.queryByRole('heading', { name: /welcome back/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/Plan your birding chat/i)).not.toBeInTheDocument()
   })
@@ -291,7 +287,7 @@ describe('App authentication flow', () => {
       })
       const videoSrc = new URL(video.getAttribute('src'))
       const heroContent = screen
-        .getByRole('heading', { name: /Costa Rica birdwatching/i })
+        .getByRole('heading', { name: /Find your way into the wild/i })
         .closest('.home-hero-content')
 
       expect(videoSrc.searchParams.get('start')).toBe('54')
@@ -367,7 +363,7 @@ describe('App authentication flow', () => {
     const dialog = screen.getByRole('dialog', { name: /welcome back/i })
     expect(dialog).toBeInTheDocument()
     expect(within(dialog).getByRole('heading', { name: /welcome back/i })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /Costa Rica birdwatching/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Find your way into the wild/i })).toBeInTheDocument()
   })
 
   test('dismisses the login modal without leaving the homepage', () => {
@@ -387,7 +383,7 @@ describe('App authentication flow', () => {
     fireEvent.click(screen.getByRole('button', { name: /close login/i }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /Costa Rica birdwatching/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Find your way into the wild/i })).toBeInTheDocument()
   })
 
   test('submits login from the modal and stays on the homepage', async () => {
@@ -427,7 +423,47 @@ describe('App authentication flow', () => {
     }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /Costa Rica birdwatching/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Find your way into the wild/i })).toBeInTheDocument()
+  })
+
+  test('opens visitor chat in the homepage drawer from the login modal', async () => {
+    let isVisitor = false
+    const enterAsVisitor = jest.fn(() => {
+      isVisitor = true
+    })
+    useAuth.mockImplementation(() => ({
+      isAuthenticated: false,
+      isVisitor,
+      isLoading: false,
+      error: null,
+      token: null,
+      user: isVisitor ? { id: 'visitor', name: 'Visitor', role: 'visitor' } : null,
+      login: jest.fn(),
+      signup: jest.fn(),
+      enterAsVisitor,
+      logout: jest.fn(),
+    }))
+    useChat.mockReturnValue({
+      messages: [],
+      isLoading: false,
+      isStreaming: false,
+      error: null,
+      customerContext: null,
+      conversationContext: {},
+      setCustomerContext: jest.fn(),
+      sendMessage: jest.fn(),
+      stopGenerating: jest.fn(),
+    })
+
+    render(<App />)
+
+    fireEvent.click(screen.getAllByRole('button', { name: /^Login$/i })[0])
+    fireEvent.click(screen.getByRole('button', { name: /continue as visitor/i }))
+
+    expect(enterAsVisitor).toHaveBeenCalledTimes(1)
+    const drawer = await screen.findByRole('dialog', { name: /plan your birding chat/i })
+    expect(within(drawer).getByText(/Visitor mode is for bird questions only/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Find your way into the wild/i })).toBeInTheDocument()
   })
 
   test('preserves signup switching inside the login modal', () => {
@@ -809,12 +845,12 @@ describe('App authentication flow', () => {
 
     render(<App />)
 
-    fireEvent.click(screen.getByRole('button', { name: /reserve guest reserve tour/i }))
+    fireEvent.click(screen.getByRole('button', { name: /book tour: guest reserve tour/i }))
 
     expect(screen.getByRole('dialog', { name: /welcome back/i })).toBeInTheDocument()
   })
 
-  test('logged-in reserve action opens an ephemeral selected-tour chat', async () => {
+  test('logged-in Book Tour opens the homepage drawer with the exact selected tour', async () => {
     const addTour = jest.fn().mockResolvedValue({})
     const featuredTour = {
       id: 16,
@@ -841,8 +877,8 @@ describe('App authentication flow', () => {
     })
     useCart.mockReturnValue({
       cart: {
-        itineraryStartDate: null,
-        itineraryEndDate: null,
+        itineraryStartDate: '2026-09-10',
+        itineraryEndDate: '2026-09-12',
         items: [],
         count: 0,
       },
@@ -891,17 +927,25 @@ describe('App authentication flow', () => {
 
     render(<App />)
 
-    fireEvent.click(screen.getByRole('button', { name: /reserve direct reserve tour/i }))
+    fireEvent.click(screen.getByRole('button', { name: /book tour: direct reserve tour/i }))
 
     expect(addTour).not.toHaveBeenCalled()
-    expect(await screen.findByRole('dialog', { name: /reserve this tour/i })).toBeInTheDocument()
+    const drawer = await screen.findByRole('dialog', { name: /reserve this tour/i })
+    expect(screen.getByRole('heading', { name: /Find your way into the wild/i })).toBeInTheDocument()
+    expect(within(drawer).getByRole('complementary', { name: /selected tour/i })).toHaveTextContent('Direct Reserve Tour')
     expect(useChat).toHaveBeenCalledWith(
       expect.objectContaining({
         token: 'stored-token',
       }),
       expect.objectContaining({
-        isEphemeral: true,
+        isEphemeral: false,
         initialMessage: 'I would like to reserve Direct Reserve Tour.',
+        initialCustomerContext: expect.objectContaining({
+          customerName: 'Ana Gomez',
+          customerEmail: 'ana@example.com',
+          itineraryStartDate: '2026-09-10',
+          itineraryEndDate: '2026-09-12',
+        }),
         initialConversationContext: expect.objectContaining({
           conversationType: 'reservation_entry',
           conversationSource: 'featured_tour',
@@ -914,9 +958,45 @@ describe('App authentication flow', () => {
         }),
       })
     )
+
+    fireEvent.click(within(drawer).getByRole('button', { name: /close chat/i }))
+    expect(screen.queryByRole('dialog', { name: /reserve this tour/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Find your way into the wild/i })).toBeInTheDocument()
   })
 
-  test('opens the chatbot drawer from the homepage for authenticated users', () => {
+  test('opens cart reservations in the homepage drawer with structured cart context', async () => {
+    const cartItem = {
+      id: 201,
+      tourId: 27,
+      scheduledDate: '2026-09-11',
+      participants: 2,
+      needsTransportation: true,
+      tour: {
+        id: 27,
+        name: 'Cart Canopy Tour',
+        location: 'Sarapiqui',
+        pricePerPerson: 95,
+      },
+    }
+    useCart.mockReturnValue({
+      cart: {
+        itineraryStartDate: '2026-09-10',
+        itineraryEndDate: '2026-09-12',
+        items: [cartItem],
+        count: 1,
+      },
+      reservations: [],
+      isLoading: false,
+      error: null,
+      refresh: jest.fn(),
+      refreshMyTours: jest.fn().mockResolvedValue([]),
+      saveItinerary: jest.fn(),
+      addTour: jest.fn(),
+      updateItem: jest.fn(),
+      removeItem: jest.fn(),
+      createReservations: jest.fn(),
+      createItemReservation: jest.fn(),
+    })
     useAuth.mockReturnValue({
       isAuthenticated: true,
       isVisitor: false,
@@ -929,6 +1009,7 @@ describe('App authentication flow', () => {
         name: 'Ana Gomez',
         role: 'customer',
       },
+      getValidToken: jest.fn().mockResolvedValue('stored-token'),
       logout: jest.fn(),
       enterAsVisitor: jest.fn(),
     })
@@ -937,47 +1018,10 @@ describe('App authentication flow', () => {
       isLoading: false,
       isStreaming: false,
       error: null,
-      customerContext: null,
-      conversationContext: {},
-      setCustomerContext: jest.fn(),
-      sendMessage: jest.fn(),
-      stopGenerating: jest.fn(),
-    })
-
-    render(<App />)
-
-    fireEvent.click(screen.getAllByRole('button', { name: /Start Birdwatching Chat/i })[0])
-
-    const dialog = screen.getByRole('dialog', { name: /Plan your birding chat/i })
-    expect(dialog).toBeInTheDocument()
-    expect(within(dialog).getAllByText(/Plan your birding chat/i).length).toBeGreaterThan(0)
-
-    fireEvent.click(screen.getByRole('button', { name: /close chat/i }))
-
-    expect(screen.queryByRole('dialog', { name: /Plan your birding chat/i })).not.toBeInTheDocument()
-  })
-
-  test('opens the chatbot drawer from the chat FAB', () => {
-    useAuth.mockReturnValue({
-      isAuthenticated: false,
-      isVisitor: true,
-      isLoading: false,
-      error: null,
-      token: null,
-      user: {
-        id: 'visitor',
-        name: 'Visitor',
-        role: 'visitor',
+      customerContext: {
+        customerName: 'Ana Gomez',
+        customerEmail: 'ana@example.com',
       },
-      logout: jest.fn(),
-      enterAsVisitor: jest.fn(),
-    })
-    useChat.mockReturnValue({
-      messages: [],
-      isLoading: false,
-      isStreaming: false,
-      error: null,
-      customerContext: null,
       conversationContext: {},
       setCustomerContext: jest.fn(),
       sendMessage: jest.fn(),
@@ -986,10 +1030,38 @@ describe('App authentication flow', () => {
 
     render(<App />)
 
-    fireEvent.click(screen.getByRole('link', { name: /Start Birdwatching Chat/i }))
+    fireEvent.click(screen.getByRole('button', { name: /open tour cart, 1 selected tour/i }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: /your selected tours/i }))
+      .getByRole('button', { name: /reserve cart/i }))
 
-    expect(screen.getByRole('dialog', { name: /Plan your birding chat/i })).toBeInTheDocument()
-    expect(screen.getByText(/Visitor mode is for bird questions only/i)).toBeInTheDocument()
+    const drawer = await screen.findByRole('dialog', { name: /reserve selected tours/i })
+    expect(drawer).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Find your way into the wild/i })).toBeInTheDocument()
+    expect(useChat).toHaveBeenCalledWith(
+      expect.objectContaining({ token: 'stored-token' }),
+      expect.objectContaining({
+        isEphemeral: false,
+        initialMessage: 'I would like to reserve 1 tour from my cart.',
+        initialCustomerContext: expect.objectContaining({
+          customerName: 'Ana Gomez',
+          customerEmail: 'ana@example.com',
+          itineraryStartDate: '2026-09-10',
+          itineraryEndDate: '2026-09-12',
+        }),
+        initialConversationContext: expect.objectContaining({
+          conversationType: 'reservation_entry',
+          conversationSource: 'tour_cart',
+          tours: [expect.objectContaining({
+            itemId: 201,
+            tourId: 27,
+            name: 'Cart Canopy Tour',
+            scheduledDate: '2026-09-11',
+            participants: 2,
+            needsTransportation: true,
+          })],
+        }),
+      })
+    )
   })
 
   test('shows visitor homepage logout action', () => {
@@ -1018,30 +1090,4 @@ describe('App authentication flow', () => {
     expect(logout).toHaveBeenCalledTimes(1)
   })
 
-  test('starts the chatbot in visitor mode for unauthenticated users', () => {
-    const enterAsVisitor = jest.fn()
-    useAuth.mockReturnValue({
-      isAuthenticated: false,
-      isVisitor: false,
-      isLoading: false,
-      error: null,
-      login: jest.fn(),
-      signup: jest.fn(),
-      enterAsVisitor,
-    })
-
-    render(<App />)
-
-    fireEvent.click(screen.getAllByRole('button', { name: /Start Birdwatching Chat/i })[0])
-
-    expect(enterAsVisitor).toHaveBeenCalledTimes(1)
-    expect(analytics.track).toHaveBeenCalledWith({
-      event: 'chat_started',
-      properties: {
-        plan: 'VISITOR',
-        source: 'homepage',
-        userType: 'visitor',
-      },
-    })
-  })
 })

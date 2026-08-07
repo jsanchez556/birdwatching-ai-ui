@@ -4,6 +4,8 @@ import useAdminDashboard, { ADMIN_SECTION_IDS } from '../../hooks/useAdminDashbo
 
 jest.mock('../../hooks/useAdminDashboard', () => {
   const ids = {
+    COUNTRIES: 'countries', ZONES: 'zones', NODES: 'nodes', BIRDS: 'birds',
+    BIRDS_BY_NODE: 'birds-by-node', TOURS: 'tours',
     AI_OPERATIONS: 'ai_operations',
     CONTEXT_ENGINEERING: 'context_engineering',
     COMMERCIAL: 'commercial',
@@ -15,6 +17,11 @@ jest.mock('../../hooks/useAdminDashboard', () => {
     default: jest.fn(),
   }
 })
+
+jest.mock('../../components/admin/AdminMaintenance', () => ({
+  __esModule: true,
+  default: ({ resource }) => <div data-testid="admin-maintenance-grid">Maintenance grid: {resource}</div>,
+}))
 
 const sections = [
   { id: 'ai_operations', label: 'AI Operations', rangeDependent: true },
@@ -170,14 +177,29 @@ function hookResult(section = ADMIN_SECTION_IDS.AI_OPERATIONS, overrides = {}) {
 describe('AdminDashboard section composition', () => {
   beforeEach(() => jest.clearAllMocks())
 
+  test('routes the Nodes navigation section to the shared maintenance grid', () => {
+    const nodeSections = [
+      { id: 'birds', label: 'Birds', group: 'Maintenance', rangeDependent: false },
+      { id: 'zones', label: 'Zones', group: 'Maintenance', rangeDependent: false },
+      { id: 'nodes', label: 'Nodes', group: 'Maintenance', rangeDependent: false },
+      { id: 'tours', label: 'Tours', group: 'Maintenance', rangeDependent: false },
+    ]
+    useAdminDashboard.mockReturnValue(hookResult(ADMIN_SECTION_IDS.NODES, { sections: nodeSections }))
+    render(<AdminDashboard currentUserId="1" getAccessToken={jest.fn()} onBack={jest.fn()} />)
+    expect(screen.getByRole('button', { name: 'Maintenance' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Nodes' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByTestId('admin-maintenance-grid')).toHaveTextContent('Maintenance grid: nodes')
+  })
+
   test('selects AI Operations by default with the compact KPI hierarchy', () => {
     const state = hookResult()
     useAdminDashboard.mockReturnValue(state)
     render(<AdminDashboard currentUserId="1" getAccessToken={jest.fn()} onBack={jest.fn()} />)
 
     const navigation = screen.getByRole('navigation', { name: /admin dashboard sections/i })
-    const buttons = Array.from(navigation.querySelectorAll('button'))
-    expect(buttons.map((button) => button.textContent)).toEqual(sections.map(({ label }) => label))
+    expect(screen.getByRole('button', { name: 'Administration' })).toHaveAttribute('aria-expanded', 'true')
+    const sectionButtons = Array.from(navigation.querySelectorAll('.admin-navigation-section'))
+    expect(sectionButtons.map((button) => button.textContent)).toEqual(sections.map(({ label }) => label))
     expect(screen.getByRole('button', { name: 'AI Operations' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('heading', { name: 'AI Operations' })).toHaveFocus()
     expect(screen.getByText('147')).toHaveAccessibleName('147 active users')

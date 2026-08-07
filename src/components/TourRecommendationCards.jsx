@@ -1,3 +1,5 @@
+import { displayTourType } from '../constants/tourTypes'
+
 const AVAILABILITY_LABELS = {
   available: 'Available',
   limited: 'Limited availability',
@@ -44,7 +46,7 @@ function TourRecommendationCards({ recommendation }) {
           >
             <div className="tour-recommendation-header">
               <div>
-                <div className="tour-recommendation-eyebrow">Recommended tour</div>
+                <div className="tour-recommendation-eyebrow">{displayTourType(tour.type)}</div>
                 <h3 id={`tour-recommendation-${tour.tourId}`}>{tour.tourName}</h3>
                 <p className="tour-recommendation-location">{tour.location}</p>
               </div>

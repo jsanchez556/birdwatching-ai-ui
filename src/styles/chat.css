@@ -10,6 +10,16 @@
   line-height: 1.4;
 }
 
+.selected-tour-context {
+  width: min(var(--content-width), calc(100% - 32px));
+  margin: 14px auto 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+}
+
 @media (prefers-color-scheme: dark) {
   .chat-alert {
     background: rgba(255, 127, 127, 0.12);
@@ -1443,6 +1453,26 @@ body.has-open-modal {
 .message-actions {
   display: grid;
   gap: 8px;
+}
+
+.reservation-details-action {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.reservation-details-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.reservation-details-fields label {
+  display: grid;
+  gap: 5px;
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 650;
 }
 
 .action-prompt {

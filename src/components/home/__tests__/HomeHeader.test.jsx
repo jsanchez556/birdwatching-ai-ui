@@ -48,6 +48,7 @@ describe('HomeHeader cart and My Tours actions', () => {
           email: 'ana@example.com',
           name: 'Ana Gomez',
           plan: 'FREE',
+          role: 'tour guide',
         }}
       />
     )
@@ -96,6 +97,12 @@ describe('HomeHeader cart and My Tours actions', () => {
     expect(onAuthAction).toHaveBeenCalledTimes(1)
 
     inputClick.mockRestore()
+  })
+
+  test('hides tour management from customers while retaining booking history', () => {
+    render(<HomeHeader isAuthenticated onOpenBookings={jest.fn()} user={{ email: 'c@example.com', role: 'customer' }} />)
+    expect(screen.queryByRole('button', { name: /^my tours$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /my bookings/i })).toBeInTheDocument()
   })
 
   test('shows a friendly error for invalid profile image types', async () => {

@@ -106,6 +106,13 @@ conversation source/type, reservation entry, confirmed reservation, selected
 tour/transportation, and participant count. Customer context is kept separate
 even when legacy storage embedded it in `meta`.
 
+Reservation intake may use one `reservation_details` UI action whose `fields`
+array contains only unresolved values. Supported field names are `date`,
+`participants`, `transportationRequired`, `pickupLocation`, `customerName`,
+`customerEmail`, `itineraryStartDate`, and `itineraryEndDate`. The UI submits
+all visible fields as one chat message and conditionally requires pickup when
+transportation is requested.
+
 ## Normalized assistant response
 
 Chat and voice adapters return:

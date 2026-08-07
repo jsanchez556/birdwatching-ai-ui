@@ -1,4 +1,6 @@
-import { clearMediaUrlCache, isRelativeMediaPath, resolveMediaUrl } from '../mediaApi'
+import {
+  appendMediaVersion, clearMediaUrlCache, isRelativeMediaPath, resolveMediaUrl,
+} from '../mediaApi'
 
 describe('mediaApi', () => {
   beforeEach(() => {
@@ -44,6 +46,44 @@ describe('mediaApi', () => {
 
     expect(isRelativeMediaPath('/photos//great tinamou.jpg')).toBe(true)
     expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  test('preserves a cache version when resolving through CloudFront', async () => {
+    process.env.VITE_CLOUDFRONT_BASE_URL = 'https://cdn.example.test/media/'
+
+    await expect(resolveMediaUrl('/files/tours/9.png?v=1725379200000')).resolves.toBe(
+      'https://cdn.example.test/media/tours/9.png?v=1725379200000'
+    )
+
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  test('caches different versions independently through the files endpoint', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: { url: 'https://cdn.example.test/tours/9.png?signature=abc' },
+        meta: {},
+      }),
+    })
+
+    await expect(resolveMediaUrl('/files/tours/9.png?v=old')).resolves.toBe(
+      'https://cdn.example.test/tours/9.png?signature=abc&v=old'
+    )
+    await expect(resolveMediaUrl('/files/tours/9.png?v=new')).resolves.toBe(
+      'https://cdn.example.test/tours/9.png?signature=abc&v=new'
+    )
+
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    expect(global.fetch).toHaveBeenNthCalledWith(1, '/files/tours/9.png')
+    expect(global.fetch).toHaveBeenNthCalledWith(2, '/files/tours/9.png')
+  })
+
+  test('replaces an existing stable media version', () => {
+    expect(appendMediaVersion('/files/tours/9.png?fit=cover&v=old', 'new')).toBe(
+      '/files/tours/9.png?fit=cover&v=new'
+    )
   })
 
   test('accepts values already prefixed with the media endpoint path', async () => {

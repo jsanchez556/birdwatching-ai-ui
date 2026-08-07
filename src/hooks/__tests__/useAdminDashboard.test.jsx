@@ -1,9 +1,11 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import useAdminDashboard, { ADMIN_SECTION_IDS } from '../useAdminDashboard'
+import useAdminDashboard, { ADMIN_SECTION_IDS, ADMIN_SECTIONS } from '../useAdminDashboard'
 import { loadAdminSection } from '../../api/adminApi'
 
 jest.mock('../../api/adminApi', () => {
   const ids = {
+    COUNTRIES: 'countries', ZONES: 'zones', NODES: 'nodes', BIRDS: 'birds',
+    BIRDS_BY_NODE: 'birds-by-node', TOURS: 'tours',
     AI_OPERATIONS: 'ai_operations',
     CONTEXT_ENGINEERING: 'context_engineering',
     COMMERCIAL: 'commercial',
@@ -31,21 +33,21 @@ describe('useAdminDashboard section loading', () => {
     loadAdminSection.mockImplementation(async (sectionId) => ({ sectionId }))
   })
 
-  test('loads AI Operations by default and no secondary section', async () => {
+  test('loads Tours by default and exposes grouped navigation without countries', async () => {
+    expect(ADMIN_SECTIONS.map(({ label }) => label)).toEqual([
+      'Birds', 'Zones', 'Nodes', 'Tours', 'Users and billing', 'AI operations',
+      'Context engineering', 'Emergency controls',
+    ])
     const { result } = renderHook(() => useAdminDashboard({
       getAccessToken: jest.fn().mockResolvedValue('admin-token'),
     }))
 
-    expect(result.current.activeSection).toBe(ADMIN_SECTION_IDS.AI_OPERATIONS)
+    expect(result.current.activeSection).toBe(ADMIN_SECTION_IDS.TOURS)
     await waitFor(() => expect(result.current.activeState.status).toBe('success'))
     expect(loadAdminSection).toHaveBeenCalledTimes(1)
     expect(loadAdminSection).toHaveBeenCalledWith(
-      ADMIN_SECTION_IDS.AI_OPERATIONS,
-      expect.objectContaining({
-        token: 'admin-token',
-        startDate: expect.any(String),
-        endDate: expect.any(String),
-      })
+      ADMIN_SECTION_IDS.TOURS,
+      { token: 'admin-token' }
     )
   })
 
@@ -59,8 +61,8 @@ describe('useAdminDashboard section loading', () => {
     await waitFor(() => expect(result.current.activeState.status).toBe('success'))
     expect(loadAdminSection).toHaveBeenCalledTimes(2)
 
-    act(() => result.current.setActiveSection(ADMIN_SECTION_IDS.AI_OPERATIONS))
-    await waitFor(() => expect(result.current.activeSection).toBe(ADMIN_SECTION_IDS.AI_OPERATIONS))
+    act(() => result.current.setActiveSection(ADMIN_SECTION_IDS.TOURS))
+    await waitFor(() => expect(result.current.activeSection).toBe(ADMIN_SECTION_IDS.TOURS))
     expect(loadAdminSection).toHaveBeenCalledTimes(2)
   })
 
@@ -93,7 +95,7 @@ describe('useAdminDashboard section loading', () => {
 
     act(() => result.current.setActiveSection(ADMIN_SECTION_IDS.COMMERCIAL))
     await waitFor(() => expect(result.current.activeState.status).toBe('error'))
-    expect(result.current.getSectionState(ADMIN_SECTION_IDS.AI_OPERATIONS)).toMatchObject({
+    expect(result.current.getSectionState(ADMIN_SECTION_IDS.TOURS)).toMatchObject({
       status: 'success',
       data: { operations: true },
     })
@@ -131,10 +133,13 @@ describe('useAdminDashboard section loading', () => {
     }))
     await waitFor(() => expect(result.current.activeState.status).toBe('success'))
 
+    act(() => result.current.setActiveSection(ADMIN_SECTION_IDS.AI_OPERATIONS))
+    await waitFor(() => expect(result.current.activeState.status).toBe('success'))
+
     act(() => result.current.setRange('7d'))
-    await waitFor(() => expect(loadAdminSection).toHaveBeenCalledTimes(2))
-    expect(loadAdminSection.mock.calls.every(([section]) => section === 'ai_operations')).toBe(true)
-    expect(loadAdminSection.mock.calls[1][1]).toEqual(expect.objectContaining({
+    await waitFor(() => expect(loadAdminSection).toHaveBeenCalledTimes(3))
+    expect(loadAdminSection.mock.calls.slice(1).every(([section]) => section === 'ai_operations')).toBe(true)
+    expect(loadAdminSection.mock.calls[2][1]).toEqual(expect.objectContaining({
       startDate: expect.any(String),
       endDate: expect.any(String),
     }))

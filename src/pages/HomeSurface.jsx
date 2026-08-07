@@ -11,7 +11,7 @@ const HomeChatDrawer = lazy(() => import('./ChatSurface').then((module) => ({
 
 function OverlayLoading() {
   return (
-    <div className="home-chat-drawer-backdrop">
+    <div className="bird-id-modal-backdrop">
       <div className="admin-loading" role="status" aria-label="Loading requested feature">
         Loading…
       </div>
@@ -57,6 +57,7 @@ export default function HomeSurface({ shell }) {
         onOpenCart={actions.openCart}
         onOpenAdmin={actions.openAdmin}
         onOpenMyTours={actions.openMyTours}
+        onOpenBookings={actions.openBookings}
         onUpdateProfile={auth.updateProfile}
         onUpdateProfileImage={auth.updateProfileImage}
         onUpgradePlan={actions.upgradePlan}
@@ -64,12 +65,12 @@ export default function HomeSurface({ shell }) {
         removingTourIds={home.removingTourIds}
         onReserveTour={actions.reserveTour}
         reservingTourIds={home.reservingTourIds}
-        onStartChat={actions.startChat}
+        tourImageUpdates={home.tourImageUpdates}
         onLogin={actions.openLogin}
         user={auth.user}
       />
       {openOverlay === 'chat' && (auth.isAuthenticated || auth.isVisitor) && (
-        <Suspense fallback={<OverlayLoading />}>
+        <Suspense fallback={<div className="home-chat-drawer-backdrop"><div className="admin-loading" role="status">Loading…</div></div>}>
           <HomeChatDrawer auth={auth} chatEntry={chatEntry} onClose={actions.closeOverlay} />
         </Suspense>
       )}
@@ -106,7 +107,7 @@ export default function HomeSurface({ shell }) {
           <BirdIdentificationModal auth={auth} onClose={actions.closeOverlay} />
         </Suspense>
       )}
-      {openOverlay === 'my-tours' && isSignedInCustomer && (
+      {openOverlay === 'bookings' && isSignedInCustomer && (
         <MyToursDrawer
           error={cart.error}
           isLoading={cart.isLoading}

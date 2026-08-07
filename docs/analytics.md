@@ -17,7 +17,7 @@ of capture.
 
 | Event | Trigger | Properties |
 |---|---|---|
-| `chat_started` | A homepage, login-modal, featured-tour, or cart action opens chat | `environment`, `service`, `plan`, `source`, `userType` |
+| `chat_started` | A visitor login-modal, cart reservation, or featured-tour action opens the homepage chat drawer | `environment`, `service`, `plan`, `source`, `userType` |
 
 Backend events such as `chat_message_sent`, `tour_recommended`,
 `reservation_completed`, and `subscription_activated` are documented in the

@@ -129,7 +129,7 @@ Development proxying uses:
 1. empty `VITE_API_URL` in local `.env`
 2. relative calls from the adapters under `src/api/`
 3. Vite proxy rules for `/auth`, `/billing`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files`
-4. proxy target selection from `VITE_API_URL`, then `VITE_API_PROXY_TARGET`, then `http://localhost:3000`
+4. proxy target selection from `VITE_API_URL`, then `VITE_API_PROXY_TARGET`, then `http://localhost:3001`
 
 Bird identification rendering uses:
 1. `birdIdentificationApi` to preserve the normalized backend envelope fields, including `status`, `bestMatch`, rich `imageAnalysis`, compatibility `imageObservations`, `candidates`, `notes`, and `meta`
@@ -155,7 +155,7 @@ Conversation state is intentionally focused:
 - bird identification modal state is ephemeral and stores only current request loading/error/job/result data in memory
 
 Product-shell state is separate and includes the active internal surface, open
-overlay, login mode, ephemeral reservation chat entry, per-tour pending IDs,
+overlay, login mode, structured reservation chat entry, per-tour pending IDs,
 billing-return notice/error/loading state, and feature-access decisions. Cart
 and auth data remain owned by their existing hooks.
 
@@ -169,6 +169,7 @@ and auth data remain owned by their existing hooks.
 - Bird identification contract drift should be caught in `src/api/birdIdentificationApi.js`; components should receive already-normalized result fields.
 - Relative bird media paths from RAG metadata should be resolved in `src/api/mediaApi.js` and consumed through hooks, keeping media endpoint details out of presentational markup.
 - Backend tool and reservation capabilities should be represented through documented API adapters before they are displayed as structured UI. The reservation confirmation card uses documented `/chat` metadata, with assistant-text parsing only as a fallback for older messages.
+- `FeaturedTours` owns presentational approximate, accent-insensitive search over the already-fetched public tour model. `useProductShell` owns homepage transitions into the shared chat drawer: `Book Tour` passes the exact confirmed tour and cart reservation passes its selected items through `reservationEntry` as structured identity, while visitor entry starts general chat. The full-page chat surface remains reusable for non-homepage entry points.
 - Routing is not active because the current surfaces do not require independent URLs. If that product requirement changes, add routing deliberately and preserve SPA fallback support in production serving.
 The admin operations dashboard follows the same boundaries: `adminApi.js`
 owns all `/admin/*` requests and strict read/mutation payload validation,
@@ -180,7 +181,43 @@ and confirmations. Trace links open
 in a new tab with `noopener noreferrer`; records without a validated URL show
 `Trace unavailable`.
 
-The existing dashboard route is organized into four local-state sections:
+The dashboard navigation is organized into two collapsible categories. The
+Maintenance category contains Birds, Zones, Nodes, and Tours grids. Countries
+and Birds by node stay out of visible navigation; bird assignments are managed
+inside the node editor. The tour editor can create a missing node inline while
+existing nodes are maintained through their grid. Existing admin-managed tours
+can also preview and replace one PNG portrait; `useAdminMaintenance` saves the
+tour fields, uploads the image through the maintenance adapter, and refreshes
+only after both operations succeed. The successful upload's URL and stable
+version flow through `AdminDashboard` into `useProductShell`; when the homepage
+is rendered again it overlays that version only onto the matching tour. Media
+resolution keeps versioned relative paths in distinct session-cache entries.
+The returned path contains a new UUID for each upload, so a replacement cannot
+reuse the prior browser or CDN object even when a CloudFront behavior ignores
+query strings. Administration contains
+the four operational local-state sections:
+
+Node maps obtain provider configuration from `src/config/map.js` and their
+initial center/zoom from the default country record. The same config validates
+the provider-supported zoom range and supplies the Costa Rica fallback (`9.75`,
+`-84.2`, zoom `7`) for incomplete or invalid country data. Existing node markers
+and selected place-search results replace the initial center with a focused view.
+Tile placement, marker rendering, pointer selection, panning, and zoom anchoring
+share Web Mercator world-pixel transforms so responsive resizing and gesture
+history cannot introduce coordinate drift. Explicit browser-geolocation and map
+placement update only the active form, then use the authenticated maintenance
+adapter for reverse geocoding; drag/pan gestures do not perform lookups. The
+Node dialog checks secure-context and Geolocation API availability, observes
+the optional `geolocation` Permissions API state, and invokes
+`getCurrentPosition` only from the embedded location button. The centralized
+device-location policy requests high accuracy with no cached-position allowance,
+rejects missing/invalid accuracy, positions older than two minutes, and reported
+uncertainty above 1,000 m; accepted readings above 100 m are visibly approximate.
+The exact accepted latitude/longitude remain authoritative while reverse
+geocoding supplies only the readable label; labels whose provider coordinate is
+more than 25 km from the selection are rejected as mismatched. Monotonic selection/request IDs
+prevent late browser or reverse-provider callbacks from replacing a newer map
+or search selection.
 
 - AI Operations (default): compact Users, MRR, AI Cost, and Errors KPIs,
   followed in order by usage/cost breakdowns, offline quality, queues, and
@@ -193,14 +230,42 @@ The existing dashboard route is organized into four local-state sections:
 The default operational loader intentionally excludes users, subscriptions, and
 feature controls or context telemetry. Secondary sections load on first selection and reuse their
 mounted-session cache. AI Operations and Context engineering are
-range-dependent; Commercial and Emergency are not. Desktop uses a persistent side menu, while smaller screens
-use the same ordered navigation as a horizontally scrollable control.
+range-dependent; Commercial and Emergency are not. The active category expands
+automatically. Desktop uses a persistent side menu, while smaller screens use
+the same collapsible navigation as a horizontally scrollable control.
+
+Maintenance list flow:
+
+```text
+AdminMaintenance search/page selection
+  -> useAdminMaintenance
+  -> adminMaintenanceApi normalized list request
+  -> responsive semantic table or labeled narrow-screen rows
+  -> Create/Edit opens MaintenanceEditorDialog
+  -> canonical Zone/Bird/Tour form (including nested NodeMaintenanceDialog)
+  -> existing Tour edits optionally upload a validated PNG portrait
+  -> successful mutation reloads the affected server page
+  -> editor closes and restores focus to its initiating control
+```
 
 `AiQualitySummary.jsx` owns percentage, percentage-point delta, sample-size, and
 empty-data presentation. `AdminOperationDialog.jsx` owns accessible confirmation
 and audit-reference presentation; focused panels own target rendering. The page
 remains composition-only, hooks own request lifecycles, and components never
 call `fetch`.
+
+Tour maintenance records expose the canonical S3 `imagePath`. After a successful
+upload, the product shell coordinates that path together with the server-resolved
+versioned URL for only the affected homepage tour. This refreshes the editor and card
+without remounting unrelated tours. Each replacement has a new immutable object path,
+while direct CloudFront and `/files` resolution also preserve the stable `v` query
+parameter. Rows without `imagePath` derive the read-only `tours/{tourId}.png`
+compatibility reference. Featured tour cards treat a valid persisted `imagePath`
+as authoritative over any separately supplied portrait URL and use the image
+version when resolving it, preventing a stale URL from being associated with
+the correct tour record. Reads canonicalize legacy extensionless numeric keys
+such as `tours/11` to their stored `tours/11.png` objects and also support current
+PNG keys; invalid paths render the existing fallback.
 
 Admin mutation flow:
 

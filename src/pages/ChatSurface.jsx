@@ -13,23 +13,29 @@ export function ChatSurface({ auth, chatEntry = null }) {
   const voiceAvailability = getFeature(FEATURE_FLAGS.VOICE_AI)
   const voiceEnabled = voiceFlagEnabled && voiceAvailability.enabled
   const viewerRole = auth.user?.role || (auth.isVisitor ? 'visitor' : 'customer')
-  const isReservationEntry = Boolean(chatEntry)
   const chat = useChat({
     token: auth.token,
     getAccessToken: auth.getValidToken,
     user: auth.user,
     role: viewerRole,
   }, {
-    isEphemeral: isReservationEntry,
+    isEphemeral: false,
     initialCustomerContext: chatEntry?.customerContext,
     initialConversationContext: chatEntry?.conversationContext,
     initialEntryId: chatEntry?.id,
     initialMessage: chatEntry?.initialMessage,
   })
   const isVisitor = viewerRole === 'visitor'
+  const selectedTour = chatEntry?.conversationContext?.selectedTour || chat.conversationContext?.selectedTour
 
   return (
     <div className="chat-container">
+      {selectedTour && (
+        <aside className="selected-tour-context" aria-label="Selected tour">
+          <strong>Selected tour:</strong> {selectedTour.name}
+          {selectedTour.location ? ` · ${selectedTour.location}` : ''}
+        </aside>
+      )}
       {isVisitor && (
         <div className="chat-notice" role="status">
           Visitor mode is for bird questions only. Log in to plan or reserve tours.
@@ -74,7 +80,7 @@ export function ChatSurface({ auth, chatEntry = null }) {
   )
 }
 
-export function HomeChatDrawer({ auth, chatEntry = null, onClose }) {
+export function HomeChatDrawer({ auth, chatEntry, onClose }) {
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') onClose()
@@ -94,12 +100,10 @@ export function HomeChatDrawer({ auth, chatEntry = null, onClose }) {
       >
         <header className="home-chat-drawer-header">
           <div>
-            <p className="home-kicker">Birdwatching AI</p>
+            <p className="home-kicker">{chatEntry ? 'Tour reservation' : 'Birdwatching AI'}</p>
             <h2 id="home-chat-title">{chatEntry?.title || 'Plan your birding chat'}</h2>
           </div>
-          <button type="button" className="auth-modal-close" aria-label="Close chat" onClick={onClose}>
-            x
-          </button>
+          <button type="button" className="auth-modal-close" aria-label="Close chat" onClick={onClose}>x</button>
         </header>
         <ChatSurface auth={auth} chatEntry={chatEntry} />
       </section>
@@ -107,7 +111,7 @@ export function HomeChatDrawer({ auth, chatEntry = null, onClose }) {
   )
 }
 
-export function AuthenticatedChatSurface({ auth, onHome }) {
+export function AuthenticatedChatSurface({ auth, chatEntry = null, onHome }) {
   return (
     <main className="app-shell">
       <header className="app-header">
@@ -125,7 +129,7 @@ export function AuthenticatedChatSurface({ auth, onHome }) {
           </button>
         </div>
       </header>
-      <ChatSurface auth={auth} />
+      <ChatSurface auth={auth} chatEntry={chatEntry} />
     </main>
   )
 }

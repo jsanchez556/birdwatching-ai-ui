@@ -1139,6 +1139,96 @@ describe('ChatMessages', () => {
     expect(onAction).toHaveBeenCalledWith('3')
   })
 
+  test('collects all missing reservation details in one message', () => {
+    const onAction = jest.fn()
+    const messages = [{
+      role: 'assistant',
+      content: 'Please provide the remaining reservation details.',
+      metadata: {
+        uiAction: {
+          type: 'reservation_details',
+          prompt: 'Please provide the remaining reservation details.',
+          fields: [
+            {
+              name: 'date',
+              type: 'date',
+              label: 'Choose a date for the tour.',
+              availableDates: ['2026-09-10', '2026-09-12'],
+            },
+            {
+              name: 'participants',
+              type: 'select',
+              label: 'How many participants should I reserve?',
+              options: [{ label: '1', value: 1 }, { label: '2', value: 2 }],
+            },
+            {
+              name: 'transportationRequired',
+              type: 'select',
+              label: 'Would you like transportation?',
+              options: [
+                { label: 'Yes', value: true },
+                { label: 'No', value: false },
+              ],
+            },
+            {
+              name: 'pickupLocation',
+              type: 'text',
+              label: 'Pickup location',
+              requiredWhen: { field: 'transportationRequired', equals: true },
+            },
+          ],
+        },
+      },
+    }]
+
+    render(<ChatMessages messages={messages} isLoading={false} onAction={onAction} />)
+
+    fireEvent.change(screen.getByLabelText(/Choose a date/i), {
+      target: { value: '2026-09-10' },
+    })
+    fireEvent.change(screen.getByLabelText(/How many participants/i), {
+      target: { value: '2' },
+    })
+    fireEvent.change(screen.getByLabelText(/Would you like transportation/i), {
+      target: { value: 'true' },
+    })
+    fireEvent.change(screen.getByLabelText(/Pickup location/i), {
+      target: { value: 'San Jose' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Send reservation details/i }))
+
+    expect(onAction).toHaveBeenCalledTimes(1)
+    expect(onAction).toHaveBeenCalledWith(
+      'I want to complete the reservation. Date: 2026-09-10. Participants: 2. Transportation required: yes. Pickup location: San Jose.'
+    )
+  })
+
+  test('validates combined reservation details without resubmitting known fields', () => {
+    const onAction = jest.fn()
+    const messages = [{
+      role: 'assistant',
+      content: 'Please provide the remaining reservation details.',
+      metadata: {
+        uiAction: {
+          type: 'reservation_details',
+          fields: [{
+            name: 'customerEmail',
+            type: 'email',
+            label: 'Email',
+          }],
+        },
+      },
+    }]
+
+    render(<ChatMessages messages={messages} isLoading={false} onAction={onAction} />)
+
+    fireEvent.change(screen.getByLabelText(/^Email$/i), { target: { value: 'invalid' } })
+    fireEvent.click(screen.getByRole('button', { name: /Send reservation details/i }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/valid email/i)
+    expect(onAction).not.toHaveBeenCalled()
+  })
+
   test('renders transportation selection buttons from assistant metadata', () => {
     const onAction = jest.fn()
     const messages = [
@@ -1239,5 +1329,23 @@ describe('ChatMessages', () => {
 
     expect(onAction).toHaveBeenCalledWith('Confirm reservation')
     expect(onAction).toHaveBeenCalledWith('Cancel reservation')
+  })
+
+  test('blocks an unavailable date before sending the date selection action', () => {
+    const onAction = jest.fn()
+    render(<ChatMessages messages={[{
+      role: 'assistant',
+      content: 'Choose a date.',
+      metadata: { uiAction: { type: 'date_picker', tourId: 9, prompt: 'Choose a date', availableDates: ['2026-09-10', '2026-09-12'] } },
+    }]} isLoading={false} onAction={onAction} />)
+
+    fireEvent.change(screen.getAllByLabelText(/choose a date/i)[0], { target: { value: '2026-09-11' } })
+    fireEvent.click(screen.getByRole('button', { name: /choose date/i }))
+    expect(screen.getByRole('alert')).toHaveTextContent(/not available/i)
+    expect(onAction).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getAllByLabelText(/choose a date/i)[0], { target: { value: '2026-09-12' } })
+    fireEvent.click(screen.getByRole('button', { name: /choose date/i }))
+    expect(onAction).toHaveBeenCalledWith('Use 2026-09-12 for tour 9')
   })
 })

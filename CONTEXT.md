@@ -3,14 +3,17 @@
 AI-agent entry point for the Birdwatching AI UI. Read this file first, then follow links for deeper details.
 
 ## What This Is
-This repository is a single React/Vite frontend for Costa Rica birdwatching assistance. It supports:
+This repository is a single React/Vite frontend for Costa Rica nature-tour and birdwatching assistance. It supports:
 - responsive chat UI with user and assistant message roles
 - upfront customer context collection for booking-ready name, email, and itinerary dates
 - styled reservation confirmation cards for confirmed booking responses
 - progressive assistant streaming with typing/loading state and stop-generation support
 - email/password authentication with local JWT session persistence
 - authenticated display-name and profile-image updates from the account menu
-- premium homepage entry point for tours, bird highlights, transportation add-ons, chat, login, and cookie consent
+- premium homepage entry point for tours, bird highlights, transportation add-ons, login, WhatsApp contact, and cookie consent
+- multi-category discovery for birdwatching, day walks, night walks, parks, and other nature experiences
+- grouped administration with responsive Tours/Zones/Nodes/Birds data grids, modal editors, integrated node/bird assignment dialogs, node-owned coordinates, and protected place search
+- role-aware My Tours management for guide-owned or administrator-wide inventory and confirmed administrator role editing
 - local chat state persistence with `localStorage`
 - cached conversation messages and customer context for fast reloads
 - authenticated latest-conversation hydration through `GET /chat/latest`
@@ -57,7 +60,7 @@ The app is a multi-surface product shell using a surface-controller-hook-API spl
 - `src/hooks/useAudioRecorder.js` owns browser microphone and `MediaRecorder` lifecycle.
 - `src/utils/audioEncoding.js` owns framework-independent audio conversion and WAV encoding.
 - `src/hooks/useVoiceChatUpload.js` owns the cancellable voice-upload lifecycle and delegates HTTP to `src/api/voiceChatApi.js`.
-- `src/utils/reservationEntry.js` normalizes tours/cart items and constructs ephemeral reservation chat entries.
+- `src/utils/reservationEntry.js` normalizes tours/cart items and constructs persistent, structured reservation chat entries.
 - The admin Operations Dashboard uses four locally selected sections:
   AI Operations, Context engineering, Commercial administration, and Emergency
   controls.
@@ -99,6 +102,8 @@ The app is a multi-surface product shell using a surface-controller-hook-API spl
 - `src/api/voiceChatApi.js` owns raw audio upload calls to `POST /voice-chat` and resolves returned audio response URLs.
 - `src/api/birdIdentificationApi.js` owns authenticated bird identification URL and raw image upload calls to `POST /birds/identify`, job polling through `GET /jobs/:id`, normalizes the `{ success, data, meta }` envelope, and should preserve optional bird-identification fields defensively.
 - `src/api/homeApi.js` owns homepage HTTP calls and response shape validation.
+- `src/api/adminMaintenanceApi.js` owns maintenance CRUD, admin tour-image replacement through `PUT /admin/tours/:tourId/image`, and protected forward/reverse location lookup; presentational components never call storage or geocoding providers directly. Existing tour editors prefer a valid persisted numeric-ID or UUID `imagePath`, derive the read-only `tours/{tourId}.png` compatibility reference when it is empty, validate and preview one PNG up to 5 MB, then upload the replacement before refreshing. A successful image response contains the new immutable S3 key plus a stable versioned delivery URL; the editor retains that record, and `useProductShell` publishes it for only the matching homepage tour. Device coordinates remain only in the active node form until save and are sent at full browser-provided precision through this adapter solely to resolve a readable name. `src/config/geolocation.js` owns the high-accuracy/freshness policy: positions older than two minutes or with uncertainty above 1,000 m are rejected, readings above 100 m are identified as approximate, and accepted accuracy is shown beside a retry action. A reverse-provider label more than 25 km from the authoritative selection is discarded in favor of formatted coordinates. The Node dialog exposes geolocation only in secure contexts, observes Permissions API changes when supported, never requests device location before explicit activation, and versions coordinate/reverse requests so stale responses cannot replace newer map or search selections.
+- Country maintenance records own each administrative map's nullable initial `latitude`, `longitude`, and `zoom`. `src/config/map.js` validates that triplet and supplies the documented fallback (`9.75`, `-84.2`, zoom `7`) when it is incomplete or invalid. Existing markers and successful place searches use a focused view. The node picker uses shared Web Mercator world-pixel transforms for its OSM tiles, marker, selection, panning, and zoom anchoring; it supports bounded wheel, pinch, button, and keyboard zoom plus pointer/touch and keyboard panning, while a tap places the marker only when the gesture did not become a drag.
 - `src/api/mediaApi.js` owns bird media URL resolution through CloudFront when configured, with backend media endpoint fallback.
 - `src/index.css` is the ordered global CSS entry point; `src/styles/*` owns
   foundation, admin, shared base, homepage, overlay, chat, and final responsive
@@ -167,7 +172,7 @@ Local development API routing:
 ```text
 Browser fetch('/auth/*', '/billing/*', '/cart/*', '/chat', '/voice-chat', '/homepage/*', '/tours', '/birds/*', '/jobs/*', '/addons/*', or '/files/*')
   -> Vite dev proxy
-  -> VITE_API_URL, VITE_API_PROXY_TARGET, or http://localhost:3000
+  -> VITE_API_URL, VITE_API_PROXY_TARGET, or http://localhost:3001
   -> Birdwatching AI API
 ```
 
@@ -202,15 +207,20 @@ Browser fetch('/files/:folderName/:filename')
 ## Important Implementation Facts
 - ESM is enabled through `"type": "module"` in `package.json`.
 - The app has multiple internally selected product surfaces and currently no React Router dependency. These surfaces do not require independent URLs, so selection remains lightweight local state.
-- Users see the homepage first. Login CTAs open the existing auth form, and chat CTAs open the existing authenticated or visitor chat flow.
+- Users see the homepage first. Login CTAs open the existing auth form. Continuing as a visitor opens general chat in the homepage drawer. Carousel `Book Tour` and cart reservation actions open reservation chat in that same drawer and transfer the selected tour or cart through structured state; there is no standalone homepage chat CTA. The reusable full-page chat surface remains available outside these homepage transitions.
 - Unauthenticated users who start chat enter visitor mode; authenticated users continue to the existing customer-context and chat flow.
 - `useAuth` stores only the access token, refresh token, expiry timestamps, and safe user profile, or a safe local visitor marker, under `birdwatchingAI.authState`.
 - `useAuth.getValidToken` refreshes expiring access tokens before authenticated chat calls and clears local auth state when refresh fails.
 - Authenticated chat state is stored under `birdwatchingAI.chatState.<userId>` so user switching cannot reuse another user's local transcript.
 - `VITE_API_URL` is trimmed of trailing slash before request URLs are built.
 - Empty `VITE_API_URL` intentionally produces relative `/auth`, `/billing`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files` URLs for local proxying.
-- The current dev proxy covers `/auth`, `/billing`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files`.
-- `vite.config.js` chooses the proxy target from `VITE_API_URL`, then `VITE_API_PROXY_TARGET`, then `http://localhost:3000`.
+- The current dev proxy covers `/auth`, `/admin`, `/my-tours`, `/billing`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files`.
+- Admin navigation exposes collapsible Maintenance (Birds, Zones, Nodes, Tours) and Administration categories and automatically expands the active category. Countries and Birds by node remain supported API resources without separate navigation choices.
+- Tours, Zones, Nodes, and Birds use one server-paginated responsive grid each. Their grid header contains text search only; Create sits beside the search form, row-level Edit opens the canonical form in a focus-contained dialog, and successful edits retain the current page/search whenever the record remains on that page.
+- The first country returned by the maintenance reference API is the administrative default. An empty country dataset blocks geographic/tour saving with an actionable message.
+- Tour forms submit only `nodeId`; selected-node coordinates are shown read-only. Tour editors offer inline node creation without resetting draft values. Flexible-date tours use `maxParticipants` and omit availability/start/end controls, while scheduled tours expose those occurrence-backed scheduling fields. Duration is edited and rendered as an explicit positive `durationValue` plus `hours` or `days`. Existing nodes, synchronized map/numeric coordinates, protected place search, and bird assignments are maintained through the standalone Nodes grid and its shared node dialog.
+- Maintenance and node dialogs close from their backdrop only when no blocking operation is pending. Dirty forms require explicit Keep editing or Discard changes confirmation, and nested node dialogs dismiss only their active layer before returning focus to the opener. The map releases pointer capture on completion, cancellation, interruption, and unmount so a gesture cannot strand dialog controls or dismissal.
+- `vite.config.js` chooses the proxy target from `VITE_API_URL`, then `VITE_API_PROXY_TARGET`, then `http://localhost:3001`.
 - `CustomerContextForm` collects `customerName`, `customerEmail`, `itineraryStartDate`, and `itineraryEndDate` before the authenticated chat transcript is shown. Visitor mode skips customer context and is limited by the backend to bird questions only.
 - The customer context is frontend intake only. The backend remains authoritative for authenticated identity, durable conversations, reservations, billing records, usage tracking, quotas, RAG, tours, jobs, and media delivery.
 - `useChat` creates a client conversation ID before the first backend response.
@@ -226,6 +236,8 @@ Browser fetch('/files/:folderName/:filename')
 - Bird identification `status` values have product meaning: `identified` can emphasize `bestMatch`, `uncertain` should preserve multiple plausible candidates, and `unknown` should explain that the image evidence is insufficient instead of implying failure. Candidate cards may include `commonName`, legacy `species`, `scientificName`, `confidence`, `reasoning`, `visualEvidence`, `ragSupport` rendered as supporting details, `contradictions`, `missingEvidence`, inline square media, and profile metadata.
 - Bird identification debug details are not part of the normal UI contract. The backend can expose admin-only `meta.debug` with internal analysis/candidate/profile details when explicitly requested, but the frontend should not request or render it in the standard user flow.
 - Tour listing, recommendation, selection, availability, pricing, discounts, and reservations happen inside the backend chat flow and are summarized in the final streamed assistant response. Recommendation-mode results render from validated `meta.tourRecommendation` only, while the original assistant text remains visible; tour metadata can include graph-backed `location`, `node`, `subnode`, and `zone` fields.
+- Featured tours support approximate, accent-insensitive search across tour names, locations, descriptions, birds, interests, and tour types. Only active, unexpired tours with usable capacity are rendered as bookable, with a clearable empty state.
+- `Book Tour` opens the homepage reservation drawer with the exact selected tour in structured conversation state, preserves customer/itinerary context and conversation continuity, and bypasses recommendation search. Date actions accept only backend-provided scheduled dates or itinerary dates for flexible tours.
 - Structured backend `uiAction` and `uiActions` metadata can render chat controls for choices, tour selection, date picking, participant count, transportation selection, and reservation confirmation.
 - Successful backend reservations can return `meta.reservation`; the UI stores that metadata on the assistant message for display and shows tour `location`, `node`, `subnode`, and `zone` when present.
 - `useChat` uses `AbortController` to stop active streams and keeps visible partial assistant text without showing an error fallback.

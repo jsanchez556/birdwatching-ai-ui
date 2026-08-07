@@ -1,6 +1,6 @@
+import { useMemo } from 'react'
 import BirdHighlights from '../components/home/BirdHighlights'
 import BillingReturnNotice from '../components/home/BillingReturnNotice'
-import ChatbotCTA from '../components/home/ChatbotCTA'
 import CookieConsent from '../components/home/CookieConsent'
 import FeaturedTours from '../components/home/FeaturedTours'
 import FloatingActions from '../components/home/FloatingActions'
@@ -9,6 +9,20 @@ import HeroSection from '../components/home/HeroSection'
 import LoginCTA from '../components/home/LoginCTA'
 import TransportationSection from '../components/home/TransportationSection'
 import useHomeContent from '../hooks/useHomeContent'
+
+export function applyTourImageUpdates(tours, tourImageUpdates) {
+  return tours.map((tour) => {
+    const tourId = String(tour.id || tour.tourId || '')
+    const imageUpdate = tourImageUpdates[tourId]
+    if (!imageUpdate?.imagePath || !imageUpdate?.url) return tour
+    return {
+      ...tour,
+      imagePath: imageUpdate.imagePath || tour.imagePath || null,
+      portraitUrl: imageUpdate.url,
+      portraitVersion: imageUpdate.version || null,
+    }
+  })
+}
 
 function HomePage({
   agentBookingEnabled = true,
@@ -31,6 +45,7 @@ function HomePage({
   onOpenCart,
   onOpenAdmin,
   onOpenMyTours,
+  onOpenBookings,
   onLogin,
   onManageBilling,
   onDismissBillingReturn,
@@ -41,7 +56,7 @@ function HomePage({
   removingTourIds = [],
   onReserveTour,
   reservingTourIds = [],
-  onStartChat,
+  tourImageUpdates = {},
   user,
 }) {
   const {
@@ -51,7 +66,12 @@ function HomePage({
     hero,
     isLoading,
     error,
+    retry,
   } = useHomeContent()
+  const toursWithCurrentImages = useMemo(
+    () => applyTourImageUpdates(tours, tourImageUpdates),
+    [tourImageUpdates, tours],
+  )
 
   return (
     <main id="home" className="home-page">
@@ -72,7 +92,7 @@ function HomePage({
         onOpenCart={onOpenCart}
         onOpenAdmin={onOpenAdmin}
         onOpenMyTours={onOpenMyTours}
-        onStartChat={onStartChat}
+        onOpenBookings={onOpenBookings}
         onManageBilling={onManageBilling}
         onUpdateProfile={onUpdateProfile}
         onUpdateProfileImage={onUpdateProfileImage}
@@ -82,7 +102,6 @@ function HomePage({
       <HeroSection
         heroVideo={hero?.heroVideo}
         onAuthAction={onAuthAction || onLogin}
-        onStartChat={onStartChat}
         showLoginCta={!isAuthenticated}
       />
       <FeaturedTours
@@ -94,18 +113,18 @@ function HomePage({
         isCartEnabled={isCartEnabled}
         removingTourIds={removingTourIds}
         reservingTourIds={reservingTourIds}
-        tours={tours}
+        tours={toursWithCurrentImages}
         isLoading={isLoading}
         error={error}
+        onRetry={retry}
         onAddToCart={onAddTourToCart}
         onRemoveFromCart={onRemoveTourFromCart}
         onReserveTour={onReserveTour}
       />
       <BirdHighlights birds={birds} isLoading={isLoading} error={error} />
       <TransportationSection options={transportation} isLoading={isLoading} error={error} />
-      <ChatbotCTA onStartChat={onStartChat} />
       {!isAuthenticated && <LoginCTA onLogin={onLogin} />}
-      <FloatingActions onStartChat={onStartChat} />
+      <FloatingActions />
       <CookieConsent />
     </main>
   )
