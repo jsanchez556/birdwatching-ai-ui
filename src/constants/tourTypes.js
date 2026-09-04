@@ -1,5 +1,12 @@
 export const TOUR_TYPES = Object.freeze([
-  'Birdwatching', 'Day walk', 'Night walk', 'Parks', 'Other',
+  'Birdwatching',
+  'Day walk',
+  'Night walk',
+  'Day & Night Walk',
+  'Adventure',
+  'Excursion',
+  'Transfer',
+  'Other',
 ])
 
 export const DEFAULT_TOUR_TYPE = TOUR_TYPES[0]

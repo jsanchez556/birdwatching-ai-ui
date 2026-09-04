@@ -16,6 +16,8 @@
   --text-muted: #69746e;
   --brand: #28734d;
   --brand-strong: #195a3a;
+  --danger: #9a3412;
+  --danger-soft: #fff1eb;
   --user-bubble: #206a48;
   --assistant-bubble: #ffffff;
   --shadow-soft: 0 20px 70px rgba(27, 38, 31, 0.1);
@@ -40,6 +42,8 @@
     --text-muted: #a3aea7;
     --brand: #69c792;
     --brand-strong: #8cdeb0;
+    --danger: #ffb49a;
+    --danger-soft: #352019;
     --user-bubble: #2f8b60;
     --assistant-bubble: #1b231e;
     --shadow-soft: 0 20px 70px rgba(0, 0, 0, 0.32);
@@ -505,4 +509,3 @@ button {
   white-space: nowrap;
   border: 0;
 }
-

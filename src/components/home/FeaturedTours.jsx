@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { loadBirdProfile } from '../../api/homeApi'
 import BirdMediaCard from '../BirdMediaCard'
 import { useResolvedMedia } from '../../hooks/useResolvedMediaUrl'
-import { displayTourType, TOUR_TYPES } from '../../constants/tourTypes'
+import { displayTourType } from '../../constants/tourTypes'
 import { appendMediaVersion } from '../../api/mediaApi'
 import { formatTourDuration } from '../../utils/tourDuration'
 
-const TOURS_PER_PAGE = 3
+const TOURS_PER_PAGE = 4
+const AUTO_PAGINATION_INTERVAL_MS = 15000
 const TOUR_IMAGE_PATH_PATTERN = /^tours\/(?:[1-9]\d*(?:\.png)?|[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.png)$/
 
 function getTourPortraitReference(tour) {
@@ -220,75 +221,20 @@ function RemoveFromCartIcon() {
   )
 }
 
-function MetadataIcon({ type }) {
-  const commonProps = {
-    className: 'tour-card-overlay-icon',
-    viewBox: '0 0 24 24',
-    'aria-hidden': 'true',
-    focusable: 'false',
-  }
-
-  if (type === 'duration') {
-    return (
-      <svg {...commonProps}>
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 7v5l3 2" />
-      </svg>
-    )
-  }
-
-  if (type === 'difficulty') {
-    return (
-      <svg {...commonProps}>
-        <path d="M5 20V10" />
-        <path d="M12 20V5" />
-        <path d="M19 20v-8" />
-      </svg>
-    )
-  }
-
-  if (type === 'price') {
-    return (
-      <svg {...commonProps}>
-        <path d="M12 3v18" />
-        <path d="M17 7.5c0-1.7-2.1-3-4.7-3S7 5.8 7 7.9c0 1.9 1.5 2.9 5 3.6 3.6.8 5 1.8 5 3.7 0 2.1-2.3 3.4-5.1 3.4S7 17.2 7 15.3" />
-      </svg>
-    )
-  }
-
-  return (
-    <svg {...commonProps}>
-      <path d="M12 21s7-6.1 7-12a7 7 0 0 0-14 0c0 5.9 7 12 7 12Z" />
-      <circle cx="12" cy="9" r="2.5" />
-    </svg>
-  )
-}
-
-function TourImageOverlay({ tour }) {
-  const tourName = tour.name || tour.title
+function TourImageOverlay({ titleId, tour }) {
+  const tourName = tour.name || tour.title || 'Featured tour'
   const price = formatPrice(tour.pricePerPerson)
-  const overlayItems = [
-    { key: 'node', icon: 'location', label: 'Location', value: formatTourNode(tour) },
-    { key: 'duration', icon: 'duration', label: 'Duration', value: formatTourDuration(tour) },
-    { key: 'difficulty', icon: 'difficulty', label: 'Difficulty', value: tour.difficulty },
-    { key: 'price', icon: 'price', label: 'Price', value: price ? `From ${price}` : null },
-  ]
 
   return (
     <div className="tour-card-overlay" aria-label="Tour summary">
-      <span className="tour-type-badge">{displayTourType(tour.type)}</span>
-      <p className="tour-card-overlay-title">{tourName}</p>
-      <dl className="tour-card-overlay-meta">
-        {overlayItems.map((item) => (
-          <div className="tour-card-overlay-row" key={item.key}>
-            <dt className="sr-only">{item.label}</dt>
-            <dd>
-              <MetadataIcon type={item.icon} />
-              <span>{item.value || 'Not specified'}</span>
-            </dd>
-          </div>
-        ))}
-      </dl>
+      {tour.type && <span className="tour-type-badge">{displayTourType(tour.type)}</span>}
+      <h3 id={titleId} className="tour-card-overlay-title">{tourName}</h3>
+      {price && (
+        <p className="tour-card-overlay-price">
+          <strong>{price}</strong>
+          <span> / person</span>
+        </p>
+      )}
     </div>
   )
 }
@@ -326,14 +272,11 @@ function TourCard({
   isReserving = false,
   onRemoveFromCart,
   onAddToCart,
-  onOpenBird,
+  onMoreInfo,
   onReserveTour,
   tour,
 }) {
-  const price = formatPrice(tour.pricePerPerson)
-  const dates = formatTourDates(tour)
-  const isScheduled = tour.tourType === 'scheduled'
-  const birds = Array.isArray(tour.birds) ? tour.birds.filter((bird) => bird?.name).slice(0, 3) : []
+  const titleId = useId()
   const [portraitFailed, setPortraitFailed] = useState(false)
   const portraitReference = getTourPortraitReference(tour)
   const portraitMedia = useResolvedMedia(portraitReference)
@@ -358,7 +301,7 @@ function TourCard({
   }, [portraitReference])
 
   return (
-    <article className="home-card tour-card">
+    <article className="home-card tour-card" aria-labelledby={titleId}>
       <div
         className="tour-card-image-shell"
         aria-label={`${tourName} image and summary`}
@@ -379,46 +322,10 @@ function TourCard({
         ) : (
           <div className="home-card-image" aria-hidden="true" />
         )}
-        <TourImageOverlay tour={tour} />
+        <TourImageOverlay titleId={titleId} tour={tour} />
       </div>
       <div className="home-card-body">
         {tour.description && <p className="tour-card-description">{tour.description}</p>}
-        {isScheduled && <dl className="home-card-facts">
-          <div>
-            <dt>Availability</dt>
-            <dd>{Number(tour.availableSlots) > 0 ? `${tour.availableSlots} places available` : 'Ask about availability'}</dd>
-          </div>
-          {dates && (
-            <div>
-              <dt>Dates</dt>
-              <dd>{dates}</dd>
-            </div>
-          )}
-        </dl>}
-        {birds.length > 0 && (
-          <p className="tour-card-birds">
-            <span className="tour-card-birds-label">Key birds</span>
-            <span className="tour-card-bird-list">
-              {birds.map((bird, index) => {
-                const birdName = getBirdName(bird)
-
-                return (
-                  <span className="tour-card-bird-item" key={`${birdName}-${index}`}>
-                    {index > 0 && <span className="tour-card-bird-separator">, </span>}
-                    <button
-                      className="tour-card-bird-button"
-                      type="button"
-                      aria-label={`Open ${birdName} details`}
-                      onClick={(event) => onOpenBird(bird, event.currentTarget)}
-                    >
-                      {birdName}
-                    </button>
-                  </span>
-                )
-              })}
-            </span>
-          </p>
-        )}
         <div className="tour-card-actions">
           <button
             type="button"
@@ -454,9 +361,107 @@ function TourCard({
               <ReserveTourIcon />
               <span>{!agentBookingEnabled ? 'Booking unavailable' : isReserving ? 'Preparing...' : 'Book Tour'}</span>
             </button>
+          <button
+            type="button"
+            className="tour-card-action tour-more-info-action"
+            aria-label={`More information about ${tourName}`}
+            onClick={(event) => onMoreInfo?.(tour, event.currentTarget)}
+          >
+            More Info
+          </button>
         </div>
       </div>
     </article>
+  )
+}
+
+function TourDetailsDialog({ closeButtonRef, dialogRef, onClose, onOpenBird, tour }) {
+  const tourName = tour.name || tour.title || 'Featured tour'
+  const dates = formatTourDates(tour)
+  const price = formatPrice(tour.pricePerPerson)
+  const location = formatTourLocation(tour)
+  const tourArea = formatTourNode(tour)
+  const duration = formatTourDuration(tour)
+  const birds = Array.isArray(tour.birds) ? tour.birds.filter(Boolean) : []
+  const details = [
+    { label: 'Tour type', value: tour.type ? displayTourType(tour.type) : null },
+    { label: 'Location', value: location },
+    { label: 'Tour area', value: tourArea && tourArea !== location ? tourArea : null },
+    { label: 'Duration', value: duration },
+    { label: 'Difficulty', value: tour.difficulty },
+    { label: 'Price per person', value: price },
+    { label: 'Dates', value: dates },
+    {
+      label: 'Availability',
+      value: tour.availableSlots === null || tour.availableSlots === undefined
+        ? null
+        : `${tour.availableSlots} places available`,
+    },
+    {
+      label: 'Maximum participants',
+      value: tour.maxParticipants === null || tour.maxParticipants === undefined
+        ? null
+        : String(tour.maxParticipants),
+    },
+  ].filter((detail) => detail.value)
+
+  return createPortal(
+    <div className="bird-modal-backdrop" role="presentation" onClick={onClose}>
+      <section
+        ref={dialogRef}
+        className="tour-details-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tour-details-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          ref={closeButtonRef}
+          className="bird-modal-close"
+          type="button"
+          aria-label="Close tour details"
+          onClick={onClose}
+        >
+          x
+        </button>
+        <div className="tour-details-heading">
+          {tour.type && <span className="tour-type-badge">{displayTourType(tour.type)}</span>}
+          <h2 id="tour-details-title">{tourName}</h2>
+          {tour.description && <p>{tour.description}</p>}
+        </div>
+        {details.length > 0 && (
+          <dl className="tour-details-list">
+            {details.map((detail) => (
+              <div key={detail.label}>
+                <dt>{detail.label}</dt>
+                <dd>{detail.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        {birds.length > 0 && (
+          <div className="tour-details-birds">
+            <h3>Key birds</h3>
+            <div>
+              {birds.map((bird, index) => {
+                const birdName = getBirdName(bird)
+                return (
+                  <button
+                    key={`${birdName}-${index}`}
+                    type="button"
+                    aria-label={`Open ${birdName} details`}
+                    onClick={(event) => onOpenBird(bird, event.currentTarget)}
+                  >
+                    {birdName}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </section>
+    </div>,
+    document.body,
   )
 }
 
@@ -476,24 +481,42 @@ function FeaturedTours({
   onRetry,
   onReserveTour,
 }) {
-  const [carouselIndexes, setCarouselIndexes] = useState({})
+  const [currentPageIndex, setCurrentPageIndex] = useState(0)
   const [birdModal, setBirdModal] = useState(null)
+  const [tourDetails, setTourDetails] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedType, setSelectedType] = useState('All')
-  const closeButtonRef = useRef(null)
-  const openerRef = useRef(null)
+  const [paginationDirection, setPaginationDirection] = useState('next')
+  const [isAutoPaginationPaused, setIsAutoPaginationPaused] = useState(false)
+  const [isPointerWithinTours, setIsPointerWithinTours] = useState(false)
+  const [isFocusWithinTours, setIsFocusWithinTours] = useState(false)
+  const birdCloseButtonRef = useRef(null)
+  const birdOpenerRef = useRef(null)
+  const tourDetailsCloseButtonRef = useRef(null)
+  const tourDetailsDialogRef = useRef(null)
+  const tourDetailsOpenerRef = useRef(null)
   const birdRequestIdRef = useRef(0)
   const filteredTours = useMemo(() => tours.filter((tour) => (
     isTourEligible(tour)
-    && (selectedType === 'All' || displayTourType(tour.type) === selectedType)
     && matchesApproximateSearch(tour, searchQuery)
-  )), [searchQuery, selectedType, tours])
+  )), [searchQuery, tours])
   const tourGroups = useMemo(() => groupToursByZone(filteredTours), [filteredTours])
+  const orderedTours = useMemo(() => tourGroups.flatMap((group) => group.tours), [tourGroups])
+  const pageCount = Math.ceil(orderedTours.length / TOURS_PER_PAGE)
+  const lastPageIndex = Math.max((pageCount - 1) * TOURS_PER_PAGE, 0)
+  const safePageIndex = Math.min(currentPageIndex, lastPageIndex)
+  const visibleTours = useMemo(() => {
+    const visibleTourCount = Math.min(TOURS_PER_PAGE, orderedTours.length)
+
+    return Array.from({ length: visibleTourCount }, (_, offset) => (
+      orderedTours[(safePageIndex + offset) % orderedTours.length]
+    ))
+  }, [orderedTours, safePageIndex])
   const addedTourIdSet = useMemo(() => new Set(addedTourIds.map(String)), [addedTourIds])
   const addingTourIdSet = useMemo(() => new Set(addingTourIds.map(String)), [addingTourIds])
   const removingTourIdSet = useMemo(() => new Set(removingTourIds.map(String)), [removingTourIds])
   const reservingTourIdSet = useMemo(() => new Set(reservingTourIds.map(String)), [reservingTourIds])
   const isBirdModalOpen = Boolean(birdModal)
+  const isTourDetailsOpen = Boolean(tourDetails)
 
   const closeBirdModal = () => {
     birdRequestIdRef.current += 1
@@ -504,7 +527,7 @@ function FeaturedTours({
     const birdName = getBirdName(bird)
     const requestId = birdRequestIdRef.current + 1
     birdRequestIdRef.current = requestId
-    openerRef.current = opener
+    birdOpenerRef.current = opener
     setBirdModal({
       bird: null,
       error: null,
@@ -538,73 +561,141 @@ function FeaturedTours({
     }
   }
 
-  function moveCarousel(zone, direction, tourCount) {
-    setCarouselIndexes((currentIndexes) => {
-      const currentIndex = currentIndexes[zone] || 0
-      const maxIndex = Math.max(tourCount - TOURS_PER_PAGE, 0)
-      const nextIndex = Math.min(Math.max(currentIndex + direction, 0), maxIndex)
+  const closeTourDetails = () => {
+    setTourDetails(null)
+  }
 
-      return {
-        ...currentIndexes,
-        [zone]: nextIndex,
-      }
+  const openTourDetails = (tour, opener) => {
+    tourDetailsOpenerRef.current = opener
+    setTourDetails(tour)
+  }
+
+  function movePagination(direction) {
+    setPaginationDirection(direction > 0 ? 'next' : 'previous')
+    setCurrentPageIndex((currentIndex) => {
+      if (pageCount <= 1) return 0
+
+      const currentPage = Math.floor(currentIndex / TOURS_PER_PAGE)
+      const nextPage = (currentPage + direction + pageCount) % pageCount
+      return nextPage * TOURS_PER_PAGE
     })
   }
 
   useEffect(() => {
+    setCurrentPageIndex(0)
+  }, [searchQuery])
+
+  useEffect(() => {
+    if (currentPageIndex > lastPageIndex) setCurrentPageIndex(lastPageIndex)
+  }, [currentPageIndex, lastPageIndex])
+
+  useEffect(() => {
+    const canAutoPaginate = orderedTours.length > TOURS_PER_PAGE
+      && !isAutoPaginationPaused
+      && !isPointerWithinTours
+      && !isFocusWithinTours
+      && !isBirdModalOpen
+      && !isTourDetailsOpen
+
+    if (!canAutoPaginate) return undefined
+
+    const timeoutId = window.setTimeout(() => {
+      setPaginationDirection('next')
+      setCurrentPageIndex((currentIndex) => {
+        const currentPage = Math.floor(currentIndex / TOURS_PER_PAGE)
+        return ((currentPage + 1) % pageCount) * TOURS_PER_PAGE
+      })
+    }, AUTO_PAGINATION_INTERVAL_MS)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [
+    isAutoPaginationPaused,
+    isBirdModalOpen,
+    isFocusWithinTours,
+    isPointerWithinTours,
+    isTourDetailsOpen,
+    lastPageIndex,
+    orderedTours.length,
+    pageCount,
+    safePageIndex,
+  ])
+
+  useEffect(() => {
     if (!isBirdModalOpen) return undefined
+
+    birdCloseButtonRef.current?.focus()
+
+    return () => {
+      birdOpenerRef.current?.focus()
+    }
+  }, [isBirdModalOpen])
+
+  useEffect(() => {
+    if (!isTourDetailsOpen) return undefined
+
+    tourDetailsCloseButtonRef.current?.focus()
+
+    return () => {
+      tourDetailsOpenerRef.current?.focus()
+    }
+  }, [isTourDetailsOpen])
+
+  useEffect(() => {
+    if (!isBirdModalOpen && !isTourDetailsOpen) return undefined
 
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
-        closeBirdModal()
+        if (isBirdModalOpen) closeBirdModal()
+        else closeTourDetails()
+      }
+
+      if (event.key === 'Tab' && isTourDetailsOpen && !isBirdModalOpen) {
+        const focusableElements = tourDetailsDialogRef.current?.querySelectorAll(
+          'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+        )
+        const firstElement = focusableElements?.[0]
+        const lastElement = focusableElements?.[focusableElements.length - 1]
+
+        if (!firstElement || !lastElement) {
+          event.preventDefault()
+        } else if (event.shiftKey && document.activeElement === firstElement) {
+          event.preventDefault()
+          lastElement.focus()
+        } else if (!event.shiftKey && document.activeElement === lastElement) {
+          event.preventDefault()
+          firstElement.focus()
+        }
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
-    closeButtonRef.current?.focus()
     document.body.classList.add('has-open-modal')
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       document.body.classList.remove('has-open-modal')
-      openerRef.current?.focus()
     }
-  }, [isBirdModalOpen])
+  }, [isBirdModalOpen, isTourDetailsOpen])
 
   return (
     <>
-      <section id="featured-tours" className="home-section" aria-labelledby="featured-tours-title">
+      <section
+        id="featured-tours"
+        className="home-section"
+        aria-labelledby="featured-tours-title"
+      >
         <div className="home-section-heading">
           <p className="home-kicker">Curated nature experiences</p>
           <h2 id="featured-tours-title">Choose how you want to explore</h2>
           <p>From dawn birding to night trails and national parks, find a guided experience that fits your pace.</p>
         </div>
         {!isLoading && !error && tours.length > 0 && (
-          <>
-            <div className="tour-type-navigation" role="group" aria-label="Filter tours by activity type">
-              {['All', ...TOUR_TYPES].map((type) => {
-                const isSelected = selectedType === type
-
-                return (
-                  <button
-                    key={type}
-                    type="button"
-                    aria-pressed={isSelected}
-                    className={isSelected ? 'is-active' : ''}
-                    onClick={() => setSelectedType(type)}
-                  >
-                    {type}
-                  </button>
-                )
-              })}
-            </div>
-            <form className="tour-search" role="search" aria-label="Search tours" onSubmit={(event) => event.preventDefault()}>
-              <label>
-                <span>Search tours</span>
-                <input type="search" value={searchQuery} placeholder="Activity, destination, wildlife…" onChange={(event) => setSearchQuery(event.target.value)} />
-              </label>
-            </form>
-          </>
+          <form className="tour-search" role="search" aria-label="Search tours" onSubmit={(event) => event.preventDefault()}>
+            <label>
+              <span>Search tours</span>
+              <input type="search" value={searchQuery} placeholder="Activity, destination, wildlife…" onChange={(event) => setSearchQuery(event.target.value)} />
+            </label>
+          </form>
         )}
         {isLoading && <p className="home-status" role="status">Loading featured tours...</p>}
         {error && (
@@ -619,65 +710,83 @@ function FeaturedTours({
         {!isLoading && !error && tours.length > 0 && filteredTours.length === 0 && (
           <div className="home-status" role="status">
             <p>No eligible tours match your search.</p>
-            <button type="button" onClick={() => { setSearchQuery(''); setSelectedType('All') }}>Clear search and filters</button>
+            <button type="button" onClick={() => setSearchQuery('')}>Clear search</button>
           </div>
         )}
-        {!isLoading && !error && tourGroups.map(({ zone, tours: zoneTours }) => {
-          const currentIndex = Math.min(
-            carouselIndexes[zone] || 0,
-            Math.max(zoneTours.length - TOURS_PER_PAGE, 0),
-          )
-          const visibleTours = zoneTours.slice(currentIndex, currentIndex + TOURS_PER_PAGE)
-          const hasMultiplePages = zoneTours.length > TOURS_PER_PAGE
-
-          return (
-            <div className="tour-zone-carousel" key={zone}>
-              <div className="tour-zone-header">
-                <h3>{zone}</h3>
-                {hasMultiplePages && (
-                  <div className="tour-carousel-controls">
-                    <button
-                      type="button"
-                      aria-label={`Show previous ${zone} tours`}
-                      disabled={currentIndex === 0}
-                      onClick={() => moveCarousel(zone, -1, zoneTours.length)}
-                    >
-                      <span aria-hidden="true">&lsaquo;</span>
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Show next ${zone} tours`}
-                      disabled={currentIndex >= zoneTours.length - TOURS_PER_PAGE}
-                      onClick={() => moveCarousel(zone, 1, zoneTours.length)}
-                    >
-                      <span aria-hidden="true">&rsaquo;</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div className="home-card-grid tour-card-grid">
-                {visibleTours.map((tour) => (
-                  <TourCard
-                    isAdded={addedTourIdSet.has(String(getTourId(tour)))}
-                    isAdding={addingTourIdSet.has(String(getTourId(tour)))}
-                    isCartEnabled={isCartEnabled}
-                    isRemoving={removingTourIdSet.has(String(getTourId(tour)))}
-                    isReserving={reservingTourIdSet.has(String(getTourId(tour)))}
-                    onAddToCart={onAddToCart}
-                    onRemoveFromCart={onRemoveFromCart}
-                    onReserveTour={onReserveTour}
-                    agentBookingEnabled={agentBookingEnabled}
-                    bookingUnavailableMessage={bookingUnavailableMessage}
-                    tour={tour}
-                    onOpenBird={openBirdModal}
-                    key={getTourKey(tour)}
-                  />
-                ))}
-              </div>
-            </div>
-          )
-        })}
+        {!isLoading && !error && orderedTours.length > TOURS_PER_PAGE && (
+          <nav className="tour-pagination" aria-label="Tour pagination">
+            <button
+              type="button"
+              className="tour-pagination-autoplay"
+              aria-label={isAutoPaginationPaused
+                ? 'Resume automatic tour pagination'
+                : 'Pause automatic tour pagination'}
+              aria-pressed={isAutoPaginationPaused}
+              onClick={() => setIsAutoPaginationPaused((isPaused) => !isPaused)}
+            >
+              {isAutoPaginationPaused ? 'Play' : 'Pause'}
+            </button>
+            <button
+              type="button"
+              aria-label={`Show previous ${TOURS_PER_PAGE} tours`}
+              onClick={() => movePagination(-1)}
+            >
+              <span aria-hidden="true">&lsaquo;</span>
+            </button>
+            <span aria-live="polite">
+              Page {Math.floor(safePageIndex / TOURS_PER_PAGE) + 1} of{' '}
+              {pageCount}
+            </span>
+            <button
+              type="button"
+              aria-label={`Show next ${TOURS_PER_PAGE} tours`}
+              onClick={() => movePagination(1)}
+            >
+              <span aria-hidden="true">&rsaquo;</span>
+            </button>
+          </nav>
+        )}
+        {!isLoading && !error && visibleTours.length > 0 && (
+          <div
+            key={`${searchQuery}-${safePageIndex}`}
+            className={`home-card-grid tour-card-grid tour-page-enter-${paginationDirection}`}
+            onMouseEnter={() => setIsPointerWithinTours(true)}
+            onMouseLeave={() => setIsPointerWithinTours(false)}
+            onFocusCapture={() => setIsFocusWithinTours(true)}
+            onBlurCapture={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) setIsFocusWithinTours(false)
+            }}
+          >
+            {visibleTours.map((tour) => (
+              <TourCard
+                isAdded={addedTourIdSet.has(String(getTourId(tour)))}
+                isAdding={addingTourIdSet.has(String(getTourId(tour)))}
+                isCartEnabled={isCartEnabled}
+                isRemoving={removingTourIdSet.has(String(getTourId(tour)))}
+                isReserving={reservingTourIdSet.has(String(getTourId(tour)))}
+                onAddToCart={onAddToCart}
+                onRemoveFromCart={onRemoveFromCart}
+                onReserveTour={onReserveTour}
+                onMoreInfo={openTourDetails}
+                agentBookingEnabled={agentBookingEnabled}
+                bookingUnavailableMessage={bookingUnavailableMessage}
+                tour={tour}
+                key={getTourKey(tour)}
+              />
+            ))}
+          </div>
+        )}
       </section>
+
+      {tourDetails && (
+        <TourDetailsDialog
+          closeButtonRef={tourDetailsCloseButtonRef}
+          dialogRef={tourDetailsDialogRef}
+          onClose={closeTourDetails}
+          onOpenBird={openBirdModal}
+          tour={tourDetails}
+        />
+      )}
 
       {birdModal && createPortal(
         <div
@@ -693,7 +802,7 @@ function FeaturedTours({
             onClick={(event) => event.stopPropagation()}
           >
             <button
-              ref={closeButtonRef}
+              ref={birdCloseButtonRef}
               className="bird-modal-close"
               type="button"
               aria-label="Close bird details"

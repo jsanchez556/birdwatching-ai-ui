@@ -45,7 +45,7 @@ Browser loads index.html
   -> src/main.jsx mounts <App />
   -> useProductShell selects the active internal surface and coordinates cross-surface actions
   -> App renders HomePage as the first entry point
-  -> Homepage loads public tours, bird highlights, and transportation content
+  -> Homepage loads public tours, bird highlights, and transfer content
   -> Chat CTAs open the existing authenticated or visitor chat flow
   -> Login CTAs open the existing auth flow
   -> useChat initializes conversation state
@@ -64,7 +64,7 @@ Browser loads index.html
 
 Bird identification follows the homepage surface:
 ```text
-Authenticated HomeHeader Identify Bird action
+Authenticated HomeHeader Identify Species action
   -> App opens BirdIdentificationModal
   -> user pastes an image URL, uploads a photo, or uses the mobile camera file input
   -> useBirdIdentification validates local input and loading/error state
@@ -202,21 +202,21 @@ initial center/zoom from the default country record. The same config validates
 the provider-supported zoom range and supplies the Costa Rica fallback (`9.75`,
 `-84.2`, zoom `7`) for incomplete or invalid country data. Existing node markers
 and selected place-search results replace the initial center with a focused view.
-Tile placement, marker rendering, pointer selection, panning, and zoom anchoring
-share Web Mercator world-pixel transforms so responsive resizing and gesture
-history cannot introduce coordinate drift. Explicit browser-geolocation and map
-placement update only the active form, then use the authenticated maintenance
-adapter for reverse geocoding; drag/pan gestures do not perform lookups. The
-Node dialog checks secure-context and Geolocation API availability, observes
-the optional `geolocation` Permissions API state, and invokes
-`getCurrentPosition` only from the embedded location button. The centralized
-device-location policy requests high accuracy with no cached-position allowance,
-rejects missing/invalid accuracy, positions older than two minutes, and reported
-uncertainty above 1,000 m; accepted readings above 100 m are visibly approximate.
-The exact accepted latitude/longitude remain authoritative while reverse
+`src/hooks/useGoogleCoordinatePickerMap.js` renders the Google Maps JavaScript API
+(sharing the script loader in `src/config/googleMaps.js` with the transportation
+map) with a single draggable marker; native Google Maps controls own tile
+placement, panning, and zoom, so this layer only reports the coordinates from a
+map click or a completed marker drag. The "Find a place by name" field attaches
+Google Places Autocomplete (`src/hooks/useGooglePlaceAutocomplete.js`), restricted
+to the default country, the same as the transportation surface's pickup/drop-off
+inputs; selecting a suggestion reports its coordinates directly, without a manual
+search action or backend text-search round trip. Map placement and place
+selection update only the active form, then use the authenticated maintenance
+adapter for reverse geocoding; marker drags do not perform lookups until release.
+The exact selected latitude/longitude remain authoritative while reverse
 geocoding supplies only the readable label; labels whose provider coordinate is
 more than 25 km from the selection are rejected as mismatched. Monotonic selection/request IDs
-prevent late browser or reverse-provider callbacks from replacing a newer map
+prevent late reverse-provider callbacks from replacing a newer map
 or search selection.
 
 - AI Operations (default): compact Users, MRR, AI Cost, and Errors KPIs,

@@ -85,7 +85,7 @@ is never parsed to create recommendation fields.
   "conversationContext": {
     "selectedTourId": 16,
     "participants": 2,
-    "selectedTransportation": {
+    "selectedTransfer": {
       "id": 3,
       "name": "Private transfer"
     }
@@ -103,15 +103,15 @@ is never parsed to create recommendation fields.
 `conversationContext` is always an object; and `customerContext` is an object
 or `null`. `useChat` owns this state. Conversation context may contain
 conversation source/type, reservation entry, confirmed reservation, selected
-tour/transportation, and participant count. Customer context is kept separate
+tour/transfer, and participant count. Customer context is kept separate
 even when legacy storage embedded it in `meta`.
 
 Reservation intake may use one `reservation_details` UI action whose `fields`
 array contains only unresolved values. Supported field names are `date`,
-`participants`, `transportationRequired`, `pickupLocation`, `customerName`,
+`participants`, `transferRequired`, `pickupLocation`, `customerName`,
 `customerEmail`, `itineraryStartDate`, and `itineraryEndDate`. The UI submits
 all visible fields as one chat message and conditionally requires pickup when
-transportation is requested.
+transfer is requested.
 
 ## Normalized assistant response
 

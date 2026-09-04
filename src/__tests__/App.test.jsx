@@ -53,7 +53,7 @@ describe('App authentication flow', () => {
       hero: null,
       tours: [],
       birds: [],
-      transportation: [],
+      transfers: [],
       isLoading: false,
       error: null,
     })
@@ -95,12 +95,18 @@ describe('App authentication flow', () => {
     expect(screen.getAllByRole('button', { name: /^Login$/i }).length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: /Start Birdwatching Chat/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Start Birdwatching Chat/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Contact us on WhatsApp/i })).toHaveAttribute(
-      'href',
-      'https://wa.me/00000000000'
-    )
-    expect(useResolvedMediaUrl).toHaveBeenCalledWith('resources/wtsapp.png')
+    expect(screen.queryByRole('link', { name: /Contact us on WhatsApp/i })).not.toBeInTheDocument()
+    expect(useResolvedMediaUrl).not.toHaveBeenCalledWith('resources/wtsapp.png')
     expect(useResolvedMediaUrl).not.toHaveBeenCalledWith('resources/bwapp.png')
+    expect(screen.getAllByRole('contentinfo')).toHaveLength(1)
+    const transportSection = document.getElementById('transport')
+    const speciesHighlightsSection = document.getElementById('bird-highlights')
+    expect(transportSection).toBeInTheDocument()
+    expect(speciesHighlightsSection).toBeInTheDocument()
+    expect(
+      transportSection.compareDocumentPosition(speciesHighlightsSection)
+        & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
     expect(screen.queryByRole('heading', { name: /welcome back/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/Plan your birding chat/i)).not.toBeInTheDocument()
   })
@@ -215,14 +221,14 @@ describe('App authentication flow', () => {
     expect(screen.queryByText(/Checkout cancelled/i)).not.toBeInTheDocument()
   })
 
-  test('renders homepage hero video when content provides one', () => {
+  test('renders the resolved MP4 and poster as homepage hero media', () => {
     useHomeContent.mockReturnValue({
       hero: {
         heroVideo: 'https://www.youtube-nocookie.com/embed/example',
       },
       tours: [],
       birds: [],
-      transportation: [],
+      transfers: [],
       isLoading: false,
       error: null,
     })
@@ -238,20 +244,22 @@ describe('App authentication flow', () => {
 
     render(<App />)
 
-    const video = screen.getByTitle(/Rainforest canopy video background/i)
-    const videoSrc = new URL(video.getAttribute('src'))
+    const video = document.querySelector('video.home-hero-video')
+    const source = video.querySelector('source')
 
-    expect(videoSrc.origin).toBe('https://www.youtube-nocookie.com')
-    expect(videoSrc.pathname).toBe('/embed/example')
-    expect(videoSrc.searchParams.get('autoplay')).toBe('1')
-    expect(videoSrc.searchParams.get('controls')).toBe('0')
-    expect(videoSrc.searchParams.get('enablejsapi')).toBe('1')
-    expect(videoSrc.searchParams.get('loop')).toBe('1')
-    expect(videoSrc.searchParams.get('mute')).toBe('1')
-    expect(videoSrc.searchParams.get('playlist')).toBe('example')
+    expect(useResolvedMediaUrl).toHaveBeenCalledWith('resources/home-hero.mp4')
+    expect(useResolvedMediaUrl).toHaveBeenCalledWith('resources/poster.jpg')
+    expect(source).toHaveAttribute('src', 'https://example.test/resources/home-hero.mp4')
+    expect(source).toHaveAttribute('type', 'video/mp4')
+    expect(video).toHaveAttribute('poster', 'https://example.test/resources/poster.jpg')
+    expect(video.autoplay).toBe(true)
+    expect(video.muted).toBe(true)
+    expect(video.loop).toBe(true)
+    expect(video.playsInline).toBe(true)
+    expect(video).toHaveAttribute('preload', 'metadata')
   })
 
-  test('reveals hero content 15 seconds after the first video load only', () => {
+  test('reveals hero content 15 seconds after the MP4 can play', () => {
     jest.useFakeTimers()
     let unmount
 
@@ -262,7 +270,7 @@ describe('App authentication flow', () => {
         },
         tours: [],
         birds: [],
-        transportation: [],
+        transfers: [],
         isLoading: false,
         error: null,
       })
@@ -279,34 +287,14 @@ describe('App authentication flow', () => {
       const renderResult = render(<App />)
       unmount = renderResult.unmount
 
-      const video = screen.getByTitle(/Rainforest canopy video background/i)
-      const postMessage = jest.fn()
-      Object.defineProperty(video, 'contentWindow', {
-        configurable: true,
-        value: { postMessage },
-      })
-      const videoSrc = new URL(video.getAttribute('src'))
+      const video = document.querySelector('video.home-hero-video')
       const heroContent = screen
         .getByRole('heading', { name: /Find your way into the wild/i })
         .closest('.home-hero-content')
 
-      expect(videoSrc.searchParams.get('start')).toBe('54')
-      expect(videoSrc.searchParams.get('end')).toBe('84')
-      expect(videoSrc.searchParams.get('enablejsapi')).toBe('1')
-      expect(videoSrc.searchParams.get('loop')).toBe('1')
-      expect(videoSrc.searchParams.get('playlist')).toBe('example')
       expect(heroContent).toHaveClass('is-pending')
 
-      fireEvent.load(video)
-
-      expect(postMessage).toHaveBeenCalledWith(
-        JSON.stringify({
-          event: 'command',
-          func: 'seekTo',
-          args: [54, true],
-        }),
-        'https://www.youtube-nocookie.com'
-      )
+      fireEvent.canPlay(video)
 
       act(() => {
         jest.advanceTimersByTime(14999)
@@ -325,20 +313,7 @@ describe('App authentication flow', () => {
       })
 
       expect(heroContent).toHaveClass('is-visible')
-      expect(screen.getByTitle(/Rainforest canopy video background/i)).toBe(video)
-
-      act(() => {
-        jest.advanceTimersByTime(29750)
-      })
-
-      expect(postMessage).toHaveBeenCalledWith(
-        JSON.stringify({
-          event: 'command',
-          func: 'seekTo',
-          args: [54, true],
-        }),
-        'https://www.youtube-nocookie.com'
-      )
+      expect(document.querySelector('video.home-hero-video')).toBe(video)
     } finally {
       unmount?.()
       jest.useRealTimers()
@@ -541,7 +516,7 @@ describe('App authentication flow', () => {
       hero: null,
       tours: [featuredTour],
       birds: [],
-      transportation: [],
+      transfers: [],
       isLoading: false,
       error: null,
     })
@@ -613,7 +588,7 @@ describe('App authentication flow', () => {
       hero: null,
       tours: [featuredTour],
       birds: [],
-      transportation: [],
+      transfers: [],
       isLoading: false,
       error: null,
     })
@@ -686,7 +661,7 @@ describe('App authentication flow', () => {
       hero: null,
       tours: [featuredTour],
       birds: [],
-      transportation: [],
+      transfers: [],
       isLoading: false,
       error: null,
     })
@@ -756,7 +731,7 @@ describe('App authentication flow', () => {
       hero: null,
       tours: [featuredTour],
       birds: [],
-      transportation: [],
+      transfers: [],
       isLoading: false,
       error: null,
     })
@@ -829,7 +804,7 @@ describe('App authentication flow', () => {
       hero: null,
       tours: [featuredTour],
       birds: [],
-      transportation: [],
+      transfers: [],
       isLoading: false,
       error: null,
     })
@@ -871,7 +846,7 @@ describe('App authentication flow', () => {
       hero: null,
       tours: [featuredTour],
       birds: [],
-      transportation: [],
+      transfers: [],
       isLoading: false,
       error: null,
     })
@@ -970,7 +945,7 @@ describe('App authentication flow', () => {
       tourId: 27,
       scheduledDate: '2026-09-11',
       participants: 2,
-      needsTransportation: true,
+      needsTransfer: true,
       tour: {
         id: 27,
         name: 'Cart Canopy Tour',
@@ -1057,7 +1032,7 @@ describe('App authentication flow', () => {
             name: 'Cart Canopy Tour',
             scheduledDate: '2026-09-11',
             participants: 2,
-            needsTransportation: true,
+            needsTransfer: true,
           })],
         }),
       })

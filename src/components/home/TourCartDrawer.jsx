@@ -144,10 +144,10 @@ function TourCartDrawer({
                 <label className="cart-checkbox">
                   <input
                     type="checkbox"
-                    checked={item.needsTransportation === true}
-                    onChange={(event) => onUpdateItem(item.id, { needsTransportation: event.target.checked })}
+                    checked={item.needsTransfer === true}
+                    onChange={(event) => onUpdateItem(item.id, { needsTransfer: event.target.checked })}
                   />
-                  <span>Transportation</span>
+                  <span>Transfer</span>
                 </label>
                 <button type="button" className="cart-secondary-action" onClick={() => onRemoveItem(item.id)}>
                   Remove

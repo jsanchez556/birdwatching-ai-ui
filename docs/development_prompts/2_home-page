@@ -35,7 +35,7 @@ Suggested structure:
 - `src/components/home/HeroSection.jsx`
 - `src/components/home/FeaturedTours.jsx`
 - `src/components/home/BirdHighlights.jsx`
-- `src/components/home/TransportationSection.jsx`
+- `src/components/home/TransferSection.jsx`
 - `src/components/home/LoginCTA.jsx`
 - `src/components/home/CookieConsent.jsx`
 
@@ -55,14 +55,14 @@ The homepage must include:
    - Include title, short description, location/region if available, duration, and price if available.
    - Use placeholder images.
 
-3. **Bird Species Highlights**
+3. **Species Highlights**
    - Display a curated list of Costa Rica bird species.
    - Source the species list from the backend.
    - Backend may use an environment-configured list of bird names.
    - Keep display data simple: name, short description, and placeholder image.
 
-4. **Transportation Add-on Section**
-   - Show transportation options as add-ons for tours.
+4. **Transfer Add-on Section**
+   - Show transfer options options as add-ons for tours.
    - Analyze whether this should use the existing chat endpoint or a new backend endpoint.
    - Prefer a simple dedicated endpoint if it keeps the homepage predictable and cacheable.
    - Include basic fields such as title, description, route/coverage, and starting price if available.
@@ -98,13 +98,13 @@ In `birdwatching-ai-api`, add simple production-ready endpoints to support the h
    - Example: `GET /tours` or an existing route-aligned equivalent.
    - Return normalized JSON data suitable for frontend cards.
 
-2. Bird species highlights endpoint
+2. Species highlights endpoint
    - Example: `GET /birds/highlights`.
    - Source bird names from `.env` if appropriate.
    - Return simple highlight objects.
 
-3. Transportation add-ons endpoint
-   - Example: `GET /addons/transportation`.
+3. Transfer add-ons endpoint
+   - Example: `GET /addons/transfers`.
    - Return simple static or configured data.
 
 Use existing backend route/controller/service conventions. Keep data static/config-driven for now unless the project already has a database-backed pattern for these entities.

@@ -54,7 +54,7 @@ function MessageContent({ message, conversationContext, onAction, viewerRole }) 
   const reservation = message.role === 'assistant' && !message.isError
     ? normalizeReservationConfirmation(
       chatReservation || message.metadata?.reservation,
-      (shouldUseChatReservation ? conversationContext?.selectedTransportation : null) || message.metadata?.selectedTransportation
+      (shouldUseChatReservation ? conversationContext?.selectedTransfer : null) || message.metadata?.selectedTransfer
     )
       || extractReservationConfirmation(message.content)
     : null

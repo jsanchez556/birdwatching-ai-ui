@@ -300,6 +300,10 @@ export default function useProductShell() {
           setActiveSurface('my-tours')
         }
       }),
+      openTransport: () => {
+        setOpenOverlay(null)
+        setActiveSurface('transport')
+      },
       removeTourFromCart,
       recordTourImageUpdate,
       reserveCartItems,

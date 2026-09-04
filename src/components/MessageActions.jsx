@@ -5,8 +5,8 @@ function stringifyActionValue(value) {
     return value
   }
 
-  if (value?.transportationOption) {
-    const optionName = value.transportationOption.replaceAll('_', ' ')
+  if (value?.transferOption) {
+    const optionName = value.transferOption.replaceAll('_', ' ')
     const route = value.origin && value.destination
       ? ` from ${value.origin} to ${value.destination}`
       : ''
@@ -27,8 +27,8 @@ function actionMessage(action, option) {
     if (option.value === 'proceed_booking') return 'Proceed with booking'
     if (option.value === 'confirm_reservation') return 'Confirm reservation'
     if (option.value === 'cancel_reservation') return 'Cancel reservation'
-    if (option.value === 'show_transportation') return 'Show transportation'
-    if (option.value === 'decline_transportation') return 'No, I have my own transportation'
+    if (option.value === 'show_transfer') return 'Show transfer options'
+    if (option.value === 'decline_transfer') return 'No, I do not need a transfer'
     if (option.value === 'contact_agent') return 'I would like a human agent to contact me'
     if (option.value === 'decline') return 'No thanks'
   }
@@ -37,7 +37,7 @@ function actionMessage(action, option) {
 }
 
 function isReservationAction(action, option) {
-  if (['reservation_confirmation', 'reservation_details', 'participant_count', 'date_picker', 'transportation_selection'].includes(action.type)) {
+  if (['reservation_confirmation', 'reservation_details', 'participant_count', 'date_picker', 'transfer_selection'].includes(action.type)) {
     return true
   }
 
@@ -48,7 +48,7 @@ function isReservationAction(action, option) {
   return [
     'proceed_booking',
     'confirm_reservation',
-    'show_transportation',
+    'show_transfer',
   ].includes(option?.value)
 }
 
@@ -64,10 +64,10 @@ function reservationDetailsMessage(fields, values) {
     if (!value || !isVisibleReservationField(field, values)) return
     if (field.name === 'date') parts.push(`Date: ${value}.`)
     else if (field.name === 'participants') parts.push(`Participants: ${value}.`)
-    else if (field.name === 'transportationRequired') {
+    else if (field.name === 'transferRequired') {
       parts.push(value === 'true'
-        ? 'Transportation required: yes.'
-        : 'Transportation required: no; I have my own transportation.')
+        ? 'Transfer required: yes.'
+        : 'Transfer required: no; I have my own transfer.')
     } else if (field.name === 'pickupLocation') parts.push(`Pickup location: ${value}.`)
     else if (field.name === 'customerName') parts.push(`My name is ${value}.`)
     else if (field.name === 'customerEmail') parts.push(`My email is ${value}.`)

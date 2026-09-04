@@ -4,10 +4,12 @@ import BillingReturnNotice from '../components/home/BillingReturnNotice'
 import CookieConsent from '../components/home/CookieConsent'
 import FeaturedTours from '../components/home/FeaturedTours'
 import FloatingActions from '../components/home/FloatingActions'
+import FooterCTA from '../components/home/FooterCTA'
 import HomeHeader from '../components/home/HomeHeader'
 import HeroSection from '../components/home/HeroSection'
 import LoginCTA from '../components/home/LoginCTA'
-import TransportationSection from '../components/home/TransportationSection'
+import SiteFooter from '../components/home/SiteFooter'
+import TransportCTA from '../components/home/TransportCTA'
 import useHomeContent from '../hooks/useHomeContent'
 
 export function applyTourImageUpdates(tours, tourImageUpdates) {
@@ -46,6 +48,7 @@ function HomePage({
   onOpenAdmin,
   onOpenMyTours,
   onOpenBookings,
+  onOpenTransport,
   onLogin,
   onManageBilling,
   onDismissBillingReturn,
@@ -62,8 +65,6 @@ function HomePage({
   const {
     tours,
     birds,
-    transportation,
-    hero,
     isLoading,
     error,
     retry,
@@ -100,7 +101,6 @@ function HomePage({
         user={user}
       />
       <HeroSection
-        heroVideo={hero?.heroVideo}
         onAuthAction={onAuthAction || onLogin}
         showLoginCta={!isAuthenticated}
       />
@@ -121,9 +121,11 @@ function HomePage({
         onRemoveFromCart={onRemoveTourFromCart}
         onReserveTour={onReserveTour}
       />
+      <TransportCTA onOpen={onOpenTransport} />
       <BirdHighlights birds={birds} isLoading={isLoading} error={error} />
-      <TransportationSection options={transportation} isLoading={isLoading} error={error} />
       {!isAuthenticated && <LoginCTA onLogin={onLogin} />}
+      <FooterCTA />
+      <SiteFooter />
       <FloatingActions />
       <CookieConsent />
     </main>

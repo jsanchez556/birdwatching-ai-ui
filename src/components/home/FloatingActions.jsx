@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getSiteConfig } from '../../config/site'
 import { useResolvedMedia } from '../../hooks/useResolvedMediaUrl'
 
 const WHATSAPP_ICON_KEY = 'resources/wtsapp.png'
@@ -38,17 +39,17 @@ function FloatingActionIcon({ fallback, label, media }) {
   )
 }
 
-function FloatingActions() {
+function ConfiguredFloatingActions({ whatsapp }) {
   const whatsappIconMedia = useResolvedMedia(WHATSAPP_ICON_KEY)
 
   return (
     <div className="home-fab-group" aria-label="Quick actions">
       <a
         className="home-fab whatsapp-fab"
-        href="https://wa.me/00000000000"
+        href={whatsapp.href}
         aria-label="Contact us on WhatsApp"
         target="_blank"
-        rel="noreferrer"
+        rel="noopener noreferrer"
       >
         <FloatingActionIcon
           fallback="WA"
@@ -58,6 +59,11 @@ function FloatingActions() {
       </a>
     </div>
   )
+}
+
+function FloatingActions({ siteConfig = getSiteConfig() }) {
+  if (!siteConfig.whatsapp) return null
+  return <ConfiguredFloatingActions whatsapp={siteConfig.whatsapp} />
 }
 
 export default FloatingActions

@@ -52,7 +52,7 @@ describe('reservation entry normalization', () => {
       tourName: 'Carara Morning',
       scheduledDate: '2026-09-02',
       participants: 3,
-      needsTransportation: false,
+      needsTransfer: false,
     })
     const entry = buildReservationChatEntry({
       source: 'tour_cart',
@@ -71,7 +71,7 @@ describe('reservation entry normalization', () => {
       name: 'Carara Morning',
       scheduledDate: '2026-09-02',
       participants: 3,
-      needsTransportation: false,
+      needsTransfer: false,
     })
     expect(entry.id).toBe('tour_cart:5678:91')
     expect(entry.initialMessage).toBe('I would like to reserve 1 tour from my cart.')

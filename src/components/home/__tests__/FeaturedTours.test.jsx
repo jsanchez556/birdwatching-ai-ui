@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { clearMediaUrlCache } from '../../../api/mediaApi'
 import FeaturedTours from '../FeaturedTours'
 
@@ -79,6 +79,19 @@ function futureDate(days = 30) {
   const date = new Date()
   date.setUTCDate(date.getUTCDate() + days)
   return date.toISOString().slice(0, 10)
+}
+
+function makeTour(number, overrides = {}) {
+  return {
+    ...northZoneTours[0],
+    id: number,
+    rank: number,
+    name: `Tour ${number}`,
+    title: `Tour ${number}`,
+    portraitUrl: null,
+    birds: [],
+    ...overrides,
+  }
 }
 
 beforeEach(() => {
@@ -240,39 +253,34 @@ test('shows the image fallback after a portrait load error without retrying in a
   ))).toHaveLength(mediaRequestsBeforeFailure)
 })
 
-test('groups tours by zone and advances each zone carousel by one tour', async () => {
+test('fills each page circularly from the first tours', async () => {
   render(
     <FeaturedTours
       tours={[
         ...northZoneTours,
-        {
-          id: 5,
-          zone: 'Guanacaste',
-          zoneRank: 2,
-          rank: 1,
-          name: 'Palo Verde Dry Forest Tour',
-          title: 'Guanacaste Dry Forest Tour',
-          description: 'Dry forest birding.',
-          location: 'Palo Verde',
-          node: 'Palo Verde',
-          duration: '4 hours',
-          difficulty: 'Easy',
-          pricePerPerson: 115,
-          start_date: null,
-          end_date: null,
-          birds: [],
-        },
+        ...Array.from({ length: 2 }, (_, index) => makeTour(index + 5)),
       ]}
       isLoading={false}
       error={null}
     />
   )
 
-  expect(screen.getByRole('heading', { name: 'North Zone' })).toBeInTheDocument()
-  expect(screen.getByRole('heading', { name: 'Guanacaste' })).toBeInTheDocument()
+  expect(screen.getAllByRole('article')).toHaveLength(4)
+  expect(document.querySelector('.tour-card-grid')).toHaveClass('tour-page-enter-next')
   expect(screen.getByText('Miravalles Highland Birding Tour')).toBeInTheDocument()
-  expect(screen.queryByText('Boca Tapada Lowland Tour')).not.toBeInTheDocument()
+  expect(screen.getByText('Cano Negro Wetlands Tour')).toBeInTheDocument()
+  expect(screen.queryByText('Tour 5')).not.toBeInTheDocument()
   expect(screen.queryByText('Jan 10, 2026 to Jan 12, 2026')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /show previous 4 tours/i })).toBeEnabled()
+  expect(screen.getByRole('button', { name: /show next 4 tours/i })).toBeEnabled()
+  expect(screen.getByRole('button', { name: /pause automatic tour pagination/i })).toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', { name: /more information about first north tour/i }))
+  const tourDialog = screen.getByRole('dialog', { name: /miravalles highland birding tour/i })
+  expect(within(tourDialog).getByText('Bijagua')).toBeInTheDocument()
+  expect(within(tourDialog).getByText('4 hours')).toBeInTheDocument()
+  expect(within(tourDialog).getByText('Moderate')).toBeInTheDocument()
+  expect(within(tourDialog).getByText('$120')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: /open resplendent quetzal details/i }))
   expect(await screen.findByRole('dialog', { name: /resplendent quetzal details/i })).toBeInTheDocument()
   expect(await screen.findByText('Pharomachrus mocinno')).toBeInTheDocument()
@@ -282,13 +290,15 @@ test('groups tours by zone and advances each zone carousel by one tour', async (
   )
   fireEvent.click(screen.getByRole('button', { name: /close bird details/i }))
   expect(screen.queryByRole('dialog', { name: /resplendent quetzal details/i })).not.toBeInTheDocument()
+  expect(screen.getByRole('dialog', { name: /miravalles highland birding tour/i })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: /close tour details/i }))
 
   const firstTourSummary = screen.getAllByLabelText('Tour summary')[0]
   expect(within(firstTourSummary).getByText('Miravalles Highland Birding Tour')).toBeInTheDocument()
-  expect(within(firstTourSummary).getByText('Bijagua')).toBeInTheDocument()
-  expect(within(firstTourSummary).getByText('4 hours')).toBeInTheDocument()
-  expect(within(firstTourSummary).getByText('Moderate')).toBeInTheDocument()
-  expect(within(firstTourSummary).getByText('From $120')).toBeInTheDocument()
+  expect(within(firstTourSummary).getByText('$120')).toBeInTheDocument()
+  expect(within(firstTourSummary).getByText(/person/i)).toBeInTheDocument()
+  expect(within(firstTourSummary).queryByText('Bijagua')).not.toBeInTheDocument()
+  expect(within(firstTourSummary).queryByText('Moderate')).not.toBeInTheDocument()
   await waitFor(() => {
     expect(document.querySelector('img.home-card-image')).toHaveAttribute(
       'src',
@@ -297,10 +307,67 @@ test('groups tours by zone and advances each zone carousel by one tour', async (
   })
   expect(global.fetch).toHaveBeenCalledWith('/files/tours/1.png')
 
-  fireEvent.click(screen.getByRole('button', { name: /show next north zone tours/i }))
+  fireEvent.click(screen.getByRole('button', { name: /show next 4 tours/i }))
 
-  expect(screen.queryByText('Miravalles Highland Birding Tour')).not.toBeInTheDocument()
+  expect(screen.getByText('Tour 5')).toBeInTheDocument()
+  expect(screen.getByText('Tour 6')).toBeInTheDocument()
+  expect(screen.getByText('Miravalles Highland Birding Tour')).toBeInTheDocument()
+  expect(screen.getByText('Cano Negro Wetlands Tour')).toBeInTheDocument()
+  expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent))
+    .toEqual([
+      'Tour 5',
+      'Tour 6',
+      'Miravalles Highland Birding Tour',
+      'Cano Negro Wetlands Tour',
+    ])
+
+  fireEvent.click(screen.getByRole('button', { name: /show next 4 tours/i }))
+
+  expect(screen.getAllByRole('article')).toHaveLength(4)
   expect(screen.getByText('Boca Tapada Lowland Tour')).toBeInTheDocument()
+  expect(screen.queryByText('Tour 5')).not.toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', { name: /show previous 4 tours/i }))
+  expect(screen.getByText('Tour 5')).toBeInTheDocument()
+  expect(document.querySelector('.tour-card-grid')).toHaveClass('tour-page-enter-previous')
+})
+
+test('automatically paginates through every page and wraps to the first page', () => {
+  jest.useFakeTimers()
+
+  try {
+    render(<FeaturedTours
+      tours={Array.from({ length: 9 }, (_, index) => makeTour(index + 1))}
+      isLoading={false}
+      error={null}
+    />)
+
+    expect(screen.getByText('Tour 1')).toBeInTheDocument()
+    expect(screen.queryByText('Tour 9')).not.toBeInTheDocument()
+
+    act(() => jest.advanceTimersByTime(15000))
+    expect(screen.getByText('Tour 5')).toBeInTheDocument()
+    expect(screen.queryByText('Tour 1')).not.toBeInTheDocument()
+
+    act(() => jest.advanceTimersByTime(15000))
+    expect(screen.getByText('Tour 9')).toBeInTheDocument()
+
+    act(() => jest.advanceTimersByTime(15000))
+    expect(screen.getByText('Tour 1')).toBeInTheDocument()
+    expect(screen.queryByText('Tour 9')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /pause automatic tour pagination/i }))
+    expect(screen.getByRole('button', { name: /resume automatic tour pagination/i }))
+      .toHaveAttribute('aria-pressed', 'true')
+    act(() => jest.advanceTimersByTime(15000))
+    expect(screen.getByText('Tour 1')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /resume automatic tour pagination/i }))
+    act(() => jest.advanceTimersByTime(15000))
+    expect(screen.getByText('Tour 5')).toBeInTheDocument()
+  } finally {
+    jest.useRealTimers()
+  }
 })
 
 test('starts add-to-cart from a featured tour', () => {
@@ -343,6 +410,41 @@ test('renders Book Tour action for a featured tour', () => {
   fireEvent.click(screen.getByRole('button', { name: /book tour: first north tour/i }))
 
   expect(onReserveTour).toHaveBeenCalledWith(cartTour)
+})
+
+test('opens and dismisses More Info with focus restoration, Escape, and the backdrop', () => {
+  render(
+    <FeaturedTours
+      tours={[{ ...northZoneTours[0], portraitUrl: null }]}
+      isLoading={false}
+      error={null}
+    />
+  )
+
+  const moreInfoButton = screen.getByRole('button', { name: /more information about first north tour/i })
+  fireEvent.click(moreInfoButton)
+
+  const dialog = screen.getByRole('dialog', { name: /miravalles highland birding tour/i })
+  const closeButton = screen.getByRole('button', { name: /close tour details/i })
+  const birdButton = within(dialog).getByRole('button', { name: /open resplendent quetzal details/i })
+  expect(closeButton).toHaveFocus()
+  expect(within(dialog).getByText('Rainforest birding.')).toBeInTheDocument()
+  expect(within(dialog).getByText('4 hours')).toBeInTheDocument()
+
+  birdButton.focus()
+  fireEvent.keyDown(window, { key: 'Tab' })
+  expect(closeButton).toHaveFocus()
+  fireEvent.keyDown(window, { key: 'Tab', shiftKey: true })
+  expect(birdButton).toHaveFocus()
+
+  fireEvent.keyDown(window, { key: 'Escape' })
+  expect(screen.queryByRole('dialog', { name: /miravalles highland birding tour/i })).not.toBeInTheDocument()
+  expect(moreInfoButton).toHaveFocus()
+
+  fireEvent.click(moreInfoButton)
+  const reopenedDialog = screen.getByRole('dialog', { name: /miravalles highland birding tour/i })
+  fireEvent.click(reopenedDialog.parentElement)
+  expect(screen.queryByRole('dialog', { name: /miravalles highland birding tour/i })).not.toBeInTheDocument()
 })
 
 test('shows add-to-cart loading state and prevents duplicate clicks', () => {
@@ -441,25 +543,69 @@ test('supports approximate and accent-insensitive tour search without structured
   expect(document.querySelector('input[type="date"]')).not.toBeInTheDocument()
 })
 
-test('presents and filters the supported nature-tour categories', () => {
+test('shows every matching nature-tour category without type navigation', () => {
   render(<FeaturedTours tours={[
     { ...northZoneTours[0], id: 21, name: 'Quetzal Dawn', type: 'Birdwatching', availableSlots: 4 },
     { ...northZoneTours[0], id: 22, name: 'Forest After Dark', type: 'Night walk', availableSlots: 4 },
   ]} isLoading={false} error={null} />)
 
-  expect(screen.getByRole('group', { name: /filter tours by activity type/i })).toBeInTheDocument()
-  const allToursFilter = screen.getByRole('button', { name: 'All' })
-  const nightWalkFilter = screen.getByRole('button', { name: 'Night walk' })
-
-  expect(allToursFilter).toHaveAttribute('aria-pressed', 'true')
-  expect(nightWalkFilter).toHaveAttribute('aria-pressed', 'false')
-
-  fireEvent.click(nightWalkFilter)
-
-  expect(allToursFilter).toHaveAttribute('aria-pressed', 'false')
-  expect(nightWalkFilter).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.queryByRole('group', { name: /filter tours by activity type/i })).not.toBeInTheDocument()
   expect(screen.getByText('Forest After Dark')).toBeInTheDocument()
-  expect(screen.queryByText('Quetzal Dawn')).not.toBeInTheDocument()
+  expect(screen.getByText('Quetzal Dawn')).toBeInTheDocument()
+})
+
+test('resets pagination after changing the search query', () => {
+  const tours = [
+    ...Array.from({ length: 10 }, (_, index) => makeTour(index + 61, {
+      rank: index + 1,
+      name: `Night Tour ${index + 1}`,
+      title: `Night Tour ${index + 1}`,
+      type: 'Night walk',
+    })),
+    makeTour(71, { rank: 11, name: 'Birding Interlude', title: 'Birding Interlude', type: 'Birdwatching' }),
+  ]
+  render(<FeaturedTours tours={tours} isLoading={false} error={null} />)
+
+  fireEvent.click(screen.getByRole('button', { name: /show next 4 tours/i }))
+  expect(screen.getByText('Night Tour 5')).toBeInTheDocument()
+
+  fireEvent.change(screen.getByRole('searchbox', { name: /search tours/i }), {
+    target: { value: 'Night Tour' },
+  })
+  expect(screen.getByText('Night Tour 1')).toBeInTheDocument()
+  expect(screen.getByText('Night Tour 4')).toBeInTheDocument()
+  expect(screen.queryByText('Night Tour 5')).not.toBeInTheDocument()
+})
+
+test('continues automatic pagination after a search leaves multiple pages', () => {
+  jest.useFakeTimers()
+
+  try {
+    const tours = [
+      ...Array.from({ length: 18 }, (_, index) => makeTour(index + 80, {
+        rank: index + 1,
+        name: `Filtered Night Tour ${index + 1}`,
+        title: `Filtered Night Tour ${index + 1}`,
+        type: 'Night walk',
+      })),
+      makeTour(99, { rank: 19, type: 'Birdwatching' }),
+    ]
+    render(<FeaturedTours tours={tours} isLoading={false} error={null} />)
+
+    fireEvent.change(screen.getByRole('searchbox', { name: /search tours/i }), {
+      target: { value: 'Filtered Night Tour' },
+    })
+
+    expect(screen.getByText('Filtered Night Tour 1')).toBeInTheDocument()
+    expect(screen.queryByText('Filtered Night Tour 9')).not.toBeInTheDocument()
+
+    act(() => jest.advanceTimersByTime(15000))
+
+    expect(screen.getByText('Filtered Night Tour 5')).toBeInTheDocument()
+    expect(screen.queryByText('Filtered Night Tour 1')).not.toBeInTheDocument()
+  } finally {
+    jest.useRealTimers()
+  }
 })
 
 test('shows a clearable empty state for an unmatched search', () => {
@@ -485,14 +631,14 @@ test('does not render inactive, full, or completed tours as bookable', () => {
 
 test('orders zones by zoneRank and uses stable fallbacks', () => {
   render(<FeaturedTours tours={[
-    { ...northZoneTours[0], id: 30, zone: 'Unranked', zoneRank: null, rank: null },
-    { ...northZoneTours[0], id: 20, zone: 'Second', zoneRank: 2, rank: 2 },
-    { ...northZoneTours[0], id: 10, zone: 'First B', zoneRank: 1, rank: 2 },
-    { ...northZoneTours[0], id: 9, zone: 'First A', zoneRank: 1, rank: 1 },
+    { ...northZoneTours[0], id: 30, name: 'Unranked Tour', zone: 'Unranked', zoneRank: null, rank: null },
+    { ...northZoneTours[0], id: 20, name: 'Second Tour', zone: 'Second', zoneRank: 2, rank: 2 },
+    { ...northZoneTours[0], id: 10, name: 'First B Tour', zone: 'First B', zoneRank: 1, rank: 2 },
+    { ...northZoneTours[0], id: 9, name: 'First A Tour', zone: 'First A', zoneRank: 1, rank: 1 },
   ]} isLoading={false} error={null} />)
 
   expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent))
-    .toEqual(['First A', 'First B', 'Second', 'Unranked'])
+    .toEqual(['First A Tour', 'First B Tour', 'Second Tour', 'Unranked Tour'])
 })
 
 test('shows scheduled facts, hides flexible facts, and formats day durations', () => {
@@ -505,11 +651,22 @@ test('shows scheduled facts, hides flexible facts, and formats day durations', (
       occurrenceDates: [{ date: startDate, status: 'scheduled', remainingSpaces: 3 }] },
   ]} isLoading={false} error={null} />)
 
-  expect(screen.getByText('1 day')).toBeInTheDocument()
-  expect(screen.getByText('2 days')).toBeInTheDocument()
-  expect(screen.getByText('3 places available')).toBeInTheDocument()
-  expect(screen.getAllByText('Availability')).toHaveLength(1)
-  expect(screen.getAllByText('Dates')).toHaveLength(1)
+  expect(screen.queryByText('1 day')).not.toBeInTheDocument()
+  expect(screen.queryByText('2 days')).not.toBeInTheDocument()
+
+  const moreInfoButtons = screen.getAllByRole('button', { name: /more information/i })
+  fireEvent.click(moreInfoButtons[0])
+  let dialog = screen.getByRole('dialog')
+  expect(within(dialog).getByText('1 day')).toBeInTheDocument()
+  expect(within(dialog).queryByText('Availability')).not.toBeInTheDocument()
+  fireEvent.click(within(dialog).getByRole('button', { name: /close tour details/i }))
+
+  fireEvent.click(moreInfoButtons[1])
+  dialog = screen.getByRole('dialog')
+  expect(within(dialog).getByText('2 days')).toBeInTheDocument()
+  expect(within(dialog).getByText('3 places available')).toBeInTheDocument()
+  expect(within(dialog).getByText('Availability')).toBeInTheDocument()
+  expect(within(dialog).getByText('Dates')).toBeInTheDocument()
 })
 
 test('hides a scheduled tour on and after its start date', () => {

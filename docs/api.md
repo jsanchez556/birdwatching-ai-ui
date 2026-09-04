@@ -111,7 +111,7 @@ The active UI currently calls:
 - `GET /tours`
 - `GET /birds/highlights`
 - `GET /birds/profile`
-- `GET /addons/transportation`
+- `GET /addons/transfers`
 - `GET /files/:folderName/:filename`
 
 The backend also exposes `GET /health`, but this frontend does not call that backend endpoint in browser code.
@@ -386,7 +386,7 @@ hosted billing surface.
 ## `POST /birds/identify`
 Used by `identifyBirdByUrl({ imageUrl, token })` and `identifyBirdByFile({ file, token })` in `src/api/birdIdentificationApi.js`.
 
-Authenticated users can open the Identify Bird modal from the homepage header. Visitors and logged-out users do not see the action.
+Authenticated users can open the Identify Species modal from the homepage header. Visitors and logged-out users do not see the action.
 
 URL request:
 ```json
@@ -539,8 +539,8 @@ It returns the same shape as login/signup and rotates the refresh token.
 
 Cart endpoints:
 - `GET /cart` returns `data.cart` with `items` and `count`. If legacy backend responses include `itineraryStartDate` or `itineraryEndDate`, the frontend ignores those values in favor of the cookie-backed itinerary.
-- `POST /cart/items` sends `tourId`, optional `scheduledDate`, optional `participants`, optional `needsTransportation`, and optional frontend-safe `metadata`.
-- `PATCH /cart/items/:itemId` updates `scheduledDate`, `participants`, or `needsTransportation`.
+- `POST /cart/items` sends `tourId`, optional `scheduledDate`, optional `participants`, optional `needsTransfer`, and optional frontend-safe `metadata`.
+- `PATCH /cart/items/:itemId` updates `scheduledDate`, `participants`, or `needsTransfer`.
 - `DELETE /cart/items/:itemId` removes one cart item.
 - `POST /cart/reservations` creates reservations from all cart items, or from a single item when `itemIds` contains one id.
 - `GET /cart/reservations` returns `data.reservations`, limited to the latest five user reservations for My Tours.
@@ -621,7 +621,7 @@ Frontend behavior:
 - finalizes the assistant message from `done.response`
 - API adapters partition chat-level `done.meta` fields before hooks receive
   them: `customerContext` remains separate, while `reservation`, `selectedTour`,
-  `selectedTourId`, `selectedTransportation`, and `participants` enter the
+  `selectedTourId`, `selectedTransfer`, and `participants` enter the
   canonical `conversationContext` instead of being duplicated on assistant
   messages
 - reservation-entry chats use normal user-scoped local continuity. A new structured entry overrides stale selection fields while retaining stored customer/itinerary context; if no conversation exists, it skips latest-chat hydration so the selected tour cannot be overwritten before the initial turn
@@ -652,7 +652,7 @@ Backend behavior relevant to UI:
 - treats authenticated identity as authoritative over frontend-provided customer email
 - loads recent conversation history from PostgreSQL
 - may retrieve RAG sources from PostgreSQL pgvector knowledge chunks ingested from backend `src/ingestion/data`
-- may use OpenAI tool calls for tour search/recommendation, availability checks, transportation estimates, pricing, discounts, and reservations
+- may use OpenAI tool calls for tour search/recommendation, availability checks, transfer estimates, pricing, discounts, and reservations
 - when recommendation-mode tour search returns tours, the assistant response
   stays short while card fields are provided in the validated
   `meta.tourRecommendation` contract; legacy `meta.tours` remains available for
@@ -753,7 +753,7 @@ Frontend behavior:
 Tour and reservation notes:
 - Tool execution is backend-only; the public `/chat` stream does not expose raw tool messages.
 - Safe structured tool data may be returned in the `done.meta` object for frontend rendering.
-- Available backend tools are `searchTours`, `calculateTransportation`, `checkAvailability`, `calculatePricing`, and `createReservation`.
+- Available backend tools are `searchTours`, `calculateTransfer`, `checkAvailability`, `calculatePricing`, and `createReservation`.
 - Tour listing and recommendation details are returned in `meta.tours` when available.
 - Recommendation-mode results additionally use `meta.tourRecommendation`.
   `src/api/tourRecommendationContract.js` validates the full optional object at
@@ -764,15 +764,15 @@ Tour and reservation notes:
   percentage.
 - Tour listing, selection, and reservation metadata can include `location`, `node`, `subnode`, and `zone`. The frontend treats these as display metadata and does not infer booking logic from them.
 - Tour selection can use a `tourId` or a backend-supported tour name/location value; the backend owns matching, ambiguity handling, and availability validation.
-- The backend may return `meta.uiAction` or `meta.uiActions` for guided controls. Supported UI action types include `choice`, `tour_selection`, `reservation_details`, `date_picker`, `participant_count`, `transportation_selection`, and `reservation_confirmation`.
-- A `reservation_details` action contains only the currently missing fields and submits date, participant count, transportation preference, conditional pickup location, and any missing customer/itinerary values in one chat message. The UI validates required values, email shape, date choices, and itinerary order before sending; the backend remains authoritative.
+- The backend may return `meta.uiAction` or `meta.uiActions` for guided controls. Supported UI action types include `choice`, `tour_selection`, `reservation_details`, `date_picker`, `participant_count`, `transfer_selection`, and `reservation_confirmation`.
+- A `reservation_details` action contains only the currently missing fields and submits date, participant count, transfer preference, conditional pickup location, and any missing customer/itinerary values in one chat message. The UI validates required values, email shape, date choices, and itinerary order before sending; the backend remains authoritative.
 - A `date_picker` with `availableDates` is locally validated before its action message is sent. This is immediate usability feedback only; the backend revalidates itinerary bounds, occurrence status, capacity, and the one-tour-per-day rule.
 - The backend may return `meta.uiAction.type === "participant_count"` with `min`, `max`, and numeric `options`; the UI renders this as a select control and sends the selected number back as the next chat message.
 - After participant count is selected, the backend may include
   `meta.participants`; the API adapter normalizes it into chat-level
   `conversationContext` so later backend turns can reuse it.
-- The backend may return a choice action asking whether transportation is needed. The existing choice renderer sends `Show transportation` for `show_transportation` and `No, I have my own transportation` for `decline_transportation`; the backend owns the resulting booking logic.
-- Transportation option buttons send a natural-language selection such as `I choose shared shuttle from San Jose to Monteverde`; the backend owns option persistence and pricing context.
+- The backend may return a choice action asking whether transfer is needed. The existing choice renderer sends `Show transfer options` for `show_transfer` and `No, I do not need a transfer` for `decline_transfer`; the backend owns the resulting booking logic.
+- Transfer option buttons send a natural-language selection such as `I choose shared shuttle from San Jose to Monteverde`; the backend owns option persistence and pricing context.
 - The final confirmation choice sends `Confirm reservation`, but users may also type `Yes`; the backend interprets that only when the prior metadata included the final confirmation action.
 - Reservation creation requires participants and customer name in backend tool arguments; customer name, email, and itinerary dates should usually come from `customerContext` collected before chat.
 - Homepage and cart reservation entry points provide selected tour details through chat metadata so users do not need to describe the tour again; the backend remains responsible for availability, pricing, missing itinerary details, and reservation creation.
@@ -780,7 +780,7 @@ Tour and reservation notes:
 - Pricing can apply recognized discount codes such as `EARLYBIRD`, `STUDENT`, and `LOCAL`, or group discounts.
 - Successful reservation text should stay short and the confirmation details are exposed in `done.meta.reservation` when a reservation is created.
 - Reservation metadata may include `tourLocation`/`tour_location`, `tourNode`/`tour_node`, `tourSubnode`/`tour_subnode`, and `tourZone`/`tour_zone`; the confirmation card displays those fields when present.
-- The current UI renders reservation cards from chat-level reservation metadata for confirmation-style assistant messages, uses chat-level `selectedTransportation` for transportation display and grand-total calculation, falls back to message reservation metadata for older cached messages, and normalizes both camelCase and snake_case reservation fields. It only parses clear reservation-confirmation summaries from assistant text as a final fallback.
+- The current UI renders reservation cards from chat-level reservation metadata for confirmation-style assistant messages, uses chat-level `selectedTransfer` for transfer display and grand-total calculation, falls back to message reservation metadata for older cached messages, and normalizes both camelCase and snake_case reservation fields. It only parses clear reservation-confirmation summaries from assistant text as a final fallback.
 - Structured recommendation cards use the documented
   `meta.tourRecommendation` fields instead of inferring data from assistant
   text.
@@ -917,7 +917,7 @@ GET /birds/profile?speciesCode=gretin1
 
 The adapter requires `data.bird` to be an object and treats `404` as a normal missing-profile error.
 
-`GET /addons/transportation` returns simple transportation add-on cards for the homepage. Booking-specific transportation selection remains owned by the chat flow.
+`GET /addons/transfers` returns simple transfer add-on cards for the homepage. Booking-specific transfer selection remains owned by the chat flow.
 
 ## Common Client Errors
 - Non-OK responses throw the backend `error.message` when available.

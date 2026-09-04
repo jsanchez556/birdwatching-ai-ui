@@ -21,6 +21,7 @@ test('opens headline bird details in a modal and closes it', async () => {
 
   expect(screen.getByRole('button', { name: /open resplendent quetzal details/i })).toBeInTheDocument()
   const birdSummary = screen.getByLabelText('Bird summary')
+  expect(document.querySelector('.compact-grid')).toHaveClass('bird-highlights-enter')
   expect(within(birdSummary).getByText('Resplendent Quetzal')).toBeInTheDocument()
   expect(within(birdSummary).getByText('Pharomachrus mocinno')).toBeInTheDocument()
   expect(within(birdSummary).getByText('Trogons')).toBeInTheDocument()

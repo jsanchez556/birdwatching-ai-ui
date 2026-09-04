@@ -1,14 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { getSiteConfig } from '../../config/site'
+import useHomeHeaderScroll from '../../hooks/useHomeHeaderScroll'
+import useResolvedMediaUrl from '../../hooks/useResolvedMediaUrl'
 import AccountMenu from './AccountMenu'
 
-const brandMark =
-  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 80 80%22%3E%3Crect width=%2280%22 height=%2280%22 rx=%2216%22 fill=%22%2328734d%22/%3E%3Cpath d=%22M18 50c14-24 30-30 48-22-15 4-25 14-30 30-5-5-11-7-18-8Z%22 fill=%22%23fff%22/%3E%3Ccircle cx=%2256%22 cy=%2228%22 r=%224%22 fill=%22%23f2c84b%22/%3E%3C/svg%3E'
-
-const partnerMark =
-  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 80 80%22%3E%3Crect width=%2280%22 height=%2280%22 rx=%2216%22 fill=%22%23f6f7f4%22/%3E%3Cpath d=%22M18 24h44v7H18zm0 14h34v7H18zm0 14h26v7H18z%22 fill=%22%2318201b%22/%3E%3Cpath d=%22M55 43l10 5-10 5z%22 fill=%22%23b3161c%22/%3E%3C/svg%3E'
-
-const COLLAPSE_SCROLL_Y = 96
-const EXPAND_SCROLL_Y = 24
+const HOME_LOGO_MEDIA_KEY = 'resources/logo.png'
 
 function HomeHeader({
   authActionLabel = 'Login',
@@ -28,38 +24,19 @@ function HomeHeader({
   onUpdateProfile,
   onUpdateProfileImage,
   onUpgradePlan,
+  siteConfig = getSiteConfig(),
   user,
 }) {
-  const [isCollapsed, setIsCollapsed] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [activeItem, setActiveItem] = useState('home')
-
-  useEffect(() => {
-    const updateHeaderState = () => {
-      const scrollY = window.scrollY || window.pageYOffset
-      const featuredTours = document.getElementById('featured-tours')
-      const exploreTop = featuredTours ? featuredTours.offsetTop - 120 : Number.POSITIVE_INFINITY
-
-      setIsCollapsed((wasCollapsed) => {
-        if (wasCollapsed) {
-          return scrollY > EXPAND_SCROLL_Y
-        }
-
-        return scrollY > COLLAPSE_SCROLL_Y
-      })
-      setActiveItem(scrollY > COLLAPSE_SCROLL_Y && scrollY >= exploreTop ? 'explore' : 'home')
-    }
-
-    updateHeaderState()
-    window.addEventListener('scroll', updateHeaderState, { passive: true })
-
-    return () => {
-      window.removeEventListener('scroll', updateHeaderState)
-    }
-  }, [])
+  const [isServicesOpen, setIsServicesOpen] = useState(false)
+  const { activeItem, isScrolled, setActiveItem } = useHomeHeaderScroll()
+  const logoUrl = useResolvedMediaUrl(HOME_LOGO_MEDIA_KEY)
+  const contactHref = siteConfig.whatsapp?.href
+    || (siteConfig.phone || siteConfig.email ? '#site-footer-contact' : '')
 
   const closeMenu = () => {
     setIsMenuOpen(false)
+    setIsServicesOpen(false)
   }
 
   const handleAuthAction = () => {
@@ -77,16 +54,6 @@ function HomeHeader({
     onOpenAdmin?.()
   }
 
-  const handleMyToursAction = () => {
-    closeMenu()
-    onOpenMyTours?.()
-  }
-
-  const handleBookingsAction = () => {
-    closeMenu()
-    onOpenBookings?.()
-  }
-
   const handleManageBilling = () => {
     closeMenu()
     onManageBilling?.()
@@ -102,9 +69,23 @@ function HomeHeader({
     onUpgradePlan?.()
   }
 
+  const handleSubscribeAction = () => {
+    closeMenu()
+    if (isAuthenticated) {
+      onUpgradePlan?.()
+      return
+    }
+    onAuthAction?.()
+  }
+
   const handleExploreClick = () => {
     setActiveItem('explore')
     closeMenu()
+  }
+
+  const handleMenuToggle = () => {
+    if (isMenuOpen) setIsServicesOpen(false)
+    setIsMenuOpen((open) => !open)
   }
 
   const handleHomeClick = () => {
@@ -113,71 +94,31 @@ function HomeHeader({
   }
 
   const navClassName = isMenuOpen ? 'home-header-nav is-open' : 'home-header-nav'
+  const controlsClassName = isMenuOpen
+    ? 'home-header-controls is-open'
+    : 'home-header-controls'
 
   return (
-    <header className={isCollapsed ? 'home-header is-collapsed' : 'home-header'}>
+    <header className={isScrolled ? 'home-header is-scrolled' : 'home-header'}>
       <div className="home-header-inner">
         <a
           className="home-header-brand"
           href="#home"
-          aria-label="Birdwatching AI home"
+          aria-label="RCN home"
           onClick={handleHomeClick}
         >
-          <span className="home-brand-images" aria-hidden="true">
-            <img src={brandMark} alt="" />
-            {!isCollapsed && <img src={partnerMark} alt="" />}
-          </span>
-          <span className="home-brand-copy">
-            <span className="home-brand-primary">Rio Celeste Nature</span>
-            <span className="home-brand-secondary">Costa Rica Tours</span>
+          <span className="home-header-logo-frame" aria-hidden="true">
+            {logoUrl && <img className="home-header-logo" src={logoUrl} alt="" />}
           </span>
         </a>
-
-        {!isCollapsed && (
-          <nav className="home-header-utility" aria-label="Task-oriented">
-            <ul className="home-utility-list">
-              <li>
-                <a className="home-contact-link" href="https://wa.me/00000000000">
-                  Contact Us
-                </a>
-              </li>
-            </ul>
-            <ul className="home-utility-list home-language-list" role="menubar">
-              <li className="home-language-item" role="none">
-                <a
-                  className="home-language-link"
-                  href="#language-switcher"
-                  role="menuitem"
-                  aria-haspopup="true"
-                  aria-label="English"
-                >
-                  English
-                </a>
-                <ul className="home-language-submenu" role="menubar">
-                  <li role="none">
-                    <a
-                      className="home-language-link"
-                      href="#"
-                      hrefLang="es-ES"
-                      lang="es-ES"
-                      role="menuitem"
-                    >
-                      Espa&ntilde;ol
-                    </a>
-                  </li>
-                </ul>
-              </li>
-            </ul>
-          </nav>
-        )}
 
         <button
           type="button"
           className="home-menu-toggle"
           aria-label={isMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
           aria-expanded={isMenuOpen}
-          aria-controls="home-primary-navigation"
-          onClick={() => setIsMenuOpen((open) => !open)}
+          aria-controls="home-primary-navigation home-header-controls"
+          onClick={handleMenuToggle}
         >
           <span aria-hidden="true" />
           <span aria-hidden="true" />
@@ -185,48 +126,99 @@ function HomeHeader({
         </button>
 
         <nav id="home-primary-navigation" className={navClassName} aria-label="Primary">
-          {!isCollapsed && (
-            <a
-              className={activeItem === 'home' ? 'home-header-link is-active' : 'home-header-link'}
-              href="#home"
-              aria-current={activeItem === 'home' ? 'page' : undefined}
-              onClick={handleHomeClick}
-            >
-              Home
-            </a>
-          )}
+          <a
+            className={activeItem === 'home' ? 'home-header-link is-active' : 'home-header-link'}
+            href="#home"
+            aria-current={activeItem === 'home' ? 'page' : undefined}
+            onClick={handleHomeClick}
+          >
+            Home
+          </a>
           {!isAuthenticated && (
             <button type="button" className="home-header-link" onClick={handleAuthAction}>
               {authActionLabel}
             </button>
           )}
-          <a
-            className={activeItem === 'explore' ? 'home-header-link is-active' : 'home-header-link'}
-            href="#featured-tours"
-            aria-current={activeItem === 'explore' ? 'page' : undefined}
-            onClick={handleExploreClick}
+          <div
+            className={isServicesOpen ? 'home-services-menu is-open' : 'home-services-menu'}
+            onMouseEnter={() => setIsServicesOpen(true)}
+            onMouseLeave={() => setIsServicesOpen(false)}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) setIsServicesOpen(false)
+            }}
           >
-            Explore Tours
+            <button
+              type="button"
+              className={activeItem === 'explore'
+                ? 'home-header-link home-header-services-trigger is-active'
+                : 'home-header-link home-header-services-trigger'}
+              aria-expanded={isServicesOpen}
+              aria-controls="home-services-submenu"
+              onClick={() => setIsServicesOpen((open) => !open)}
+            >
+              Our Services
+              <span className="home-services-chevron" aria-hidden="true" />
+            </button>
+            <ul id="home-services-submenu" className="home-services-submenu">
+              <li><a href="#featured-tours" onClick={handleExploreClick}>Tours</a></li>
+              <li><a href="#transport" onClick={closeMenu}>Transportation</a></li>
+              <li>
+                <button
+                  type="button"
+                  onClick={handleBirdIdentificationAction}
+                  disabled={!birdIdentificationEnabled}
+                  title={birdIdentificationUnavailableMessage || undefined}
+                >
+                  Identify Species
+                </button>
+              </li>
+            </ul>
+          </div>
+          <a className="home-header-link" href="#about-us" onClick={closeMenu}>
+            About Us
           </a>
+          {contactHref && (
+            <a
+              className="home-header-link"
+              href={contactHref}
+              onClick={closeMenu}
+              {...(siteConfig.whatsapp ? {
+                target: '_blank',
+                rel: 'noopener noreferrer',
+              } : {})}
+            >
+              Contact Us
+            </a>
+          )}
+          <span className="home-header-cta-group">
+            <button
+              type="button"
+              className="home-header-cta home-header-subscribe"
+              onClick={handleSubscribeAction}
+            >
+              Subscribe
+            </button>
+          </span>
+        </nav>
+
+        <div id="home-header-controls" className={controlsClassName}>
+          <div className="home-language-list">
+            <a
+              className="home-language-link"
+              href="#language-switcher"
+              aria-haspopup="true"
+              aria-label="English"
+            >
+              <span aria-hidden="true">🇬🇧</span> English
+            </a>
+            <div className="home-language-submenu">
+              <a className="home-language-link" href="#" hrefLang="es-ES" lang="es-ES">
+                Espa&ntilde;ol
+              </a>
+            </div>
+          </div>
           {isAuthenticated && (
             <>
-              <button
-                type="button"
-                className="home-header-link"
-                onClick={handleBirdIdentificationAction}
-                disabled={!birdIdentificationEnabled}
-                title={birdIdentificationUnavailableMessage || undefined}
-              >
-                  Identify Bird
-              </button>
-              {(user?.role === 'admin' || user?.role === 'tour guide') && (
-                <button type="button" className="home-header-link" onClick={handleMyToursAction}>
-                  My Tours
-                </button>
-              )}
-              <button type="button" className="home-header-link" onClick={handleBookingsAction}>
-                My bookings
-              </button>
               <button
                 type="button"
                 className="home-header-link home-header-icon-link"
@@ -244,6 +236,8 @@ function HomeHeader({
                 onLogout={handleAuthAction}
                 onManageBilling={handleManageBilling}
                 onOpenAdmin={handleAdminAction}
+                onOpenBookings={onOpenBookings}
+                onOpenMyTours={onOpenMyTours}
                 onUpdateProfile={onUpdateProfile}
                 onUpdateProfileImage={onUpdateProfileImage}
                 onUpgradePlan={handleUpgradePlan}
@@ -251,7 +245,7 @@ function HomeHeader({
               />
             </>
           )}
-        </nav>
+        </div>
       </div>
       {billingError && !isAuthenticated && (
         <div className="home-header-alert" role="status">

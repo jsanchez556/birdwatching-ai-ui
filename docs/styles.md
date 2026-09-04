@@ -21,7 +21,9 @@ original cascade.
    modal, and their overlay-specific descendants.
 6. `styles/chat.css` — chat notices, transcript, message content, reservation and
    bird-media cards, composer, voice controls, and chat animations.
-7. `styles/responsive.css` — the final cross-surface dark-mode, reduced-motion,
+7. `styles/transport.css` — transportation booking layout and component states;
+   it consumes the shared tokens from `base.css` and owns its responsive rules.
+8. `styles/responsive.css` — the final cross-surface dark-mode, reduced-motion,
    and viewport overrides. This is deliberately last because some media queries
    coordinate homepage, overlay, shared-shell, and chat selectors.
 
@@ -30,7 +32,7 @@ original cascade.
 Put a rule in the file owned by the surface that renders its selector. Put
 tokens, resets, shared shell primitives, and controls used by multiple surfaces
 in `base.css`. Put fixed dialogs, drawers, backdrops, and modal-only descendants
-in `overlays.css`. Add an override to `responsive.css` only when it coordinates
+in `overlays.css`. Keep transportation-only layout in `transport.css`. Add an override to `responsive.css` only when it coordinates
 multiple responsibility files or must remain at the final cascade position;
 otherwise keep the media query beside its owning surface.
 

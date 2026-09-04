@@ -56,6 +56,8 @@ function AccountMenu({
   onLogout,
   onManageBilling,
   onOpenAdmin,
+  onOpenBookings,
+  onOpenMyTours,
   onUpdateProfile,
   onUpdateProfileImage,
   onUpgradePlan,
@@ -168,6 +170,16 @@ function AccountMenu({
   const handleOpenAdmin = () => {
     setIsOpen(false)
     onOpenAdmin?.()
+  }
+
+  const handleOpenMyTours = () => {
+    setIsOpen(false)
+    onOpenMyTours?.()
+  }
+
+  const handleOpenBookings = () => {
+    setIsOpen(false)
+    onOpenBookings?.()
   }
 
   const handleChooseImage = () => {
@@ -313,6 +325,14 @@ function AccountMenu({
           )}
 
           <div className="account-popover-actions">
+            {(user?.role === 'admin' || user?.role === 'tour guide') && (
+              <button type="button" className="account-secondary-action" onClick={handleOpenMyTours}>
+                My Tours
+              </button>
+            )}
+            <button type="button" className="account-secondary-action" onClick={handleOpenBookings}>
+              My bookings
+            </button>
             {user?.role === 'admin' && (
               <button type="button" className="account-secondary-action" onClick={handleOpenAdmin}>
                 Admin dashboard

@@ -3,14 +3,12 @@ import {
   loadBirdHighlights,
   loadFeaturedTours,
   loadHeroContent,
-  loadTransportationAddOns,
 } from '../api/homeApi'
 
 const initialState = {
   hero: null,
   tours: [],
   birds: [],
-  transportation: [],
   isLoading: true,
   error: null,
 }
@@ -30,11 +28,10 @@ export default function useHomeContent() {
       }))
 
       try {
-        const [hero, tours, birds, transportation] = await Promise.all([
+        const [hero, tours, birds] = await Promise.all([
           loadHeroContent().catch(() => null),
           loadFeaturedTours(),
           loadBirdHighlights(),
-          loadTransportationAddOns(),
         ])
 
         if (isMounted) {
@@ -42,7 +39,6 @@ export default function useHomeContent() {
             hero,
             tours,
             birds,
-            transportation,
             isLoading: false,
             error: null,
           })
@@ -53,7 +49,6 @@ export default function useHomeContent() {
             hero: null,
             tours: [],
             birds: [],
-            transportation: [],
             isLoading: false,
             error: error.message || 'Unable to load homepage content',
           })

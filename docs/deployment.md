@@ -1,12 +1,11 @@
 # Deployment
 
-The admin coordinate picker uses public OpenStreetMap raster tiles by default.
-`VITE_MAP_TILE_URL` may override the public `{z}/{x}/{y}` tile template; it must
-not contain a secret key. Tile-provider configuration stays in `src/config/map.js`.
-Forward and reverse geocoding remain backend-proxied and require the API's
+The admin coordinate picker uses the Google Maps JavaScript API, sharing the same
+`VITE_GOOGLE_MAPS_BROWSER_API_KEY` browser key and loader (`src/config/googleMaps.js`)
+as the transportation surface; see [transportation.md](transportation.md#google-maps-setup)
+for key setup. Forward and reverse geocoding remain backend-proxied and require the API's
 `GEOCODING_PROVIDER_URL` and deployment-specific `GEOCODING_USER_AGENT`
-configuration. Browser geolocation also requires a secure HTTPS context outside
-localhost; the UI requests it only from the explicit current-location action.
+configuration.
 
 Back to [Project Context](../CONTEXT.md).
 
@@ -48,6 +47,8 @@ Required for production API integration:
 
 Useful for local development:
 - `VITE_API_PROXY_TARGET`: backend origin used by the Vite dev proxy, commonly `http://localhost:3001`
+- `VITE_GOOGLE_MAPS_BROWSER_API_KEY`: public browser-restricted key for Maps JavaScript, Places, and Geometry; required by both the transportation map and the admin coordinate picker
+- `VITE_TRANSPORT_COUNTRY_CODE`: ISO alpha-2 service country; defaults to `CR`
 
 Useful for Railway preview host validation:
 - `ALLOWED_HOSTS`: comma-separated extra hosts for Vite preview
@@ -60,6 +61,26 @@ Optional product analytics:
 - `VITE_POSTHOG_ENABLED`: set to `true` to allow consent-gated PostHog initialization
 - `VITE_POSTHOG_KEY`: public PostHog project key
 - `VITE_POSTHOG_HOST`: PostHog ingest host; defaults to `https://us.i.posthog.com`
+
+Optional public company details used by the homepage footer:
+- `VITE_COMPANY_NAME`: displayed company name; defaults to `RCN`
+- `VITE_COMPANY_LOCATION`: displayed service location; defaults to `Costa Rica`
+- `VITE_CONTACT_PHONE`: public telephone number
+- `VITE_WHATSAPP_NUMBER`: international WhatsApp number; formatting is removed before building the `wa.me` URL
+- `VITE_CONTACT_EMAIL`: public contact email address
+- `VITE_BUSINESS_HOURS`: public service-hours text
+
+Optional public social and review links:
+- `VITE_FACEBOOK_URL`
+- `VITE_INSTAGRAM_URL`
+- `VITE_TRIPADVISOR_URL`
+- `VITE_GOOGLE_REVIEWS_URL`
+- `VITE_YOUTUBE_URL`
+
+Social/review values must be complete HTTP or HTTPS URLs. Invalid or missing
+optional contact and social values are omitted from the header, footer, and
+floating actions rather than rendering incomplete links. See `.env.example`
+for the complete safe configuration template.
 
 Do not commit `.env` files. Frontend variables are public once built, so never place secrets in `VITE_` variables.
 
@@ -88,11 +109,11 @@ When `VITE_API_URL` is empty, the adapters under `src/api/` send relative reques
 /birds/highlights
 /birds/profile
 /jobs/:id
-/addons/transportation
+/addons/transfers
 /files/:folderName/:filename
 ```
 
-`vite.config.js` proxies `/auth`, `/billing`, `/cart`, `/chat`, `/voice-chat`, `/homepage`, `/tours`, `/birds`, `/jobs`, `/addons`, and `/files` to `VITE_API_URL`, then `VITE_API_PROXY_TARGET`, then `http://localhost:3001`. This avoids local CORS issues and lets the backend keep production CORS rules strict. `/files` is used to exchange relative RAG bird media keys and voice response audio paths for backend-issued media URLs when `VITE_CLOUDFRONT_BASE_URL` is empty; the frontend still does not store bucket credentials.
+`vite.config.js` proxies `/auth`, `/billing`, `/cart`, `/chat`, `/voice-chat`, `/transport`, `/homepage`, `/tours`, `/birds`, `/jobs`, and `/files` to `VITE_API_URL`, then `VITE_API_PROXY_TARGET`, then `http://localhost:3001`. This avoids local CORS issues and lets the backend keep production CORS rules strict. `/files` is used to exchange relative RAG bird media keys and voice response audio paths for backend-issued media URLs when `VITE_CLOUDFRONT_BASE_URL` is empty; the frontend still does not store bucket credentials.
 
 ## Railway
 `railway.json` uses Nixpacks and runs from the repository root:

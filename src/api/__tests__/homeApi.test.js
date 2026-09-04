@@ -1,4 +1,8 @@
-import { loadBirdHighlights, loadBirdProfile, loadFeaturedTours } from '../homeApi'
+import {
+  loadBirdHighlights,
+  loadBirdProfile,
+  loadFeaturedTours,
+} from '../homeApi'
 
 describe('homeApi', () => {
   beforeEach(() => {
@@ -73,4 +77,5 @@ describe('homeApi', () => {
 
     await expect(loadFeaturedTours()).resolves.toEqual([])
   })
+
 })

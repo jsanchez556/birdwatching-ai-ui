@@ -416,8 +416,8 @@ function BirdIdentificationModal({ auth, onClose }) {
       >
         <header className="bird-id-header">
           <div>
-            <p className="home-kicker">Bird identification</p>
-            <h2 id="bird-id-title">Identify Bird</h2>
+            <p className="home-kicker">Species identification</p>
+            <h2 id="bird-id-title">Identify Species</h2>
           </div>
           <button
             ref={closeButtonRef}

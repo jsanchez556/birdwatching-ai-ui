@@ -127,6 +127,9 @@ function BirdHighlights({ birds, isLoading, error }) {
   const closeButtonRef = useRef(null)
   const openerRef = useRef(null)
   const visibleBirds = useMemo(() => getRandomBirdHighlights(birds), [birds])
+  const visibleBirdKey = visibleBirds
+    .map((bird, index) => bird.speciesCode || getBirdDisplayName(bird) || index)
+    .join('-')
 
   const closeSelectedBird = () => {
     setSelectedBird(null)
@@ -156,14 +159,17 @@ function BirdHighlights({ birds, isLoading, error }) {
 
   return (
     <>
-      <section className="home-section home-section-contrast" aria-labelledby="bird-highlights-title">
+      <section id="bird-highlights" className="home-section" aria-labelledby="bird-highlights-title">
         <div className="home-section-heading">
           <p className="home-kicker">Species highlights</p>
-          <h2 id="bird-highlights-title">A few of Costa Rica's headline birds</h2>
+          <h2 id="bird-highlights-title">A few of Costa Rica's headline species</h2>
         </div>
         {isLoading && <p className="home-status" role="status">Loading bird highlights...</p>}
         {error && <p className="home-status" role="status">Bird highlights are temporarily unavailable.</p>}
-        <div className="home-card-grid compact-grid">
+        <div
+          key={visibleBirdKey}
+          className="home-card-grid compact-grid bird-highlights-enter"
+        >
           {visibleBirds.map((bird, index) => {
             const displayName = getBirdDisplayName(bird)
 

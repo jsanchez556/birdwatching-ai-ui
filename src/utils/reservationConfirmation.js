@@ -43,15 +43,15 @@ function toNumber(value) {
   return Number.isFinite(amount) ? amount : null
 }
 
-function formatTransportationLabel(transportation) {
-  if (!transportation) {
+function formatTransferLabel(transfer) {
+  if (!transfer) {
     return null
   }
 
   return [
-    transportation.label || transportation.transportationOption?.replace(/_/g, ' '),
-    transportation.origin && transportation.destination
-      ? `from ${transportation.origin} to ${transportation.destination}`
+    transfer.label || transfer.transferOption?.replace(/_/g, ' '),
+    transfer.origin && transfer.destination
+      ? `from ${transfer.origin} to ${transfer.destination}`
       : null,
   ].filter(Boolean).join(' ')
 }
@@ -60,13 +60,13 @@ function firstValue(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== '') ?? null
 }
 
-export function normalizeReservationConfirmation(reservation, selectedTransportation = null) {
+export function normalizeReservationConfirmation(reservation, selectedTransfer = null) {
   if (!reservation || typeof reservation !== 'object') {
     return null
   }
 
   const confirmationCode = reservation.confirmationCode || reservation.confirmation_code
-  const transportation = selectedTransportation || null
+  const transfer = selectedTransfer || null
 
   if (!confirmationCode) {
     return null
@@ -74,15 +74,15 @@ export function normalizeReservationConfirmation(reservation, selectedTransporta
 
   const rawReservationTotal = reservation.totalPrice ?? reservation.total_price
   const rawTourTotal = reservation.tourTotalPrice ?? reservation.tour_total_price ?? (
-    transportation ? rawReservationTotal : null
+    transfer ? rawReservationTotal : null
   )
-  const rawTransportationTotal = selectedTransportation?.totalPrice
-    ?? reservation.transportationPrice
-    ?? reservation.transportation_price
+  const rawTransferTotal = selectedTransfer?.totalPrice
+    ?? reservation.transferPrice
+    ?? reservation.transfer_price
   const rawGrandTotal = reservation.grandTotalPrice ?? reservation.grand_total_price
   const computedGrandTotal = rawGrandTotal ?? (
-    transportation && toNumber(rawReservationTotal) !== null && toNumber(rawTransportationTotal) !== null
-      ? toNumber(rawReservationTotal) + toNumber(rawTransportationTotal)
+    transfer && toNumber(rawReservationTotal) !== null && toNumber(rawTransferTotal) !== null
+      ? toNumber(rawReservationTotal) + toNumber(rawTransferTotal)
       : rawReservationTotal
   )
 
@@ -101,8 +101,8 @@ export function normalizeReservationConfirmation(reservation, selectedTransporta
     participants: reservation.participants ?? null,
     createdAt: reservation.createdAt || reservation.created_at || null,
     tourTotalPrice: formatCurrency(rawTourTotal),
-    transportation: formatTransportationLabel(transportation),
-    transportationPrice: formatCurrency(rawTransportationTotal),
+    transfer: formatTransferLabel(transfer),
+    transferPrice: formatCurrency(rawTransferTotal),
     totalPrice: formatCurrency(computedGrandTotal),
     remainingSlots: reservation.remainingSlots ?? null,
     discount: reservation.discountReason || reservation.discount || (

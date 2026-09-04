@@ -185,7 +185,7 @@ export default function useCart({ isAuthenticated, getAccessToken }) {
         tourId,
         scheduledDate,
         participants,
-        needsTransportation: options.needsTransportation,
+        needsTransfer: options.needsTransfer,
         metadata: {
           source: 'featured_tour',
           tourName: tour.name || tour.title,

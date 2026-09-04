@@ -48,6 +48,31 @@ describe('mediaApi', () => {
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
+  test('resolves an S3 vehicle key through CloudFront without a backend request', async () => {
+    process.env.VITE_CLOUDFRONT_BASE_URL = 'https://cdn.example.test'
+
+    await expect(resolveMediaUrl('vehicles/jacsunray.jpg')).resolves.toBe(
+      'https://cdn.example.test/vehicles/jacsunray.jpg'
+    )
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  test('falls back to the files endpoint for an S3 vehicle key', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: { url: 'https://cdn.example.test/vehicles/hiacetb.jpeg' },
+        meta: { delivery: 'cloudfront' },
+      }),
+    })
+
+    await expect(resolveMediaUrl('vehicles/hiacetb.jpeg')).resolves.toBe(
+      'https://cdn.example.test/vehicles/hiacetb.jpeg'
+    )
+    expect(global.fetch).toHaveBeenCalledWith('/files/vehicles/hiacetb.jpeg')
+  })
+
   test('preserves a cache version when resolving through CloudFront', async () => {
     process.env.VITE_CLOUDFRONT_BASE_URL = 'https://cdn.example.test/media/'
 

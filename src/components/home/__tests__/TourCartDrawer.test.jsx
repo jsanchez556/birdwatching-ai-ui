@@ -97,7 +97,7 @@ test('reserve this tour starts chat reservation for the selected cart item even 
     tourId: 3,
     scheduledDate: null,
     participants: 2,
-    needsTransportation: true,
+    needsTransfer: true,
     tour: {
       name: 'Monteverde Quetzal Tour',
       location: 'Monteverde',

@@ -74,8 +74,3 @@ export async function loadBirdProfile({ speciesCode, name }) {
 
   return data.bird
 }
-
-export async function loadTransportationAddOns() {
-  const data = await getEnvelope('/addons/transportation', 'Unable to load transportation options')
-  return requireArray(data.transportation, 'Unexpected transportation response')
-}

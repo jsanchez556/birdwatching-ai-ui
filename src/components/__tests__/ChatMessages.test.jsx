@@ -831,7 +831,7 @@ describe('ChatMessages', () => {
             tourId: 6,
             participants: 4,
             tourTotalPrice: 360,
-            transportationPrice: 198,
+            transferPrice: 198,
             grandTotalPrice: 558,
             discountReason: 'Group discount',
           },
@@ -909,7 +909,7 @@ describe('ChatMessages', () => {
     expect(screen.getByText('Northern Mountains')).toBeInTheDocument()
   })
 
-  test('renders transportation from selected transportation metadata', () => {
+  test('renders transfer from selected transfer metadata', () => {
     const messages = [
       {
         role: 'assistant',
@@ -924,8 +924,8 @@ describe('ChatMessages', () => {
             participants: 3,
             total_price: 360,
           },
-          selectedTransportation: {
-            transportationOption: 'shared_shuttle',
+          selectedTransfer: {
+            transferOption: 'shared_shuttle',
             label: 'Shared shuttle',
             origin: 'San Jose',
             destination: 'Monteverde',
@@ -961,8 +961,8 @@ describe('ChatMessages', () => {
         totalPrice: 360,
       },
       participants: 3,
-      selectedTransportation: {
-        transportationOption: 'shared_shuttle',
+      selectedTransfer: {
+        transferOption: 'shared_shuttle',
         label: 'Shared shuttle',
         origin: 'San Jose',
         destination: 'Monteverde',
@@ -1162,9 +1162,9 @@ describe('ChatMessages', () => {
               options: [{ label: '1', value: 1 }, { label: '2', value: 2 }],
             },
             {
-              name: 'transportationRequired',
+              name: 'transferRequired',
               type: 'select',
-              label: 'Would you like transportation?',
+              label: 'Would you like a transfer?',
               options: [
                 { label: 'Yes', value: true },
                 { label: 'No', value: false },
@@ -1174,7 +1174,7 @@ describe('ChatMessages', () => {
               name: 'pickupLocation',
               type: 'text',
               label: 'Pickup location',
-              requiredWhen: { field: 'transportationRequired', equals: true },
+              requiredWhen: { field: 'transferRequired', equals: true },
             },
           ],
         },
@@ -1189,7 +1189,7 @@ describe('ChatMessages', () => {
     fireEvent.change(screen.getByLabelText(/How many participants/i), {
       target: { value: '2' },
     })
-    fireEvent.change(screen.getByLabelText(/Would you like transportation/i), {
+    fireEvent.change(screen.getByLabelText(/Would you like a transfer/i), {
       target: { value: 'true' },
     })
     fireEvent.change(screen.getByLabelText(/Pickup location/i), {
@@ -1199,7 +1199,7 @@ describe('ChatMessages', () => {
 
     expect(onAction).toHaveBeenCalledTimes(1)
     expect(onAction).toHaveBeenCalledWith(
-      'I want to complete the reservation. Date: 2026-09-10. Participants: 2. Transportation required: yes. Pickup location: San Jose.'
+      'I want to complete the reservation. Date: 2026-09-10. Participants: 2. Transfer required: yes. Pickup location: San Jose.'
     )
   })
 
@@ -1229,21 +1229,21 @@ describe('ChatMessages', () => {
     expect(onAction).not.toHaveBeenCalled()
   })
 
-  test('renders transportation selection buttons from assistant metadata', () => {
+  test('renders transfer selection buttons from assistant metadata', () => {
     const onAction = jest.fn()
     const messages = [
       {
         role: 'assistant',
-        content: 'Transportation from San Jose is available.',
+        content: 'Transfer from San Jose is available.',
         metadata: {
           uiAction: {
-            type: 'transportation_selection',
-            prompt: 'Which transportation option would you prefer for San Jose to Monteverde?',
+            type: 'transfer_selection',
+            prompt: 'Which transfer option would you prefer for San Jose to Monteverde?',
             options: [
               {
                 label: 'Shared shuttle',
                 value: {
-                  transportationOption: 'shared_shuttle',
+                  transferOption: 'shared_shuttle',
                   origin: 'San Jose',
                   destination: 'Monteverde',
                 },
@@ -1253,7 +1253,7 @@ describe('ChatMessages', () => {
               {
                 label: 'Private transfer',
                 value: {
-                  transportationOption: 'private_transfer',
+                  transferOption: 'private_transfer',
                   origin: 'San Jose',
                   destination: 'Monteverde',
                 },
@@ -1275,19 +1275,19 @@ describe('ChatMessages', () => {
     expect(onAction).toHaveBeenCalledWith('I choose shared shuttle from San Jose to Monteverde')
   })
 
-  test('renders transportation preference choices from assistant metadata', () => {
+  test('renders transfer preference choices from assistant metadata', () => {
     const onAction = jest.fn()
     const messages = [
       {
         role: 'assistant',
-        content: 'Would you like transportation for this tour?',
+        content: 'Would you like a transfer for this tour?',
         metadata: {
           uiAction: {
             type: 'choice',
-            prompt: 'Would you like transportation for this tour?',
+            prompt: 'Would you like a transfer for this tour?',
             options: [
-              { label: 'Yes, show transportation', value: 'show_transportation' },
-              { label: 'No, I have my own transportation', value: 'decline_transportation' },
+              { label: 'Yes, show transfer options', value: 'show_transfer' },
+              { label: 'No, I do not need a transfer', value: 'decline_transfer' },
             ],
           },
         },
@@ -1296,11 +1296,11 @@ describe('ChatMessages', () => {
 
     render(<ChatMessages messages={messages} isLoading={false} onAction={onAction} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /Yes, show transportation/i }))
-    fireEvent.click(screen.getByRole('button', { name: /No, I have my own transportation/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Yes, show transfer options/i }))
+    fireEvent.click(screen.getByRole('button', { name: /No, I do not need a transfer/i }))
 
-    expect(onAction).toHaveBeenCalledWith('Show transportation')
-    expect(onAction).toHaveBeenCalledWith('No, I have my own transportation')
+    expect(onAction).toHaveBeenCalledWith('Show transfer options')
+    expect(onAction).toHaveBeenCalledWith('No, I do not need a transfer')
   })
 
   test('renders reservation confirmation actions from assistant metadata', () => {

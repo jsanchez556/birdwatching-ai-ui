@@ -4,6 +4,7 @@ import HomeSurface from './pages/HomeSurface'
 
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const MyToursPage = lazy(() => import('./pages/MyToursPage'))
+const TransportSurface = lazy(() => import('./pages/TransportSurface'))
 const AuthenticatedChatSurface = lazy(() => (
   import('./pages/ChatSurface').then((module) => ({
     default: module.AuthenticatedChatSurface,
@@ -54,6 +55,10 @@ export default function App() {
         />
       </Suspense>
     )
+  }
+
+  if (shell.activeSurface === 'transport') {
+    return <Suspense fallback={<SurfaceLoading />}><TransportSurface auth={shell.auth} onBack={shell.actions.showHome} /></Suspense>
   }
 
   return <HomeSurface shell={shell} />

@@ -1,100 +1,39 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useResolvedMedia } from '../../hooks/useResolvedMediaUrl'
+import usePrefersReducedMotion from '../../hooks/usePrefersReducedMotion'
 
+const HERO_VIDEO_PATH = 'resources/home-hero.mp4'
+const HERO_POSTER_PATH = 'resources/poster.jpg'
 const HERO_CONTENT_REVEAL_DELAY_MS = 15000
-const HERO_SEGMENT_LOOP_BUFFER_MS = 250
-const YOUTUBE_HOST_PATTERN = /(^|\.)youtube(?:-nocookie)?\.com$/
-
-function prefersReducedMotion() {
-  return (
-    typeof window !== 'undefined'
-    && typeof window.matchMedia === 'function'
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  )
-}
-
-function getHeroVideoConfig(videoUrl) {
-  try {
-    const url = new URL(videoUrl)
-    const isYouTubeEmbed = YOUTUBE_HOST_PATTERN.test(url.hostname) && url.pathname.startsWith('/embed/')
-    const start = Number.parseInt(url.searchParams.get('start'), 10)
-    const end = Number.parseInt(url.searchParams.get('end'), 10)
-    const segment = Number.isFinite(start) && Number.isFinite(end) && end > start
-      ? { start, end }
-      : null
-
-    if (!isYouTubeEmbed) {
-      return { src: videoUrl, segment: null, targetOrigin: null }
-    }
-
-    const videoId = url.pathname.split('/').filter(Boolean)[1]
-
-    if (!videoId) {
-      return { src: videoUrl, segment, targetOrigin: url.origin }
-    }
-
-    const smoothPlaybackParams = {
-      autoplay: '1',
-      controls: '0',
-      enablejsapi: '1',
-      loop: '1',
-      modestbranding: '1',
-      mute: '1',
-      playsinline: '1',
-      rel: '0',
-      playlist: videoId,
-    }
-
-    for (const [key, value] of Object.entries(smoothPlaybackParams)) {
-      url.searchParams.set(key, value)
-    }
-
-    if (typeof window !== 'undefined' && window.location?.origin) {
-      url.searchParams.set('origin', window.location.origin)
-    }
-
-    return { src: url.toString(), segment, targetOrigin: url.origin }
-  } catch {
-    return { src: videoUrl, segment: null, targetOrigin: null }
-  }
-}
-
-function postYouTubeCommand(iframe, targetOrigin, func, args = []) {
-  iframe?.contentWindow?.postMessage(
-    JSON.stringify({
-      event: 'command',
-      func,
-      args,
-    }),
-    targetOrigin || '*'
-  )
-}
 
 function HeroSection({
-  heroVideo,
   onAuthAction,
   showLoginCta = true,
 }) {
+  const isReducedMotion = usePrefersReducedMotion()
+  const posterMedia = useResolvedMedia(HERO_POSTER_PATH)
+  const videoMedia = useResolvedMedia(isReducedMotion ? '' : HERO_VIDEO_PATH)
+  const [hasPosterError, setHasPosterError] = useState(false)
   const [hasVideoError, setHasVideoError] = useState(false)
-  const [isHeroContentVisible, setIsHeroContentVisible] = useState(() => !heroVideo || prefersReducedMotion())
-  const [isHeroVideoLoaded, setIsHeroVideoLoaded] = useState(false)
-  const heroVideoRef = useRef(null)
+  const [isHeroContentVisible, setIsHeroContentVisible] = useState(isReducedMotion)
   const revealTimerRef = useRef(null)
   const hasStartedHeroContentRevealRef = useRef(false)
-  const shouldShowVideo = Boolean(heroVideo) && !hasVideoError
-  const heroVideoConfig = useMemo(
-    () => (
-      shouldShowVideo
-        ? getHeroVideoConfig(heroVideo)
-        : { src: '', segment: null, targetOrigin: null }
-    ),
-    [heroVideo, shouldShowVideo]
-  )
+  const posterUrl = hasPosterError ? '' : posterMedia.url
+  const shouldShowVideo = !isReducedMotion && Boolean(videoMedia.url) && !videoMedia.error && !hasVideoError
+
+  useEffect(() => {
+    setHasPosterError(false)
+  }, [posterMedia.url])
 
   useEffect(() => {
     setHasVideoError(false)
-    setIsHeroVideoLoaded(false)
 
-    if (!heroVideo || prefersReducedMotion()) {
+    if (revealTimerRef.current) {
+      window.clearTimeout(revealTimerRef.current)
+      revealTimerRef.current = null
+    }
+
+    if (isReducedMotion || videoMedia.error) {
       setIsHeroContentVisible(true)
       hasStartedHeroContentRevealRef.current = true
       return
@@ -102,87 +41,65 @@ function HeroSection({
 
     setIsHeroContentVisible(false)
     hasStartedHeroContentRevealRef.current = false
-
-    if (revealTimerRef.current) {
-      window.clearTimeout(revealTimerRef.current)
-      revealTimerRef.current = null
-    }
-  }, [heroVideo])
+  }, [isReducedMotion, videoMedia.error, videoMedia.url])
 
   useEffect(() => () => {
-    if (revealTimerRef.current) {
-      window.clearTimeout(revealTimerRef.current)
-    }
+    if (revealTimerRef.current) window.clearTimeout(revealTimerRef.current)
   }, [])
 
-  useEffect(() => {
-    if (!shouldShowVideo || !isHeroVideoLoaded || !heroVideoConfig.segment || prefersReducedMotion()) {
-      return undefined
-    }
-
-    const { start, end } = heroVideoConfig.segment
-    const loopDelayMs = Math.max(1000, ((end - start) * 1000) - HERO_SEGMENT_LOOP_BUFFER_MS)
-    const seekToSegmentStart = () => {
-      postYouTubeCommand(heroVideoRef.current, heroVideoConfig.targetOrigin, 'seekTo', [start, true])
-      postYouTubeCommand(heroVideoRef.current, heroVideoConfig.targetOrigin, 'playVideo')
-    }
-
-    seekToSegmentStart()
-
-    const intervalId = window.setInterval(seekToSegmentStart, loopDelayMs)
-
-    return () => {
-      window.clearInterval(intervalId)
-    }
-  }, [
-    heroVideoConfig.segment,
-    heroVideoConfig.targetOrigin,
-    isHeroVideoLoaded,
-    shouldShowVideo,
-  ])
-
-  const handleHeroVideoLoad = () => {
-    setIsHeroVideoLoaded(true)
-
-    if (hasStartedHeroContentRevealRef.current) {
-      return
-    }
+  const revealHeroContentAfterDelay = () => {
+    if (hasStartedHeroContentRevealRef.current) return
 
     hasStartedHeroContentRevealRef.current = true
-
-    if (prefersReducedMotion()) {
-      setIsHeroContentVisible(true)
-      return
-    }
-
     revealTimerRef.current = window.setTimeout(() => {
       setIsHeroContentVisible(true)
       revealTimerRef.current = null
     }, HERO_CONTENT_REVEAL_DELAY_MS)
   }
 
-  const handleHeroVideoError = () => {
+  const handleVideoError = () => {
+    if (revealTimerRef.current) {
+      window.clearTimeout(revealTimerRef.current)
+      revealTimerRef.current = null
+    }
+
     setHasVideoError(true)
     setIsHeroContentVisible(true)
   }
 
   return (
-    <section className={shouldShowVideo ? 'home-hero has-video' : 'home-hero'} aria-labelledby="home-hero-title">
+    <section
+      id="about-us"
+      className={shouldShowVideo ? 'home-hero has-video' : 'home-hero'}
+      aria-labelledby="home-hero-title"
+    >
       <div className="home-hero-fallback" aria-hidden="true" />
+      {posterUrl && (
+        <img
+          className="home-hero-poster"
+          src={posterUrl}
+          alt=""
+          aria-hidden="true"
+          onError={() => setHasPosterError(true)}
+        />
+      )}
       {shouldShowVideo && (
-        <iframe
-          ref={heroVideoRef}
+        <video
           className="home-hero-video"
-          src={heroVideoConfig.src}
-          title="Rainforest canopy video background"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          poster={posterUrl || undefined}
           aria-hidden="true"
           tabIndex={-1}
-          loading="lazy"
-          allow="autoplay; encrypted-media; picture-in-picture"
-          referrerPolicy="strict-origin-when-cross-origin"
-          onLoad={handleHeroVideoLoad}
-          onError={handleHeroVideoError}
-        />
+          onCanPlay={revealHeroContentAfterDelay}
+          onError={handleVideoError}
+          onAbort={handleVideoError}
+        >
+          <source src={videoMedia.url} type="video/mp4" />
+        </video>
       )}
       <div className={isHeroContentVisible ? 'home-hero-content is-visible' : 'home-hero-content is-pending'}>
         <p className="home-kicker">Small-group nature experiences in Costa Rica</p>

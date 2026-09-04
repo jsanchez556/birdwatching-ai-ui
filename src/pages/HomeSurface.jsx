@@ -58,6 +58,7 @@ export default function HomeSurface({ shell }) {
         onOpenAdmin={actions.openAdmin}
         onOpenMyTours={actions.openMyTours}
         onOpenBookings={actions.openBookings}
+        onOpenTransport={actions.openTransport}
         onUpdateProfile={auth.updateProfile}
         onUpdateProfileImage={auth.updateProfileImage}
         onUpgradePlan={actions.upgradePlan}

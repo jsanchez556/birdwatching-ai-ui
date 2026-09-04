@@ -82,7 +82,7 @@ Canonical cached state shape:
 ```
 
 `customerContext` is customer/itinerary intake. `conversationContext.reservation`,
-`selectedTour`, `selectedTourId`, `selectedTransportation`, and `participants`
+`selectedTour`, `selectedTourId`, `selectedTransfer`, and `participants`
 are conversation-level state.
 They are cached once per conversation instead of repeated on assistant message
 metadata. Assistant messages still keep turn-specific display metadata such as

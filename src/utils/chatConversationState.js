@@ -16,7 +16,7 @@ const CONVERSATION_CONTEXT_KEYS = [
   'conversationId',
   'selectedTour',
   'selectedTourId',
-  'selectedTransportation',
+  'selectedTransfer',
   'participants',
 ]
 

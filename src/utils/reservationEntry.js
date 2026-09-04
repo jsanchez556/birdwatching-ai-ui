@@ -51,7 +51,7 @@ export function summarizeCartItem(item) {
     ...(tour || {}),
     scheduledDate: item?.scheduledDate,
     participants: item?.participants,
-    needsTransportation: item?.needsTransportation,
+    needsTransfer: item?.needsTransfer,
   })
 }
 

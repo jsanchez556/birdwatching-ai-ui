@@ -690,49 +690,6 @@
   padding-left: 2.55rem;
 }
 
-.node-location-search-input.has-location-action input {
-  padding-right: 3.35rem;
-}
-
-.node-location-input-action {
-  position: absolute;
-  z-index: 2;
-  top: 50%;
-  right: 0;
-  transform: translateY(-50%);
-}
-
-.node-location-input-action:active:not(:disabled) {
-  transform: translateY(-50%) scale(0.94);
-}
-
-.node-location-input-action[aria-busy="true"] .maintenance-control-icon {
-  animation: admin-location-pulse 900ms ease-in-out infinite alternate;
-}
-
-.node-location-search-action {
-  flex: 0 0 2.75rem;
-  align-self: end;
-}
-
-@keyframes admin-location-pulse {
-  to { opacity: 0.45; }
-}
-
-.node-location-unavailable {
-  margin: -0.25rem 0 0.75rem;
-}
-
-.node-location-accuracy {
-  margin: 0 0 0.65rem;
-}
-
-.node-location-retry {
-  min-height: 2.75rem;
-  margin: 0 0 0.75rem;
-}
-
-.location-search-results,
 .node-bird-list {
   display: grid;
   gap: 0.4rem;
@@ -740,8 +697,6 @@
   margin: 0.75rem 0;
   padding: 0;
 }
-
-.location-search-results button { width: 100%; text-align: left; }
 
 .node-bird-manager {
   margin-top: 1.5rem;
@@ -2252,10 +2207,6 @@
 @media (max-width: 48rem) {
   .node-location-search {
     align-items: stretch;
-  }
-
-  .node-location-search-action {
-    flex: 0 0 2.75rem;
   }
 
   .maintenance-grid-toolbar {

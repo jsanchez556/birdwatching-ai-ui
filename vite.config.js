@@ -44,6 +44,10 @@ export default defineConfig(({ mode }) => {
           target: proxyTarget,
           changeOrigin: true
         },
+        '/transport': {
+          target: proxyTarget,
+          changeOrigin: true
+        },
         '/chat': {
           target: proxyTarget,
           changeOrigin: true
@@ -65,10 +69,6 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true
         },
         '/jobs': {
-          target: proxyTarget,
-          changeOrigin: true
-        },
-        '/addons': {
           target: proxyTarget,
           changeOrigin: true
         },

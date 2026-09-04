@@ -10,8 +10,8 @@ This repository is a single React/Vite frontend for Costa Rica nature-tour and b
 - progressive assistant streaming with typing/loading state and stop-generation support
 - email/password authentication with local JWT session persistence
 - authenticated display-name and profile-image updates from the account menu
-- premium homepage entry point for tours, bird highlights, transportation add-ons, login, WhatsApp contact, and cookie consent
-- multi-category discovery for birdwatching, day walks, night walks, parks, and other nature experiences
+- premium homepage entry point for tours, bird highlights, transfer add-ons, login, WhatsApp contact, and cookie consent
+- multi-category discovery for birdwatching, day walks, night walks, combined day and night walks, adventures, excursions, transfers, and other nature experiences
 - grouped administration with responsive Tours/Zones/Nodes/Birds data grids, modal editors, integrated node/bird assignment dialogs, node-owned coordinates, and protected place search
 - role-aware My Tours management for guide-owned or administrator-wide inventory and confirmed administrator role editing
 - local chat state persistence with `localStorage`
@@ -22,11 +22,12 @@ This repository is a single React/Vite frontend for Costa Rica nature-tour and b
 - browser voice chat through `POST /voice-chat`, with recorded audio converted to WAV before upload
 - authenticated bird identification through `POST /birds/identify`, supporting pasted image URLs, photo uploads, async job polling through `GET /jobs/:id`, and the backend's conservative `identified | uncertain | unknown` response states
 - authenticated billing checkout through `POST /billing/checkout`, billing management through `POST /billing/portal`, and optional usage display data through `GET /billing/usage`
-- homepage content through `GET /homepage/hero`, `GET /tours`, `GET /birds/highlights`, and `GET /addons/transportation`
+- homepage content through `GET /homepage/hero`, `GET /tours`, `GET /birds/highlights`, and `GET /addons/transfers`
 - bird profile media resolution through CloudFront or `GET /files/:folderName/:filename` when RAG metadata contains relative media paths
 - backend-generated tour discovery, pricing, discounts, and reservation confirmations through assistant responses, including validated structured recommendation cards
 - provider-agnostic billing upgrades and hosted billing management through authenticated backend billing endpoints, with Stripe currently used by the backend as the first provider adapter
 - Railway-oriented static deployment with environment-driven API configuration
+- a four-step Costa Rica transportation surface backed by authoritative route, vehicle quote, checkout-context, and booking APIs
 
 ## Source Of Truth Map
 - Human overview and setup: [README.md](./README.md)
@@ -41,6 +42,7 @@ This repository is a single React/Vite frontend for Costa Rica nature-tour and b
 - Product analytics and event ownership: [docs/analytics.md](./docs/analytics.md)
 - Product feature flags and rollouts: [docs/feature-flags.md](./docs/feature-flags.md)
 - Frontend implementation rules: [docs/frontend-guidelines.md](./docs/frontend-guidelines.md)
+- Transportation booking: [docs/transportation.md](./docs/transportation.md)
 - Stylesheet ownership and import order: [docs/styles.md](./docs/styles.md)
 - Historical AI prompts: [docs/development_prompts/README.md](./docs/development_prompts/README.md)
 
@@ -102,8 +104,8 @@ The app is a multi-surface product shell using a surface-controller-hook-API spl
 - `src/api/voiceChatApi.js` owns raw audio upload calls to `POST /voice-chat` and resolves returned audio response URLs.
 - `src/api/birdIdentificationApi.js` owns authenticated bird identification URL and raw image upload calls to `POST /birds/identify`, job polling through `GET /jobs/:id`, normalizes the `{ success, data, meta }` envelope, and should preserve optional bird-identification fields defensively.
 - `src/api/homeApi.js` owns homepage HTTP calls and response shape validation.
-- `src/api/adminMaintenanceApi.js` owns maintenance CRUD, admin tour-image replacement through `PUT /admin/tours/:tourId/image`, and protected forward/reverse location lookup; presentational components never call storage or geocoding providers directly. Existing tour editors prefer a valid persisted numeric-ID or UUID `imagePath`, derive the read-only `tours/{tourId}.png` compatibility reference when it is empty, validate and preview one PNG up to 5 MB, then upload the replacement before refreshing. A successful image response contains the new immutable S3 key plus a stable versioned delivery URL; the editor retains that record, and `useProductShell` publishes it for only the matching homepage tour. Device coordinates remain only in the active node form until save and are sent at full browser-provided precision through this adapter solely to resolve a readable name. `src/config/geolocation.js` owns the high-accuracy/freshness policy: positions older than two minutes or with uncertainty above 1,000 m are rejected, readings above 100 m are identified as approximate, and accepted accuracy is shown beside a retry action. A reverse-provider label more than 25 km from the authoritative selection is discarded in favor of formatted coordinates. The Node dialog exposes geolocation only in secure contexts, observes Permissions API changes when supported, never requests device location before explicit activation, and versions coordinate/reverse requests so stale responses cannot replace newer map or search selections.
-- Country maintenance records own each administrative map's nullable initial `latitude`, `longitude`, and `zoom`. `src/config/map.js` validates that triplet and supplies the documented fallback (`9.75`, `-84.2`, zoom `7`) when it is incomplete or invalid. Existing markers and successful place searches use a focused view. The node picker uses shared Web Mercator world-pixel transforms for its OSM tiles, marker, selection, panning, and zoom anchoring; it supports bounded wheel, pinch, button, and keyboard zoom plus pointer/touch and keyboard panning, while a tap places the marker only when the gesture did not become a drag.
+- `src/api/adminMaintenanceApi.js` owns maintenance CRUD, admin tour-image replacement through `PUT /admin/tours/:tourId/image`, and protected forward/reverse location lookup; presentational components never call storage or geocoding providers directly. Existing tour editors prefer a valid persisted numeric-ID or UUID `imagePath`, derive the read-only `tours/{tourId}.png` compatibility reference when it is empty, validate and preview one PNG up to 5 MB, then upload the replacement before refreshing. A successful image response contains the new immutable S3 key plus a stable versioned delivery URL; the editor retains that record, and `useProductShell` publishes it for only the matching homepage tour. Node coordinates selected on the map or through Places Autocomplete are sent at full precision through this adapter for reverse geocoding; a reverse-provider label more than 25 km from the authoritative selection is discarded in favor of formatted coordinates, and coordinate/reverse requests are versioned so a stale response cannot replace a newer map or search selection.
+- Country maintenance records own each administrative map's nullable initial `latitude`, `longitude`, and `zoom`. `src/config/map.js` validates that triplet and supplies the documented fallback (`9.75`, `-84.2`, zoom `7`) when it is incomplete or invalid. Existing markers and successful place searches use a focused view. The node picker renders the Google Maps JavaScript API (`src/hooks/useGoogleCoordinatePickerMap.js`, sharing the loader in `src/config/googleMaps.js` with the transportation map) with a single draggable marker; clicking the map or releasing a drag reports the selected coordinates, and native Google Maps controls own panning and zoom. The "Find a place by name" field attaches Google Places Autocomplete (`src/hooks/useGooglePlaceAutocomplete.js`) directly to the input, restricted to the default country, the same behavior as the transportation surface's pickup/drop-off location inputs; selecting a suggestion updates the marker and coordinates without a manual search action or backend text-search round trip.
 - `src/api/mediaApi.js` owns bird media URL resolution through CloudFront when configured, with backend media endpoint fallback.
 - `src/index.css` is the ordered global CSS entry point; `src/styles/*` owns
   foundation, admin, shared base, homepage, overlay, chat, and final responsive
@@ -184,7 +186,7 @@ Browser fetch(`${VITE_API_URL}/auth/*`, `${VITE_API_URL}/billing/*`, `${VITE_API
 
 Bird identification:
 ```text
-Authenticated HomeHeader Identify Bird action
+Authenticated HomeHeader Identify Species action
   -> BirdIdentificationModal
   -> useBirdIdentification
   -> birdIdentificationApi.identifyBirdByUrl or identifyBirdByFile
@@ -238,14 +240,14 @@ Browser fetch('/files/:folderName/:filename')
 - Tour listing, recommendation, selection, availability, pricing, discounts, and reservations happen inside the backend chat flow and are summarized in the final streamed assistant response. Recommendation-mode results render from validated `meta.tourRecommendation` only, while the original assistant text remains visible; tour metadata can include graph-backed `location`, `node`, `subnode`, and `zone` fields.
 - Featured tours support approximate, accent-insensitive search across tour names, locations, descriptions, birds, interests, and tour types. Only active, unexpired tours with usable capacity are rendered as bookable, with a clearable empty state.
 - `Book Tour` opens the homepage reservation drawer with the exact selected tour in structured conversation state, preserves customer/itinerary context and conversation continuity, and bypasses recommendation search. Date actions accept only backend-provided scheduled dates or itinerary dates for flexible tours.
-- Structured backend `uiAction` and `uiActions` metadata can render chat controls for choices, tour selection, date picking, participant count, transportation selection, and reservation confirmation.
+- Structured backend `uiAction` and `uiActions` metadata can render chat controls for choices, tour selection, date picking, participant count, transfer selection, and reservation confirmation.
 - Successful backend reservations can return `meta.reservation`; the UI stores that metadata on the assistant message for display and shows tour `location`, `node`, `subnode`, and `zone` when present.
 - `useChat` uses `AbortController` to stop active streams and keeps visible partial assistant text without showing an error fallback.
 - Incoming stream chunks are buffered and revealed on a short timer so text appears at a readable pace.
 - `ChatMessages` uses `src/utils/reservationConfirmation.js` to normalize reservation metadata or detect older confirmed reservation summaries and render `ReservationConfirmationCard` without adding backend tool logic to the browser.
 - `BirdMediaCard` and bird carousel thumbnails use `useResolvedMediaUrl` so relative RAG media is exchanged for renderable media URLs before rendering.
 - The UI does not currently call a standalone recommendations endpoint; tour recommendations are handled through the backend chat/tool flow.
-- The homepage calls public, cache-friendly content endpoints for hero media, tours, bird highlights, and transportation instead of using the streaming chat endpoint for static homepage sections.
+- The homepage calls public, cache-friendly content endpoints for hero media, tours, bird highlights, and transfer instead of using the streaming chat endpoint for static homepage sections.
 - Public browser routes used by this app are auth signup/login/refresh/logout, `POST /chat` for visitor chat, `POST /voice-chat` for visitor voice chat, homepage content endpoints, tour/add-on listing endpoints, bird highlights/profile media, and `GET /files/:folderName/:filename`.
 - Authenticated browser routes include `PATCH /auth/profile`, `POST /auth/profile-image`, `POST /billing/checkout`, `POST /billing/portal`, `GET /billing/usage`, cart reservation endpoints, `GET /chat/latest`, `GET /chat/:conversationId`, `POST /birds/identify`, and `GET /jobs/:id`.
 - Authenticated chat, voice chat, conversation hydration, cart, billing, profile, and bird identification requests include `Authorization: Bearer <token>`; visitor chat and voice chat requests omit the token and send `role` or `X-Role` as `visitor`.

@@ -30,7 +30,7 @@ Status is based on executable code, tests, and deployment wiring in this reposit
 | Voice chat | **Implemented, optional** | `MediaRecorder` capture, framework-independent WAV conversion, raw upload to `POST /voice-chat`, response-audio URL resolution, and playback are wired. Browser support, permission, API feature availability, S3, and media delivery remain external prerequisites. |
 | Bird identification | **Implemented, optional** | Authenticated URL/upload submission, cancellation, BullMQ job polling, uncertainty-aware result rendering, and tests exist. Model execution and queue ownership are server-side. |
 | Tour cart and reservation entry | **Implemented** | Authenticated CRUD and reservation requests use backend adapters. Final availability, pricing, and reservation commits are server-authoritative. |
-| Multi-category tour discovery and data maintenance | **Implemented** | Public activity filters and tour cards support birdwatching, walks, parks, and future categories. Tours, Zones, Nodes, and Birds use responsive server-paginated grids and accessible modal editors. Tour editors provide inline node creation, while existing-node map/place search and bird assignments live in the Nodes dialog; tour coordinates remain read-only values owned by the selected node. |
+| Multi-category tour discovery and data maintenance | **Implemented** | Tour contracts and cards support birdwatching, day and night walks, adventures, excursions, transfers, and other activities. Tours, Zones, Nodes, and Birds use responsive server-paginated grids and accessible modal editors. Tour editors provide inline node creation, while existing-node map/place search and bird assignments live in the Nodes dialog; tour coordinates remain read-only values owned by the selected node. |
 
 The node coordinate map starts from the default country's validated `latitude`, `longitude`, and `zoom`. Missing or invalid triplets use the documented Costa Rica fallback (`9.75`, `-84.2`, zoom `7`). These values establish only the initial view and never constrain coordinate selection; existing node coordinates and place-search results still take focus when present. Administrators can pan by pointer or touch, zoom by wheel, pinch, buttons, or keyboard, and tap or press Enter to place the synchronized node marker.
 | Billing UI | **Implemented, provider-neutral** | Checkout and portal calls accept backend-returned redirect URLs. The UI neither verifies payment nor grants entitlement. |
@@ -178,7 +178,7 @@ The SSE chat endpoint is intentionally different: named `start`, `chunk`, `repla
 
 | Workflow | Method and path | Auth | Frontend behavior |
 |---|---|---:|---|
-| Homepage | `GET /homepage/hero`, `/tours`, `/birds/highlights`, `/birds/profile`, `/addons/transportation` | No | Validates normalized JSON; independent content failures degrade to visible loading/error state. |
+| Homepage | `GET /homepage/hero`, `/tours`, `/birds/highlights`, `/birds/profile`, `/addons/transfers` | No | Validates normalized JSON; independent content failures degrade to visible loading/error state. |
 | Chat | `POST /chat` | Optional | Consumes SSE; visitor/customer behavior is server-controlled. |
 | Hydration | `GET /chat/latest`, `GET /chat/:conversationId` | Yes | Replaces local cached transcript only after envelope validation. |
 | Voice | `POST /voice-chat` | Optional | Raw WAV body plus `X-*` context headers; validates JSON response and resolves media URL. |
@@ -240,7 +240,7 @@ The browser does not invoke tools directly. It submits user intent and renders c
 
 - Guided controls send a natural-language choice back through the normal chat path.
 - Raw tool arguments and internal execution traces are not required for public rendering.
-- Tour selection, pricing, transportation, availability, and reservation status remain backend-authoritative.
+- Tour selection, pricing, transfer, availability, and reservation status remain backend-authoritative.
 - A positive assistant sentence alone is not treated as a transactional commit when structured reservation metadata is absent.
 
 ### AI agent tool-execution flow
@@ -465,9 +465,21 @@ All `VITE_*` values are embedded into browser assets and must be treated as publ
 | `VITE_API_URL` | Production | API adapters and Vite proxy selection | Public API origin baked into the bundle | Empty locally for relative proxy calls; trailing slash is removed. |
 | `VITE_API_PROXY_TARGET` | No | Vite dev server | Proxy target when `VITE_API_URL` is empty | `http://localhost:3001`. |
 | `VITE_CLOUDFRONT_BASE_URL` | No | Media adapter | Build public media URLs directly from safe object keys | Empty uses `GET /files/:folder/:filename`. |
+| `VITE_GOOGLE_MAPS_BROWSER_API_KEY` | No (required for maps to render) | Admin coordinate map and transportation map | Browser-restricted Google Maps JavaScript API key | See [transportation.md](docs/transportation.md#google-maps-setup); must be referrer-restricted. |
 | `VITE_POSTHOG_ENABLED` | No | Browser analytics | Permit consent-gated PostHog initialization | `false`. |
 | `VITE_POSTHOG_KEY` | When analytics is enabled | Browser analytics | Public PostHog project key | No default; never use a private server key. |
 | `VITE_POSTHOG_HOST` | No | Browser analytics | PostHog ingest origin | `https://us.i.posthog.com`. |
+| `VITE_COMPANY_NAME` | No | Homepage header/footer | Public company display name | Defaults to `RCN`. |
+| `VITE_COMPANY_LOCATION` | No | Homepage footer | Public service location | Defaults to `Costa Rica`. |
+| `VITE_CONTACT_PHONE` | No | Homepage header/footer | Public telephone number | Invalid or empty values are omitted. |
+| `VITE_WHATSAPP_NUMBER` | No | Homepage contact actions | Public international WhatsApp number | Formatting is removed to build a `wa.me` URL; invalid values are omitted. |
+| `VITE_CONTACT_EMAIL` | No | Homepage header/footer | Public contact email | Invalid or empty values are omitted. |
+| `VITE_BUSINESS_HOURS` | No | Homepage footer | Public service-hours text | Empty values are omitted. |
+| `VITE_FACEBOOK_URL` | No | Homepage footer | Public Facebook destination | Must be a complete HTTP or HTTPS URL. |
+| `VITE_INSTAGRAM_URL` | No | Homepage footer | Public Instagram destination | Must be a complete HTTP or HTTPS URL. |
+| `VITE_TRIPADVISOR_URL` | No | Homepage footer | Public TripAdvisor destination | Must be a complete HTTP or HTTPS URL. |
+| `VITE_GOOGLE_REVIEWS_URL` | No | Homepage footer | Public Google Reviews destination | Must be a complete HTTP or HTTPS URL. |
+| `VITE_YOUTUBE_URL` | No | Homepage footer | Public YouTube destination | Must be a complete HTTP or HTTPS URL. |
 | `ALLOWED_HOSTS` | No | Vite preview | Comma-separated additional preview hosts | Empty. This does not configure the production Node server. |
 
 ### Static runtime
@@ -479,6 +491,8 @@ All `VITE_*` values are embedded into browser assets and must be treated as publ
 | `STATIC_SERVER_HARD_TIMEOUT_MS` | No | `server.js` | Overall shutdown deadline | `15000`; must exceed the grace period. |
 
 Backend database, Redis, OpenAI, Stripe, S3, LangSmith, JWT, and server-side PostHog variables do not belong in this repository.
+Use [`.env.example`](./.env.example) as the safe local template. Contact and
+social links render only when their optional public values are valid.
 
 ## 19. Repository structure
 
